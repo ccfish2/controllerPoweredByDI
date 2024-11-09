@@ -7,9 +7,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/metrics"
-	"github.com/cilium/hive/job"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vbatts/tar-split/version"
@@ -20,7 +18,6 @@ import (
 
 	operatorMetrics "github.com/ccfish2/controller-powered-by-DI/metrics"
 	operatorOption "github.com/ccfish2/controller-powered-by-DI/option"
-
 	gateway_api "github.com/ccfish2/controller-powered-by-DI/pkg/gateway-api"
 
 	// dolphin
@@ -69,10 +66,10 @@ var (
 			return operatorOption.Config
 		}),
 
-		controller.Cell,
+		//controller.Cell,
 		api.ServerCell,
 
-		job.Cell,
+		//job.Cell,
 
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,

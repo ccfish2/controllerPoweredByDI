@@ -184,11 +184,6 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.DolphinK8sNamespace = vp.GetString(DolphinK8sNamespace)
 
 	if c.DolphinK8sNamespace == "" {
-		// if option.Config.K8sNamespace == "" {
-		// 	c.DolphinK8sNamespace = metav1.NamespaceDefault
-		// } else {
-		// 	c.DolphinK8sNamespace = option.Config.K8sNamespace
-		// }
 	}
 
 	if c.BGPAnnounceLBIP {
@@ -218,42 +213,6 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	if m := vp.GetStringSlice(IPAMSubnetsIDs); len(m) != 0 {
 		c.IPAMSubnetsIDs = m
 	}
-
-	// if m, err := command.GetStringMapStringE(vp, IPAMSubnetsTags); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", IPAMSubnetsTags, err)
-	// } else {
-	// 	c.IPAMSubnetsTags = m
-	// }
-
-	// if m, err := command.GetStringMapStringE(vp, IPAMInstanceTags); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", IPAMInstanceTags, err)
-	// } else {
-	// 	c.IPAMInstanceTags = m
-	// }
-
-	// if m, err := command.GetStringMapStringE(vp, AWSInstanceLimitMapping); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", AWSInstanceLimitMapping, err)
-	// } else {
-	// 	c.AWSInstanceLimitMapping = m
-	// }
-
-	// if m, err := command.GetStringMapStringE(vp, ENITags); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", ENITags, err)
-	// } else {
-	// 	c.ENITags = m
-	// }
-
-	// if m, err := command.GetStringMapStringE(vp, ENIGarbageCollectionTags); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", ENIGarbageCollectionTags, err)
-	// } else {
-	// 	c.ENIGarbageCollectionTags = m
-	// }
-
-	// if m, err := command.GetStringMapStringE(vp, IPAMAutoCreateDolphinPodIPPools); err != nil {
-	// 	log.Fatalf("unable to parse %s: %s", IPAMAutoCreateDolphinPodIPPools, err)
-	// } else {
-	// 	c.IPAMAutoCreateDolphinPodIPPools = m
-	// }
 }
 
 // Config represents the operator configuration.
