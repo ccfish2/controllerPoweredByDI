@@ -114,7 +114,7 @@ func initEnv(vp *viper.Viper) {
 		panic("err")
 	}
 
-	option.logRegisteredOptions(vp, nil)
+	option.LogRegisteredOptions(vp, nil)
 	fmt.Println("Dolphin Operator %s", "v1.0.0")
 }
 

@@ -16,3 +16,7 @@ var (
 		),
 	)
 )
+
+const (
+	DolphinEndpointIndexIdentity = "identity"
+)
