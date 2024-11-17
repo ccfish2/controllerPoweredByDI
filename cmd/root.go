@@ -13,19 +13,20 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/ccfish2/controller-powered-by-DI/endpointgc"
-	controllerruntime "github.com/ccfish2/controller-powered-by-DI/pkg/controller-runtime"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/lbipam"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/secretsync"
 	"github.com/ccfish2/infra/pkg/controller"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	// myself
+	"github.com/ccfish2/controller-powered-by-DI/endpointgc"
 	operatorK8s "github.com/ccfish2/controller-powered-by-DI/k8s"
 	operatorMetrics "github.com/ccfish2/controller-powered-by-DI/metrics"
 	operatorOption "github.com/ccfish2/controller-powered-by-DI/option"
+	controllerruntime "github.com/ccfish2/controller-powered-by-DI/pkg/controller-runtime"
+	gatewayapi "github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api"
+	"github.com/ccfish2/controller-powered-by-DI/pkg/libipam"
+	"github.com/ccfish2/controller-powered-by-DI/pkg/secretsync"
 
 	// dolphin
 	"github.com/ccfish2/infra/pkg/hive"
@@ -101,7 +102,7 @@ var (
 			apis.RegisterCRDsCell,
 			operatorK8s.ResourcesCell,
 
-			lbipam.Cell,
+			libipam.Cell,
 			//auth.Cell,
 			//store.Cell,
 			//legacyCell,
@@ -170,7 +171,7 @@ func initEnv(vp *viper.Viper) {
 	}
 
 	option.LogRegisteredOptions(vp, nil)
-	fmt.Println("Dolphin Operator %s", "v1.0.0")
+	fmt.Println("Dolphin Operator", "v1.0.0")
 }
 
 func Execute(cmd *cobra.Command) {
@@ -205,8 +206,8 @@ func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8
 func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
 	// isLeader store false value
 	isLeader.Store(false)
-	// generate leaderelectionctx, leaderctxCancel
-	leaderelectionctx, leaderctxCancel := context.WithCancel(context.Background())
+	// generate leaderElectionCtx, leaderctxCancel
+	leaderElectionCtx, leaderElectionCtxCancel = context.WithCancel(context.Background())
 	if clientset.IsEnabled() {
 		// check if this version satisfy minimal version requirement
 		CAP := k8sversion.Capabilities()
@@ -218,7 +219,7 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 	// check if we support LeaseResourceLock
 	if !k8sversion.Capabilities().LeaseResourceLock {
 		fmt.Println("api-sever does not support coordination.k8s.io/v1. ")
-		if err := lc.Start(leaderelectionctx); err != nil {
+		if err := lc.Start(leaderElectionCtx); err != nil {
 			fmt.Println("failed to start leading")
 		}
 		return
@@ -257,7 +258,7 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 
 	// start the leader election for running dolphin-operators
 	fmt.Println("waiting for leader election")
-	leaderelection.RunOrDie(leaderelectionctx, leaderelection.LeaderElectionConfig{
+	leaderelection.RunOrDie(leaderElectionCtx, leaderelection.LeaderElectionConfig{
 		Name: leaderElectionResourceLockName,
 
 		Lock:            leResourceLock,
