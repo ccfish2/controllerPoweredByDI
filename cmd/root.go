@@ -275,10 +275,12 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 					shutdowner.Shutdown(hive.ShutdownWithError(err))
 				}
 			},
+
 			OnStoppedLeading: func() {
 				fmt.Println("leader election lost")
 				shutdowner.Shutdown(hive.ShutdownWithError(errors.New("leader election lost")))
 			},
+
 			OnNewLeader: func(identity string) {
 				if identity == operatorID {
 					fmt.Println("leader in HA deployment")

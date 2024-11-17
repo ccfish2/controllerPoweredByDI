@@ -25,6 +25,8 @@ const (
 )
 
 const (
+	EnableGatewayAPI = "enable-gateway-api"
+
 	BGPAnnounceLBIP = "bgp-announce-lb-ip"
 	BGPConfigPath   = "bgp-config-path"
 
@@ -75,8 +77,6 @@ const (
 	LoadBalancerL7 = "loadbalancer-l7"
 
 	ProxyIdleTimeoutSeconds = "proxy-idle-timeout-seconds"
-
-	EnableGatewayAPI = "enable-gateway-api"
 
 	DolphinK8sNamespace             = "dolphin-pod-namespace"
 	DolphinPodLabels                = "dolphin-pod-labels"
@@ -150,6 +150,9 @@ type OperatorConfig struct {
 
 // Populate sets all options with the values from viper.
 func (c *OperatorConfig) Populate(vp *viper.Viper) {
+
+	c.EnableGatewayAPI = vp.GetBool(EnableGatewayAPI)
+
 	c.NodesGCInterval = vp.GetDuration(NodesGCInterval)
 	c.SkipDNPStatusStartupClean = vp.GetBool(SkipDNPStatusStartupClean)
 	c.DNPStatusCleanupQPS = vp.GetFloat64(DNPStatusCleanupQPS)
@@ -169,7 +172,6 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.BGPAnnounceLBIP = vp.GetBool(BGPAnnounceLBIP)
 	c.BGPConfigPath = vp.GetString(BGPConfigPath)
 	c.LoadBalancerL7 = vp.GetString(LoadBalancerL7)
-	c.EnableGatewayAPI = vp.GetBool(EnableGatewayAPI)
 	c.ProxyIdleTimeoutSeconds = vp.GetInt(ProxyIdleTimeoutSeconds)
 	if c.ProxyIdleTimeoutSeconds == 0 {
 		c.ProxyIdleTimeoutSeconds = DefaultProxyIdleTimeoutSeconds
