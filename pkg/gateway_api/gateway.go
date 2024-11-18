@@ -2,14 +2,17 @@ package gatewayapi
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -45,6 +48,32 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// return an event handler for all Gateway objects belonging to the given GatewayClass
 func (r *gatewayReconciler) enqueueRequestForOwningGatewayClass() handler.EventHandler {
-	panic("")
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+		var reqs []reconcile.Request
+		gwList := &gatewayv1.GatewayList{}
+		err := r.Client.List(ctx, gwList)
+		if err != nil {
+			fmt.Println("Unable to list gateways")
+			return nil
+		}
+
+		for _, gw := range gwList.Items {
+			if gw.Spec.GatewayClassName != gatewayv1.ObjectName(obj.GetName()) {
+				continue
+			}
+
+			req := reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: gw.Namespace,
+					Name:      gw.Name,
+				},
+			}
+			reqs = append(reqs, req)
+			fmt.Println("Queueing gateway")
+		}
+
+		return reqs
+	})
 }
