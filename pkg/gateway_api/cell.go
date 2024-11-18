@@ -82,7 +82,7 @@ func initGatewayAPIController(params gatewayAPIParams) error {
 	params.Logger.WithField("requiredGVK", requiredGVK).Info("checking for required GatewayAPI resources")
 
 	// check if
-	if err := checkRequiredCRD(context.Background(), params.k8sClient); err != nil {
+	if err := checkRequiredCRDs(context.Background(), params.k8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
 		return nil
 	}
@@ -119,7 +119,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 	return nil
 }
 
-func checkRequiredCRD(ctx context.Context, clientset k8sClient.Clientset) error {
+func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error {
 	if !clientset.IsEnabled() {
 		return nil
 	}
@@ -159,6 +159,25 @@ func registerGatewayAPITypesToScheme(scheme *runtime.Scheme) error {
 	return nil
 }
 
+// registers the Gateway API for secret synchronization based on TLS secrets referenced
+// by a Dolphin Gateway resource
 func registerSecretSync(params gatewayAPIParams) secretsync.SecretSyncRegistrationOut {
-	panic("")
+	// check RequiredCRD
+	err := checkRequiredCRDs(context.Background(), params.k8sClient)
+	if err != nil {
+		return secretsync.SecretSyncRegistrationOut{}
+	}
+
+	if operatorOption.Config.EnableGatewayAPI || !params.Config.EnableGatewayAPISecretsSync {
+		return secretsync.SecretSyncRegistrationOut{}
+	}
+
+	return secretsync.SecretSyncRegistrationOut{
+		SecretSyncRegistration: &secretsync.SecretSyncRegistration{
+			RefObject:            &gatewayv1.Gateway{},
+			RefObjectEnqueueFunc: EnqueueTLSSecrets(params.CtrlRuntimeManager.GetClient(), params.Logger),
+			RefobjectCheckFunc:   IsReferencedByDolphinGateway,
+			SecretNamespace:      params.Config.GatewayAPISecretsNamespace,
+		},
+	}
 }

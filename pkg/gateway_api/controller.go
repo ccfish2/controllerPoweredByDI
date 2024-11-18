@@ -32,3 +32,7 @@ func hasMatchingController(ctx context.Context, c client.Client, controllerName 
 		return string(gwc.Spec.ControllerName) == controllerName
 	}
 }
+
+func getGatewaysForSecret(ctx context.Context, c client.Client, obj client.Object) []*gatewayv1.Gateway {
+	panic("")
+}

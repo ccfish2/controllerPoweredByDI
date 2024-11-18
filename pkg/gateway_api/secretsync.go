@@ -1,4 +1,4 @@
-package secretsync
+package gatewayapi
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	gatewayapi "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -17,26 +16,6 @@ import (
 	// myself
 	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
 )
-
-type SecretSyncRegistration struct {
-	RefObject            client.Object
-	RefObjectEnqueueFunc handler.EventHandler
-	RefobjectCheckFunc   func(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool
-	SecretNamespace      string
-	AdditionWatches      []AdditionWatch
-	DefaultSecret        *DefaultSecret
-}
-
-type DefaultSecret struct {
-	Namespace string
-	Name      string
-}
-
-type AdditionWatch struct {
-	RefObject             client.Object
-	RefObjectEnqueueFunc  handler.EventHandler
-	RefObjectWatchOptions []builder.WatchesOption
-}
 
 func EnqueueTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -72,4 +51,14 @@ func EnqueueTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.Event
 		}
 		return reqs
 	})
+}
+
+func IsReferencedByDolphinGateway(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool {
+	gateway := getGatewaysForSecret(ctx, c, obj)
+	for _, gw := range gateway {
+		if hasMatchingController(ctx, c, controllerName)(gw) {
+			return true
+		}
+	}
+	return false
 }
