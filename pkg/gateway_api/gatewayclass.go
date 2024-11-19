@@ -1,4 +1,4 @@
-package gatewayapi
+package gateway_api
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"

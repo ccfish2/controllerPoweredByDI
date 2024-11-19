@@ -1,4 +1,4 @@
-package gatewayapi
+package gateway_api
 
 import (
 	"github.com/ccfish2/infra/pkg/logging"

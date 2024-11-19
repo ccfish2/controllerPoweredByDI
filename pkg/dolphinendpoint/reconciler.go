@@ -19,6 +19,5 @@ type reconciler struct {
 	cepManager operations
 
 	//k8s client accessing k8s extendend API
-
 	depStore resource.Resource[*v1.DolphinEndpoint]
 }

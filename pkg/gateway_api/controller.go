@@ -1,4 +1,4 @@
-package gatewayapi
+package gateway_api
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const (
 func hasMatchingController(ctx context.Context, c client.Client, controllerName string) func(object client.Object) bool {
 	return func(obj client.Object) bool {
 		scopedLog := log.WithFields(logrus.Fields{
-			"controller": gateway,
+			"controller": "gateway",
 			"resource":   obj.GetName(),
 		})
 		gw, ok := obj.(*gatewayv1.Gateway)

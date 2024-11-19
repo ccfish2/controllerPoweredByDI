@@ -1,4 +1,4 @@
-package gatewayapi
+package gateway_api
 
 import (
 	"context"
