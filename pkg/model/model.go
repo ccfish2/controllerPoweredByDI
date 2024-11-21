@@ -21,7 +21,7 @@ func (m *Model) GetListerners() []Listener {
 type Listener interface {
 	GetSources() []FullyQualifiedResource
 	GetPort() uint32
-	GetAnnotation() map[string]string
+	GetAnnotations() map[string]string
 	GetLabels() map[string]string
 }
 
@@ -140,7 +140,7 @@ type HTTPListener struct {
 }
 
 // GetAnnotation implements Listener.
-func (h *HTTPListener) GetAnnotation() map[string]string {
+func (h *HTTPListener) GetAnnotations() map[string]string {
 	if h.Infrastructure != nil {
 		return h.Infrastructure.Annotations
 	}
@@ -177,7 +177,7 @@ type TLSListener struct {
 }
 
 // GetAnnotation implements Listener.
-func (t *TLSListener) GetAnnotation() map[string]string {
+func (t *TLSListener) GetAnnotations() map[string]string {
 	if t.Infrastructure != nil {
 		return t.Infrastructure.Annotations
 	}

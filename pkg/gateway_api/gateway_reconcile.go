@@ -80,7 +80,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
-	// step 3: translate the listenersinto dolphin model
+	// step 3: translate the listeners into dolphin model
 	_ = httpListeners
 	_ = tlsListeners
 	// step 4: update the status of the
