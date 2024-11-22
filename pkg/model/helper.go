@@ -38,3 +38,7 @@ func encodehash(x string) string {
 func hash(hex string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(hex)))
 }
+
+func ComputeHosts(routeHostnames []string, listenerHostname *string) []string {
+	panic("rels")
+}

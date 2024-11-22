@@ -292,20 +292,117 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 	return nil
 }
 
-// you know , just read and compare
+// read and compare pem
 func validateTLSSecret(ctx context.Context, c client.Client, namespace, name string) error {
-	panic("")
+	secret := corev1.Secret{}
+	err := c.Get(ctx, client.ObjectKey{
+		Namespace: namespace,
+		Name:      name,
+	}, &secret)
+	if err != nil {
+		return err
+	}
+	if !isValidPemFormat(secret.Data[corev1.TLSCertKey]) {
+		return fmt.Errorf("tls cert key is missed")
+	} else if !isValidPemFormat(secret.Data[corev1.TLSPrivateKeyKey]) {
+		return fmt.Errorf("TLS PRIVATE KEY ")
+	}
+	return nil
+}
+
+// check ObjectMeta and conditions
+func isRouteMatchGateway(gw *gatewayv1.Gateway, route metav1.Object, parents []gatewayv1.RouteParentStatus) bool {
+	for _, rps := range parents {
+		if helpers.NamespaceDerefOr(rps.ParentRef.Namespace, route.GetNamespace()) != gw.Namespace ||
+			string(rps.ParentRef.Name) != gw.GetName() {
+			continue
+		}
+
+		for _, cond := range rps.Conditions {
+			if cond.Type == string(gatewayv1.RouteConditionAccepted) && cond.Status == metav1.ConditionTrue {
+				return true
+			}
+			if cond.Type == string(gatewayv1.RouteConditionResolvedRefs) && cond.Status == metav1.ConditionFalse {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // it is the configuration allowed
 // permited
 func (r *gatewayReconciler) filterHTTPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
-	panic("will be released")
+	var filtered []gatewayv1.HTTPRoute
+	for _, route := range routes {
+		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+			isAllowed(ctx, r.Client, gw, &route) &&
+			len(computeHostsForListener(listener, route.Spec.Hostnames)) > 0 &&
+			parRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
 }
 
 // permited, and matched
 func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1alpha2.TLSRoute) []gatewayv1alpha2.TLSRoute {
-	panic("will be relased")
+	var filtered []gatewayv1alpha2.TLSRoute
+	for _, route := range routes {
+		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+			isAllowed(ctx, r.Client, gw, &route) &&
+			len(computeHostsForListener(listener, route.Spec.Hostnames)) > 0 &&
+			parRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
+func parRefMatched(gw *gatewayv1.Gateway, lis *gatewayv1.Listener, namespace string, parefs []gatewayv1.ParentReference) bool {
+	for _, paref := range parefs {
+		if string(paref.Name) == gw.GetName() || gw.GetNamespace() == helpers.NamespaceDerefOr(paref.Namespace, namespace) {
+			if paref.SectionName == nil || paref.Port == nil {
+				return true
+			}
+			sectionCheck := paref.SectionName == nil || *paref.SectionName == lis.Name
+			portCheck := paref.Port == nil || paref.Port == &lis.Port
+			if sectionCheck && portCheck {
+				return true
+			}
+		}
+	}
+	return false
+}
+func isAllowed(ctx context.Context, c client.Client, gw *gatewayv1.Gateway, route metav1.Object) bool {
+	for _, lis := range gw.Spec.Listeners {
+		if lis.AllowedRoutes.Namespaces == nil || lis.AllowedRoutes == nil {
+			continue
+		}
+		if !isKindAllowed(lis, route) {
+			continue
+		}
+
+		switch *lis.AllowedRoutes.Namespaces.From {
+		case gatewayv1.NamespacesFromAll:
+			return true
+		case gatewayv1.NamespacesFromSame:
+			return route.GetName() == gw.GetName()
+		case gatewayv1.NamespacesFromSelector:
+			nsList := corev1.NamespaceList{}
+			selector, _ := metav1.LabelSelectorAsSelector(lis.AllowedRoutes.Namespaces.Selector)
+			if err := c.List(ctx, &nsList, client.MatchingLabelsSelector{Selector: selector}); err == nil {
+				return false
+			}
+
+			for _, ns := range nsList.Items {
+				if ns.GetName() == gw.GetNamespace() {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // this enables running locally: either ingress or hostip would work on gateway-api
@@ -345,11 +442,27 @@ func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.
 }
 
 func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
-	panic("stesp")
+	var filtered []gatewayv1.HTTPRoute
+	for _, route := range routes {
+		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+			isAllowed(ctx, r.Client, gw, &route) &&
+			len(computeHosts(gw, route.Spec.Hostnames)) > 0 {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
 }
 
 func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1alpha2.TLSRoute) []gatewayv1alpha2.TLSRoute {
-	panic("steps")
+	var filtered []gatewayv1alpha2.TLSRoute
+	for _, route := range routes {
+		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+			isAllowed(ctx, r.Client, gw, &route) &&
+			len(computeHosts(gw, route.Spec.Hostnames)) > 0 {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
 }
 
 func (r *gatewayReconciler) updateStatus(ctx context.Context, original, modified *gatewayv1.Gateway) error {
