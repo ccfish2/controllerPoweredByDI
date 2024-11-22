@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 type Model struct {
 	HTTP []HTTPListener `json:"http,omitempty"`
@@ -219,4 +222,11 @@ type TLSRoute struct {
 	Name      string    `json:"name,omitempty"`
 	Hostnames []string  `json:"hostnames,omitempty"`
 	Backends  []Backend `json:"backends,omitempty"`
+}
+
+func (b *BackendPort) GetPort() string {
+	if b.Port != 0 {
+		return strconv.Itoa(int(b.Port))
+	}
+	return b.Name
 }

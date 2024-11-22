@@ -9,6 +9,7 @@ import (
 	// dolphin
 	"github.com/ccfish2/infra/pkg/k8s"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	"github.com/ccfish2/infra/pkg/slices"
 )
 
 type defaultTranslator struct {
@@ -62,9 +63,51 @@ func (d *defaultTranslator) getServices(m *model.Model) []*dolphinv1.ServiceList
 
 func (d *defaultTranslator) getResources(_ *model.Model) []dolphinv1.XDSResource {
 	var res []dolphinv1.XDSResource
+
 	return res
 }
 
 func getNamespaceNamePortsMap(m *model.Model) map[string]map[string][]string {
-	panic("")
+	namespaceNamePortMap := map[string]map[string][]string{}
+	for _, t := range m.HTTP {
+		for _, l := range t.Routes {
+			for _, be := range l.Backends {
+				namePortMap, exist := namespaceNamePortMap[be.Name]
+				if exist {
+					namePortMap[be.Name] = slices.SortedUniqs(append((namePortMap[be.Name]), be.Port.GetPort()))
+				} else {
+					namePortMap = map[string][]string{
+						be.Name: {be.Port.GetPort()},
+					}
+				}
+				mergeBackendsInNamespaceNamePortMap(l.Backends, namespaceNamePortMap)
+			}
+
+			for _, rm := range l.RequestMirrors {
+				mergeBackendsInNamespaceNamePortMap([]model.Backend{*rm.Backend}, namespaceNamePortMap)
+			}
+		}
+	}
+
+	for _, l := range m.TLS {
+		for _, r := range l.Routes {
+			mergeBackendsInNamespaceNamePortMap(r.Backends, namespaceNamePortMap)
+		}
+
+	}
+	return namespaceNamePortMap
+}
+
+func mergeBackendsInNamespaceNamePortMap(backends []model.Backend, namespaceNamePortMap map[string]map[string][]string) {
+	for _, be := range backends {
+		nameportMap, exist := namespaceNamePortMap[be.Name]
+		if exist {
+			nameportMap[be.Name] = slices.SortedUniqs(append((nameportMap[be.Name]), be.Port.GetPort()))
+		} else {
+			nameportMap = map[string][]string{
+				be.Name: {be.Port.GetPort()},
+			}
+		}
+		namespaceNamePortMap[be.Name] = nameportMap
+	}
 }

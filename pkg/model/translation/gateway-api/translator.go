@@ -84,10 +84,66 @@ func mergeMap(left, right map[string]string) map[string]string {
 	return left
 }
 
+// compse gateway api laodbalance servce type
 func getService(resource *model.FullyQualifiedResource, allPorts []uint32, labels, annotations map[string]string) *corev1.Service {
-	panic("")
+	uniqPorts := map[uint32]struct{}{}
+	for _, p := range allPorts {
+		uniqPorts[p] = struct{}{}
+	}
+
+	ports := make([]corev1.ServicePort, 0, len(uniqPorts))
+	for p := range uniqPorts {
+		ports = append(ports, corev1.ServicePort{
+			Name:     fmt.Sprintf("port-%d", p),
+			Port:     int32(p),
+			Protocol: corev1.ProtocolTCP,
+		})
+	}
+
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        model.Shorten(dolphinGatewayPrefix + resource.Name),
+			Namespace:   resource.Namespace,
+			Annotations: annotations,
+			Labels:      mergeMap(map[string]string{owningGatewayLabel: model.Shorten(resource.Name)}, labels),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: gatewayv1beta1.GroupVersion.String(),
+					Kind:       resource.Kind,
+					Name:       resource.Name,
+					UID:        types.UID(resource.UID),
+					Controller: model.AddressOf(true),
+				},
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type:  corev1.ServiceTypeLoadBalancer,
+			Ports: ports,
+		},
+	}
 }
 
 func getEndpoints(resource model.FullyQualifiedResource) *corev1.Endpoints {
-	panic("")
+	return &corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resource.Name,
+			Namespace: resource.Namespace,
+			Labels:    map[string]string{owningGatewayLabel: model.Shorten(resource.Name)},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: gatewayv1beta1.GroupVersion.String(),
+					Kind:       resource.Kind,
+					Name:       resource.Name,
+					UID:        types.UID(resource.UID),
+					Controller: model.AddressOf(true),
+				},
+			},
+		},
+		Subsets: []corev1.EndpointSubset{
+			{
+				Addresses: []corev1.EndpointAddress{{IP: "192.192.192.192"}},
+				Ports:     []corev1.EndpointPort{{Port: 9999}},
+			},
+		},
+	}
 }
