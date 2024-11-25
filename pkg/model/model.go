@@ -82,7 +82,7 @@ type DirectResponse struct {
 
 type HTTPRoute struct {
 	Name               string              `json:"name,omitempty"`
-	Hostnames          string              `json:"hostnames,omitempty"`
+	Hostnames          []string            `json:"hostnames,omitempty"`
 	PatchMatch         StringMatch         `json:"patch_match,omitempty"`
 	HeadersMatch       []KeyValueMatch     `json:"headers_match,omitempty"`
 	QueryParamsMatch   []KeyValueMatch     `json:"query_params_match,omitempty"`
@@ -91,8 +91,9 @@ type HTTPRoute struct {
 	BackendHttpFilters []BackendHttpFilter `json:"backend_http_filters,omitempty"`
 	DirectResponse     *DirectResponse     `json:"direct_response,omitempty"`
 
-	RequestHeadFile     *HttpHeaderFilter `json:"request_head_file,omitempty"`
-	ResponseHeaderMatch *HttpHeaderFilter `json:"response_header_match,omitempty"`
+	RequestHeadFile        *HttpHeaderFilter `json:"request_head_file,omitempty"`
+	ResponseHeaderMatch    *HttpHeaderFilter `json:"response_header_match,omitempty"`
+	ResponseHeaderModifier *HttpHeaderFilter `json:"response_header_modifier,omitempty"`
 
 	RequestRedirected *HTTPRequestRedirectFilter `json:"request_redirected,omitempty"`
 

@@ -167,7 +167,7 @@ func initEnv(vp *viper.Viper) {
 	operatorOption.Config.Populate(vp)
 
 	if err := logging.SetupLogging(option.Config.LogDriver, logging.LogOptions(option.Config.LogOpt), binaryName, option.Config.Debug); err != nil {
-		panic("err")
+		panic(err)
 	}
 
 	option.LogRegisteredOptions(vp, nil)

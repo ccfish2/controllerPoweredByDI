@@ -19,8 +19,8 @@ import (
 
 	//myself
 	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/model/ingestion"
 	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
+	"github.com/ccfish2/controller-powered-by-DI/pkg/model/ingestion"
 	translation "github.com/ccfish2/controller-powered-by-DI/pkg/model/translation/gateway-api"
 
 	// dolphin

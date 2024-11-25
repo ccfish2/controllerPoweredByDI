@@ -11,7 +11,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/model"
+	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
 )
 
 var gwFixture = []client.Object{

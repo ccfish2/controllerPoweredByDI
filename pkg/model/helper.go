@@ -3,6 +3,12 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
+	"sort"
+	"strings"
+)
+
+const (
+	allhost = "*"
 )
 
 func AddressOf[T any](v T) *T {
@@ -39,6 +45,39 @@ func hash(hex string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(hex)))
 }
 
+// return a lit of hosts intersecton between listener and routes
 func ComputeHosts(routeHostnames []string, listenerHostname *string) []string {
-	panic("rels")
+	var listenerHostnameVal string
+	if listenerHostname != nil && *listenerHostname != "" {
+		listenerHostnameVal = *listenerHostname
+	}
+	if len(routeHostnames) == 0 {
+		if listenerHostnameVal == "" {
+			return []string{}
+		} else {
+			return []string{listenerHostnameVal}
+		}
+	}
+	var hostnames []string
+	for _, routehstnm := range routeHostnames {
+		if listenerHostname == nil || routehstnm == listenerHostnameVal {
+			hostnames = append(hostnames, routehstnm)
+		}
+		if strings.HasPrefix(routehstnm, allhost) {
+			hostnames = append(hostnames, routehstnm)
+		}
+		if hostnameMatchesWildcardHostName(routehstnm, allhost) {
+			hostnames = append(hostnames, routehstnm)
+		}
+	}
+	sort.Strings(hostnames)
+	return hostnames
+}
+
+func hostnameMatchesWildcardHostName(hostname, wildcardHostname string) bool {
+	if !strings.HasSuffix(hostname, strings.TrimSuffix(wildcardHostname, allhost)) {
+		return false
+	}
+	wildMatch := strings.TrimSuffix(hostname, strings.TrimPrefix(wildcardHostname, allhost))
+	return len(wildMatch) > 0
 }
