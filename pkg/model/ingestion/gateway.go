@@ -217,6 +217,10 @@ func backendToModelBackend(be gatewayv1.BackendRef, defaultNamespace string) mod
 	return res
 }
 
+func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
+	panic("rels")
+}
+
 func backendRefToModelBackend(be gatewayv1.BackendObjectReference, defaultNamespace string) model.Backend {
 	ns := helpers.NamespaceDerefOr(be.Namespace, defaultNamespace)
 
@@ -240,11 +244,63 @@ func toHTTPRequestMirror(mirror *gatewayv1.HTTPRequestMirrorFilter, ns string) *
 }
 
 func toGRPCPathMatch(match gatewayv1.GRPCRouteMatch) model.StringMatch {
-	panic("")
+	if match.Method == nil || match.Method.Service == nil {
+		return model.StringMatch{}
+	}
+
+	var t *gatewayv1.GRPCMethodMatchType
+	if match.Method.Type != nil {
+		t = match.Method.Type
+	}
+
+	var path string
+	if match.Method.Service != nil {
+		path = path + "/" + *match.Method.Service
+	}
+	if match.Method.Method != nil {
+		path = path + "/" + *match.Method.Method
+	}
+
+	switch *t {
+	case gatewayv1.GRPCMethodMatchExact:
+		return model.StringMatch{
+			Exact: path,
+		}
+	case gatewayv1.GRPCMethodMatchRegularExpression:
+		return model.StringMatch{
+			Regex: path,
+		}
+	}
+	return model.StringMatch{}
 }
 
-func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
-	panic("")
+func toHeaderMatch(match gatewayv1.HTTPRouteMatch) []model.KeyValueMatch {
+	if len(match.Headers) == 0 {
+		return []model.KeyValueMatch{}
+	}
+	res := make([]model.KeyValueMatch, 0, len(match.Headers))
+	for _, h := range match.Headers {
+		var t *gatewayv1.HeaderMatchType
+		if h.Type != nil {
+			t = h.Type
+		}
+		switch *t {
+		case gatewayv1.HeaderMatchExact:
+			res = append(res, model.KeyValueMatch{
+				Key: string(h.Name),
+				Match: model.StringMatch{
+					Exact: h.Value},
+			})
+		case gatewayv1.HeaderMatchRegularExpression:
+			res = append(res, model.KeyValueMatch{
+				Key: string(h.Name),
+				Match: model.StringMatch{
+					Regex: h.Value,
+				},
+			})
+		}
+	}
+	return res
 }
 
 func serviceExists(svcName, svcNamespace string, services []corev1.Service) bool {
