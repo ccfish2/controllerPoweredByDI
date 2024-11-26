@@ -13,7 +13,27 @@ func setGatewayAccepted(gw *gatewayv1.Gateway, accepted bool, msg string) *gatew
 }
 
 func gatewayListenerAcceptedCondition(gw *gatewayv1.Gateway, ready bool, msg string) metav1.Condition {
-	panic("resl")
+	switch ready {
+	case true:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionAccepted),
+			Status:             metav1.ConditionTrue,
+			Reason:             string(gatewayv1.ListenerConditionAccepted),
+			ObservedGeneration: gw.Generation,
+			LastTransitionTime: metav1.NewTime(metav1.Now().Time),
+			Message:            msg,
+		}
+	default:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionAccepted),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(gatewayv1.ListenerReasonPending),
+			ObservedGeneration: gw.Generation,
+			LastTransitionTime: metav1.NewTime(metav1.Now().Time),
+			Message:            msg,
+		}
+	}
+
 }
 
 func gwStsAcpCondition(gw *gatewayv1.Gateway, accepted bool, msg string) metav1.Condition {

@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
 	corev1 "k8s.io/api/core/v1"
@@ -576,7 +577,21 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 }
 
 func toTLS(tls *gatewayv1.GatewayTLSConfig, grants []gatewayv1beta1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
-	panic("")
+	if tls == nil {
+		return nil
+	}
+	var res []model.TLSSecret
+	res = make([]model.TLSSecret, len(tls.CertificateRefs))
+	for _, cert := range tls.CertificateRefs {
+		if !helpers.IsSecretReferenceAllowed(defaultNamespace, cert, gatewayv1.SchemeGroupVersion.WithKind("Secret"), grants) {
+			continue
+		}
+		res = append(res, model.TLSSecret{
+			Name:      string(cert.Name),
+			Namespace: helpers.NamespaceDerefOr(cert.Namespace, defaultNamespace),
+		})
+	}
+	return res
 }
 
 func toHostname(hostname *gatewayv1.Hostname) string {
@@ -611,18 +626,111 @@ func toStringSlice(s []gatewayv1.Hostname) []string {
 }
 
 func toPathMatch(match gatewayv1.HTTPRouteMatch) model.StringMatch {
-	panic("run")
+	if match.Path == nil {
+		return model.StringMatch{}
+	}
+	switch *match.Path.Type {
+	case gatewayv1.PathMatchExact:
+		return model.StringMatch{
+			Exact: *match.Path.Value,
+		}
+	case gatewayv1.PathMatchPathPrefix:
+		return model.StringMatch{
+			Prefix: *match.Path.Value,
+		}
+	case gatewayv1.PathMatchRegularExpression:
+		return model.StringMatch{
+			Regex: *match.Path.Value,
+		}
+	}
+	return model.StringMatch{}
 }
 
 // detailed translation
 func toHTTPRequestRedirectFilter(listener gatewayv1beta1.Listener, redirect *gatewayv1.HTTPRequestRedirectFilter) *model.HTTPRequestRedirectFilter {
-	panic("run")
+	if redirect == nil {
+		return nil
+	}
+	var pathModifier *model.StringMatch
+	if redirect.Path != nil {
+		pathModifier = &model.StringMatch{}
+		switch redirect.Path.Type {
+		case gatewayv1.FullPathHTTPPathModifier:
+			pathModifier.Exact = *redirect.Path.ReplaceFullPath
+		case gatewayv1.PrefixMatchHTTPPathModifier:
+			pathModifier.Prefix = *redirect.Path.ReplacePrefixMatch
+		}
+	}
+
+	var rediretPort *int32
+	if redirect.Port == nil {
+		if redirect.Scheme == nil {
+			rediretPort = model.AddressOf(int32(listener.Port))
+		}
+	} else {
+		rediretPort = (*int32)(redirect.Port)
+	}
+
+	return &model.HTTPRequestRedirectFilter{
+		Scheme:     redirect.Scheme,
+		Hostname:   (*string)(redirect.Hostname),
+		Path:       pathModifier,
+		Port:       rediretPort,
+		StatusCode: redirect.StatusCode,
+	}
 }
 
 func toHTTPRewriteFilter(rewrite *gatewayv1.HTTPURLRewriteFilter) *model.HTTPURLRewriteFilter {
-	panic("rels")
+	if rewrite == nil {
+		return nil
+	}
+	var pathFilter *model.StringMatch
+	if rewrite.Path != nil {
+		switch rewrite.Path.Type {
+		case gatewayv1.FullPathHTTPPathModifier:
+			pathFilter = &model.StringMatch{
+				Exact: *rewrite.Path.ReplaceFullPath,
+			}
+		case gatewayv1.PrefixMatchHTTPPathModifier:
+			pathFilter = &model.StringMatch{
+				Prefix: strings.TrimSuffix(*rewrite.Path.ReplacePrefixMatch, "/"),
+			}
+		}
+	}
+	return &model.HTTPURLRewriteFilter{
+		Hostname: (*string)(rewrite.Hostname),
+		Path:     pathFilter,
+	}
 }
 
 func toQueryMatch(match gatewayv1.HTTPRouteMatch) []model.KeyValueMatch {
-	panic("rels, and run")
+	if len(match.QueryParams) == 0 {
+		return []model.KeyValueMatch{}
+	}
+	var res []model.KeyValueMatch
+	for _, query := range match.QueryParams {
+		t := gatewayv1.QueryParamMatchExact
+		if query.Type != nil {
+			t = *query.Type
+		}
+
+		switch t {
+		case gatewayv1.QueryParamMatchExact:
+			res = append(res, model.KeyValueMatch{
+				Key: string(query.Name),
+				Match: model.StringMatch{
+					Exact: query.Value,
+				},
+			})
+
+		case gatewayv1.QueryParamMatchRegularExpression:
+			res = append(res, model.KeyValueMatch{
+				Key: string(query.Name),
+				Match: model.StringMatch{
+					Regex: query.Value,
+				},
+			})
+		}
+	}
+	return res
 }
