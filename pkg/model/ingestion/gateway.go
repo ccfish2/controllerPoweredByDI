@@ -1,6 +1,8 @@
 package ingestion
 
 import (
+	"fmt"
+
 	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 
@@ -218,7 +220,34 @@ func backendToModelBackend(be gatewayv1.BackendRef, defaultNamespace string) mod
 }
 
 func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
-	panic("rels")
+	if len(match.Headers) == 0 {
+		return []model.KeyValueMatch{}
+	}
+	res := make([]model.KeyValueMatch, 0, len(match.Headers))
+	for _, h := range match.Headers {
+		var t *gatewayv1.GRPCHeaderMatchType
+		if h.Type != nil {
+			t = h.Type
+		}
+		switch *t {
+		case gatewayv1.GRPCHeaderMatchExact:
+			res = append(res, model.KeyValueMatch{
+				Key: string(h.Name),
+				Match: model.StringMatch{
+					Exact: h.Value,
+				},
+			})
+		case gatewayv1.GRPCHeaderMatchRegularExpression:
+			res = append(res, model.KeyValueMatch{
+				Key: string(h.Name),
+				Match: model.StringMatch{
+					Regex: h.Value,
+				},
+			})
+		}
+
+	}
+	return res
 }
 
 func backendRefToModelBackend(be gatewayv1.BackendObjectReference, defaultNamespace string) model.Backend {
@@ -304,15 +333,246 @@ func toHeaderMatch(match gatewayv1.HTTPRouteMatch) []model.KeyValueMatch {
 }
 
 func serviceExists(svcName, svcNamespace string, services []corev1.Service) bool {
+	for _, svc := range services {
+		if svc.Name == svcName && svc.GetNamespace() == svcNamespace {
+			continue
+		}
+		return false
+	}
 	return true
 }
 
 func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.TLSRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.TLSRoute {
-	panic("details is going on")
+	var tlsRoutes []model.TLSRoute
+	for _, r := range input {
+
+		isListener := false
+
+		for _, refs := range r.Spec.ParentRefs {
+			if refs.SectionName == nil || string(*refs.SectionName) == string(listener.Name) {
+				isListener = true
+			}
+		}
+
+		if !isListener {
+			continue
+		}
+
+		matchedHosts := model.ComputeHosts(toStringSlice(r.Spec.Hostnames), (*string)(listener.Hostname))
+		if len(matchedHosts) == 0 {
+			continue
+		}
+
+		if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+			matchedHosts = nil
+		}
+
+		for _, rule := range r.Spec.Rules {
+			bes := make([]model.Backend, 0, len(rule.BackendRefs))
+
+			for _, be := range rule.BackendRefs {
+				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
+					continue
+				}
+				if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
+					continue
+				}
+				if be.Port == nil {
+					continue
+				}
+				if !serviceExists(string(be.Name), helpers.NamespaceDerefOr(be.Namespace, r.Namespace), services) {
+					continue
+				}
+				bes = append(bes, backendToModelBackend(be, r.Namespace))
+			}
+
+			for _, r := range input {
+
+				isListener := false
+
+				for _, refs := range r.Spec.ParentRefs {
+					if refs.SectionName == nil || string(*refs.SectionName) == string(listener.Name) {
+						isListener = true
+					}
+				}
+				if !isListener {
+					continue
+				}
+				matchedHosts := model.ComputeHosts(toStringSlice(r.Spec.Hostnames), (*string)(listener.Hostname))
+				if len(matchedHosts) == 0 {
+					continue
+				}
+
+				if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+					matchedHosts = nil
+				}
+
+				for _, rule := range r.Spec.Rules {
+					bes := make([]model.Backend, 0, len(rule.BackendRefs))
+
+					for _, be := range rule.BackendRefs {
+						if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
+							continue
+						}
+						if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
+							continue
+						}
+						if be.Port == nil {
+							continue
+						}
+						if !serviceExists(string(be.Name), helpers.NamespaceDerefOr(be.Namespace, r.Namespace), services) {
+							continue
+						}
+						bes = append(bes, backendToModelBackend(be, r.Namespace))
+					}
+
+					tlsRoutes = append(tlsRoutes, model.TLSRoute{
+						Hostnames: matchedHosts,
+						Backends:  bes,
+					})
+
+				}
+			}
+		}
+	}
+	return tlsRoutes
 }
 
 func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
-	panic("")
+	var httpRoutes []model.HTTPRoute
+
+	for _, r := range input {
+
+		isListener := false
+
+		for _, refs := range r.Spec.ParentRefs {
+			if refs.SectionName == nil || string(*refs.SectionName) == string(listener.Name) {
+				isListener = true
+			}
+		}
+		if !isListener {
+			continue
+		}
+		matchedHosts := model.ComputeHosts(toStringSlice(r.Spec.Hostnames), (*string)(listener.Hostname))
+		if len(matchedHosts) == 0 {
+			continue
+		}
+
+		if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+			matchedHosts = nil
+		}
+
+		for _, rule := range r.Spec.Rules {
+			var bakendHttpFilter []*model.BackendHttpFilter
+			bes := make([]model.Backend, 0, len(rule.BackendRefs))
+
+			for _, be := range rule.BackendRefs {
+				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef, gatewayv1beta1.SchemeGroupVersion.WithKind("HttpRoute"), grants) {
+					continue
+				}
+				if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
+					continue
+				}
+				if be.BackendRef.Port == nil {
+					continue
+				}
+				if serviceExists(string(be.Name), helpers.NamespaceDerefOr(be.Namespace, r.Namespace), services) {
+					bes = append(bes, backendToModelBackend(be.BackendRef, r.Namespace))
+					for _, f := range be.Filters {
+						switch f.Type {
+						case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+							bakendHttpFilter = append(bakendHttpFilter, &model.BackendHttpFilter{
+								Name: fmt.Sprintf("%s:%s:%d", helpers.NamespaceDerefOr(be.Namespace, r.Namespace), be.Name, uint32(*be.Port)),
+								RequestHeaderFilter: &model.HttpHeaderFilter{
+									HeadersToAdd:    toHTTPHeaders(f.RequestHeaderModifier.Add),
+									HeadersToSet:    toHTTPHeaders(f.RequestHeaderModifier.Set),
+									HeadersToRemove: f.RequestHeaderModifier.Remove,
+								},
+							})
+						case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+							bakendHttpFilter = append(bakendHttpFilter, &model.BackendHttpFilter{
+								Name: fmt.Sprintf("%s:%s:%d", helpers.NamespaceDerefOr(be.Namespace, r.Namespace), be.Name, uint32(*be.Port)),
+								ResponseHeaderModifier: &model.HttpHeaderFilter{
+									HeadersToAdd:    toHTTPHeaders(f.ResponseHeaderModifier.Add),
+									HeadersToSet:    toHTTPHeaders(f.ResponseHeaderModifier.Set),
+									HeadersToRemove: f.ResponseHeaderModifier.Remove,
+								},
+							})
+						}
+					}
+				}
+
+			}
+
+			var dr *model.DirectResponse
+			if len(bes) == 0 {
+				dr = &model.DirectResponse{
+					StatusCode: 500,
+				}
+			}
+
+			var requestHeaderFilter *model.HttpHeaderFilter
+			var responseHeaderFilter *model.HttpHeaderFilter
+			var requestMirrors []*model.HttpRequestMirror
+			var requestRedirectFilter *model.HTTPRequestRedirectFilter
+			var rewriteFilter *model.HTTPURLRewriteFilter
+
+			for _, f := range rule.Filters {
+				switch f.Type {
+				case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+					requestHeaderFilter = &model.HttpHeaderFilter{
+						HeadersToAdd:    toHTTPHeaders(f.RequestHeaderModifier.Add),
+						HeadersToSet:    toHTTPHeaders(f.RequestHeaderModifier.Set),
+						HeadersToRemove: f.RequestHeaderModifier.Remove,
+					}
+				case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+					responseHeaderFilter = &model.HttpHeaderFilter{
+						HeadersToAdd:    toHTTPHeaders(f.ResponseHeaderModifier.Add),
+						HeadersToSet:    toHTTPHeaders(f.ResponseHeaderModifier.Set),
+						HeadersToRemove: f.ResponseHeaderModifier.Remove,
+					}
+				case gatewayv1.HTTPRouteFilterRequestRedirect:
+					requestRedirectFilter = toHTTPRequestRedirectFilter(listener, f.RequestRedirect)
+				case gatewayv1.HTTPRouteFilterURLRewrite:
+					rewriteFilter = toHTTPRewriteFilter(f.URLRewrite)
+				case gatewayv1.HTTPRouteFilterRequestMirror:
+					requestMirrors = append(requestMirrors, toHTTPRequestMirror(f.RequestMirror, r.Namespace))
+				}
+
+				if len(rule.Matches) == 0 {
+					httpRoutes = append(httpRoutes, model.HTTPRoute{
+						Hostnames:              matchedHosts,
+						Backends:               bes,
+						DirectResponse:         dr,
+						RequestHeadFile:        requestHeaderFilter,
+						ResponseHeaderModifier: responseHeaderFilter,
+						RequestMirrors:         requestMirrors,
+						RequestRedirected:      requestRedirectFilter,
+						Rewrite:                rewriteFilter,
+					})
+				}
+
+				for _, match := range rule.Matches {
+					httpRoutes = append(httpRoutes, model.HTTPRoute{
+						PatchMatch:             toPathMatch(match),
+						HeadersMatch:           toHeaderMatch(match),
+						QueryParamsMatch:       toQueryMatch(match),
+						IsGRPC:                 true,
+						Hostnames:              matchedHosts,
+						Backends:               bes,
+						DirectResponse:         dr,
+						RequestHeadFile:        requestHeaderFilter,
+						ResponseHeaderModifier: responseHeaderFilter,
+						RequestMirrors:         requestMirrors,
+						RequestRedirected:      requestRedirectFilter,
+						Rewrite:                rewriteFilter,
+					})
+				}
+			}
+
+		}
+	}
+	return httpRoutes
 }
 
 func toTLS(tls *gatewayv1.GatewayTLSConfig, grants []gatewayv1beta1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
@@ -348,4 +608,21 @@ func toStringSlice(s []gatewayv1.Hostname) []string {
 		res = append(res, string(h))
 	}
 	return res
+}
+
+func toPathMatch(match gatewayv1.HTTPRouteMatch) model.StringMatch {
+	panic("run")
+}
+
+// detailed translation
+func toHTTPRequestRedirectFilter(listener gatewayv1beta1.Listener, redirect *gatewayv1.HTTPRequestRedirectFilter) *model.HTTPRequestRedirectFilter {
+	panic("run")
+}
+
+func toHTTPRewriteFilter(rewrite *gatewayv1.HTTPURLRewriteFilter) *model.HTTPURLRewriteFilter {
+	panic("rels")
+}
+
+func toQueryMatch(match gatewayv1.HTTPRouteMatch) []model.KeyValueMatch {
+	panic("rels, and run")
 }

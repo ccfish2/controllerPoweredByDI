@@ -12,6 +12,10 @@ func setGatewayAccepted(gw *gatewayv1.Gateway, accepted bool, msg string) *gatew
 	return gw
 }
 
+func gatewayListenerAcceptedCondition(gw *gatewayv1.Gateway, ready bool, msg string) metav1.Condition {
+	panic("resl")
+}
+
 func gwStsAcpCondition(gw *gatewayv1.Gateway, accepted bool, msg string) metav1.Condition {
 	switch accepted {
 	case true:
