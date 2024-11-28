@@ -18,10 +18,10 @@ import (
 	gatewaybeta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model/ingestion"
-	translation "github.com/ccfish2/controller-powered-by-DI/pkg/model/translation/gateway-api"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model/ingestion"
+	translation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/gateway-api"
 
 	// dolphin
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"

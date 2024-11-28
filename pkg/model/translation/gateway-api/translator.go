@@ -9,8 +9,8 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model/translation"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
 
 	// dolphin
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"

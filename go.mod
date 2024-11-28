@@ -1,9 +1,9 @@
-module github.com/ccfish2/controller-powered-by-DI
+module github.com/ccfish2/controllerPoweredByDI
 
 go 1.23.0
 
 require (
-	github.com/ccfish2/infra v0.0.0-20241121220104-2a914706aa49
+	github.com/ccfish2/infra v0.0.0-20241127043035-ded519580c8b
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1

@@ -1,7 +1,7 @@
 package translation
 
 import (
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "k8s.io/api/core/v1"

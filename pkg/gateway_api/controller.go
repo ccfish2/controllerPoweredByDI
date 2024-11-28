@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )

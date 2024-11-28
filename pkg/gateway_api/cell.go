@@ -17,8 +17,8 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
-	operatorOption "github.com/ccfish2/controller-powered-by-DI/option"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/secretsync"
+	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
@@ -75,9 +75,11 @@ type gatewayAPIParams struct {
 func initGatewayAPIController(params gatewayAPIParams) error {
 	/// check operator EnableGatewayAPI optoin
 	if !operatorOption.Config.EnableGatewayAPI {
+		fmt.Println("Gateway api is not enabled")
+		fmt.Println(operatorOption.Config.EnableGatewayAPI)
 		return nil
 	}
-
+	fmt.Println("gateway api is enabled.")
 	// check if GatewayAPICRD installed
 	params.Logger.WithField("requiredGVK", requiredGVK).Info("checking for required GatewayAPI resources")
 

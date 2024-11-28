@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ccfish2/controller-powered-by-DI/cmd"
+	"github.com/ccfish2/controllerPoweredByDI/cmd"
 	"github.com/ccfish2/infra/pkg/hive"
 )
 

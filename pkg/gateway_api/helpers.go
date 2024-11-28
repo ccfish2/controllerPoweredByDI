@@ -3,7 +3,7 @@ package gateway_api
 import (
 	"encoding/pem"
 
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"

@@ -14,19 +14,21 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/ccfish2/infra/pkg/controller"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/endpointgc"
-	operatorK8s "github.com/ccfish2/controller-powered-by-DI/k8s"
-	operatorMetrics "github.com/ccfish2/controller-powered-by-DI/metrics"
-	operatorOption "github.com/ccfish2/controller-powered-by-DI/option"
-	controllerruntime "github.com/ccfish2/controller-powered-by-DI/pkg/controller-runtime"
-	gatewayapi "github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/libipam"
-	"github.com/ccfish2/controller-powered-by-DI/pkg/secretsync"
+	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
+	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
+	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
+	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
+	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
+	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/libipam"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
 	"github.com/ccfish2/infra/pkg/hive"
@@ -125,6 +127,8 @@ var (
 
 	binaryName = filepath.Base(os.Args[0])
 
+	log = logging.DefaultLogger.WithField(logfields.LogSubsys, binaryName)
+
 	leaderElectionResourceLockName = "dolphin-operator-resource-lock"
 
 	// we want to step donw
@@ -182,9 +186,9 @@ func Execute(cmd *cobra.Command) {
 }
 
 func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
-	wg := &sync.WaitGroup{}
+	var wg sync.WaitGroup
 	lc.Append(cell.Hook{
-		OnStart: func(hc cell.HookContext) error {
+		OnStart: func(cell.HookContext) error {
 			wg.Add(1)
 			go func() {
 				runOperator(llc, clientset, shutdowner)
@@ -204,60 +208,63 @@ func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8
 }
 
 func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
-	// isLeader store false value
+	fmt.Println("runOperator")
 	isLeader.Store(false)
-	// generate leaderElectionCtx, leaderctxCancel
+
 	leaderElectionCtx, leaderElectionCtxCancel = context.WithCancel(context.Background())
+
 	if clientset.IsEnabled() {
-		// check if this version satisfy minimal version requirement
-		CAP := k8sversion.Capabilities()
-		if !CAP.MinimalVersionMet {
-			fmt.Println("err does not meet minimal version")
-		}
+		capabilities := k8sversion.Capabilities()
+		log.Info("apabilities %v", capabilities)
+		// if !capabilities.MinimalVersionMet {
+		// 	log.Fatalf("Minimal kubernetes version not met: %s < %s",
+		// 		k8sversion.Version(), k8sversion.MinimalVersionConstraint)
+		// }
 	}
 
-	// check if we support LeaseResourceLock
-	if !k8sversion.Capabilities().LeaseResourceLock {
-		fmt.Println("api-sever does not support coordination.k8s.io/v1. ")
-		if err := lc.Start(leaderElectionCtx); err != nil {
-			fmt.Println("failed to start leading")
-		}
-		return
-	}
+	// We only support Operator in HA mode for Kubernetes Versions having support for
+	// LeasesResourceLock.
+	// See docs on capabilities.LeasesResourceLock for more context.
+	// if !k8sversion.Capabilities().LeasesResourceLock {
+	// 	log.Info("Support for coordination.k8s.io/v1 not present, fallback to non HA mode")
 
-	// Get hostname for identity name of the lease lock holder
-	// We identity the lader of the operator cluster using hostname
+	// 	if err := lc.Start(leaderElectionCtx); err != nil {
+	// 		log.WithError(err).Fatal("Failed to start leading")
+	// 	}
+	// 	return
+	// }
+
+	// Get hostname for identity name of the lease lock holder.
+	// We identify the leader of the operator cluster using hostname.
 	operatorID, err := os.Hostname()
 	if err != nil {
-		fmt.Println("error, failed to get hostname when generating lease lock identity")
+		log.WithError(err).Fatal("Failed to get hostname when generating lease lock identity")
 	}
 	operatorID = fmt.Sprintf("%s-%s", operatorID, rand.String(10))
 
-	// check k8s namespace
-	// if k8snamespace is not set, use default namespace
 	ns := option.Config.K8sNamespace
+	// If due to any reason the CILIUM_K8S_NAMESPACE is not set we assume the operator
+	// to be in default namespace.
 	if ns == "" {
 		ns = metav1.NamespaceDefault
 	}
 
-	// use URL
-	// https://pkg.go.dev/k8s.io/client-go@v0.29.2/tools/leaderelection/resourcelock
-	// invoke resourcelock.NewFromKubeconfig
 	leResourceLock, err := resourcelock.NewFromKubeconfig(
 		resourcelock.LeasesResourceLock,
 		ns,
 		leaderElectionResourceLockName,
 		resourcelock.ResourceLockConfig{
+			// Identity name of the lock holder
 			Identity: operatorID,
 		},
 		clientset.RestConfig(),
 		operatorOption.Config.LeaderElectionRenewDeadline)
 	if err != nil {
-		fmt.Println("failed to create resource lock for leader election")
+		log.WithError(err).Fatal("Failed to create resource lock for leader election")
 	}
 
-	// start the leader election for running dolphin-operators
-	fmt.Println("waiting for leader election")
+	// Start the leader election for running cilium-operators
+	log.Info("Waiting for leader election")
 	leaderelection.RunOrDie(leaderElectionCtx, leaderelection.LeaderElectionConfig{
 		Name: leaderElectionResourceLockName,
 
@@ -271,21 +278,23 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				if err := lc.Start(ctx); err != nil {
-					fmt.Println("Failed to start when elected leader, shutting down")
+					log.WithError(err).Error("Failed to start when elected leader, shutting down")
 					shutdowner.Shutdown(hive.ShutdownWithError(err))
 				}
 			},
-
 			OnStoppedLeading: func() {
-				fmt.Println("leader election lost")
-				shutdowner.Shutdown(hive.ShutdownWithError(errors.New("leader election lost")))
+				log.WithField("operator-id", operatorID).Info("Leader election lost")
+				// Cleanup everything here, and exit.
+				shutdowner.Shutdown(hive.ShutdownWithError(errors.New("Leader election lost")))
 			},
-
 			OnNewLeader: func(identity string) {
 				if identity == operatorID {
-					fmt.Println("leader in HA deployment")
+					log.Info("Leading the operator HA deployment")
 				} else {
-					fmt.Println("leader re-election complete")
+					log.WithFields(logrus.Fields{
+						"newLeader":  identity,
+						"operatorID": operatorID,
+					}).Info("Leader re-election complete")
 				}
 			},
 		},

@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 )
 
 func EnqueueTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.EventHandler {

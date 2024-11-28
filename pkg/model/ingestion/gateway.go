@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ccfish2/controller-powered-by-DI/pkg/model"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	corev1 "k8s.io/api/core/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -12,7 +12,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	// myself
-	"github.com/ccfish2/controller-powered-by-DI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 )
 
 func toHTTPHeaders(headers []gatewayv1.HTTPHeader) []model.Header {
