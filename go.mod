@@ -3,18 +3,23 @@ module github.com/ccfish2/controllerPoweredByDI
 go 1.23.0
 
 require (
-	github.com/ccfish2/infra v0.0.0-20241127043035-ded519580c8b
+	github.com/ccfish2/infra v0.0.0-20241128015454-82548bb3d621
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
+	github.com/stretchr/testify v1.9.0
+	go.uber.org/goleak v1.3.0
 	k8s.io/apimachinery v0.31.2
 	k8s.io/client-go v0.31.2
 	sigs.k8s.io/controller-runtime v0.19.1
 )
 
-require gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+require (
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
