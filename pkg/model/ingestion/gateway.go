@@ -112,7 +112,6 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 }
 
 // automation
-// translate gateway, services, grants configuration into cilium HTTPRoute
 func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.GRPCRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
 	var grpcRoutes []model.HTTPRoute
 	for _, r := range input {

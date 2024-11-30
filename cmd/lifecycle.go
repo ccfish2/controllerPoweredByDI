@@ -10,10 +10,15 @@ func WithLeaderLifecycle(cells ...cell.Cell) cell.Cell {
 	return cell.Module(
 		"leader-lifecycle",
 		"Operator Leader Lifecycle",
-		cell.Provide(func() *LeaderLifecycle { return &LeaderLifecycle{} }),
-		cell.Decorate(func(lc *LeaderLifecycle) cell.Lifecycle {
-			return lc
-		},
-			cells...),
+
+		cell.Provide(
+			func() *LeaderLifecycle { return &LeaderLifecycle{} },
+		),
+		cell.Decorate(
+			func(lc *LeaderLifecycle) cell.Lifecycle {
+				return lc
+			},
+			cells...,
+		),
 	)
 }

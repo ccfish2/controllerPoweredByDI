@@ -22,8 +22,7 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
-	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
-	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
+	//operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
@@ -33,6 +32,7 @@ import (
 	// dolphin
 	"github.com/ccfish2/infra/pkg/hive"
 	"github.com/ccfish2/infra/pkg/hive/cell"
+	"github.com/ccfish2/infra/pkg/hive/job"
 	"github.com/ccfish2/infra/pkg/k8s/apis"
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8sversion "github.com/ccfish2/infra/pkg/k8s/version"
@@ -51,38 +51,19 @@ var (
 	Infrastructure = cell.Module(
 		"operator-infra",
 		"Operator Infrastructure",
-
-		// todo: register the pprof HTTP handler, get golang profiling data
-
 		// API for access kubernetes client
 		k8sClient.Cell,
-
-		cell.Provide(func(operatorCfg *operatorOption.OperatorConfig,
-		) operatorMetrics.SharedConfig {
-			return operatorMetrics.SharedConfig{
-				EnableMetrics:    operatorCfg.EnableMetrics,
-				EnableGatewayAPI: operatorCfg.EnableGatewayAPI,
-			}
-		}),
 	)
 
 	// implements control plane functionalities
 	ControllPlane = cell.Module(
 		"operator-controlplane",
 		"Operator Control Plane",
-
-		// todo: register cluster info need cluster network configuration
-
 		cell.Invoke(registerOperatorHooks),
-
-		cell.Provide(func() *option.DaemonConfig {
-			return option.Config
-		}),
 
 		cell.Provide(func() *operatorOption.OperatorConfig {
 			return operatorOption.Config
 		}),
-
 		cell.Provide(func(
 			operatorCfg *operatorOption.OperatorConfig,
 			daemonCfg *option.DaemonConfig,
@@ -94,48 +75,25 @@ var (
 		}),
 
 		controller.Cell,
-		//operatorApi.SpecCell,
-		//api.ServerCell,
-
-		// Provides a global job registry which cells can use to spawn job groups.
-		//job.Cell,
+		job.Cell,
 
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
-			operatorK8s.ResourcesCell,
-
 			libipam.Cell,
-			//auth.Cell,
-			//store.Cell,
-			//legacyCell,
-
-			//identitygc.Cell,
-
-			// Dolphin Endpoint Garbage Collector. It removes all leaked Dolphin
-			// Endpoints. Either once or periodically it validates all the present
-			// Dolphin Endpoints and delete the ones that should be deleted.
 			endpointgc.Cell,
-
-			// Integrates the controller-runtime library and provides its components via Hive.
 			controllerruntime.Cell,
 			gatewayapi.Cell,
 			secretsync.Cell,
-			// Dolphin L7 LoadBalancing with Envoy.
-			//dolphinenvoyconfig.Cell,
 		),
 	)
 
-	binaryName = filepath.Base(os.Args[0])
-
-	log = logging.DefaultLogger.WithField(logfields.LogSubsys, binaryName)
-
+	binaryName                     = filepath.Base(os.Args[0])
+	log                            = logging.DefaultLogger.WithField(logfields.LogSubsys, binaryName)
 	leaderElectionResourceLockName = "dolphin-operator-resource-lock"
-
 	// we want to step donw
 	leaderElectionCtx       context.Context
 	leaderElectionCtxCancel context.CancelFunc
-
-	isLeader atomic.Bool
+	isLeader                atomic.Bool
 )
 
 func NewOperatorCmd(h *hive.Hive) *cobra.Command {
@@ -243,8 +201,6 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 	operatorID = fmt.Sprintf("%s-%s", operatorID, rand.String(10))
 
 	ns := option.Config.K8sNamespace
-	// If due to any reason the CILIUM_K8S_NAMESPACE is not set we assume the operator
-	// to be in default namespace.
 	if ns == "" {
 		ns = metav1.NamespaceDefault
 	}
@@ -263,7 +219,6 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 		log.WithError(err).Fatal("Failed to create resource lock for leader election")
 	}
 
-	// Start the leader election for running cilium-operators
 	log.Info("Waiting for leader election")
 	leaderelection.RunOrDie(leaderElectionCtx, leaderelection.LeaderElectionConfig{
 		Name: leaderElectionResourceLockName,

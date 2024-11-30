@@ -65,7 +65,7 @@ type gatewayAPIParams struct {
 	cell.In
 
 	Logger             logrus.FieldLogger
-	k8sClient          k8sClient.Clientset
+	K8sClient          k8sClient.Clientset
 	CtrlRuntimeManager ctrlRuntime.Manager
 	Scheme             *runtime.Scheme
 
@@ -84,7 +84,7 @@ func initGatewayAPIController(params gatewayAPIParams) error {
 	params.Logger.WithField("requiredGVK", requiredGVK).Info("checking for required GatewayAPI resources")
 
 	// check if
-	if err := checkRequiredCRDs(context.Background(), params.k8sClient); err != nil {
+	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
 		return nil
 	}
@@ -165,7 +165,7 @@ func registerGatewayAPITypesToScheme(scheme *runtime.Scheme) error {
 // by a Dolphin Gateway resource
 func registerSecretSync(params gatewayAPIParams) secretsync.SecretSyncRegistrationOut {
 	// check RequiredCRD
-	err := checkRequiredCRDs(context.Background(), params.k8sClient)
+	err := checkRequiredCRDs(context.Background(), params.K8sClient)
 	if err != nil {
 		return secretsync.SecretSyncRegistrationOut{}
 	}
