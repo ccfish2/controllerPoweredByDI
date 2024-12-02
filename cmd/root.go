@@ -23,6 +23,7 @@ import (
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	//operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
+	"github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
@@ -60,7 +61,9 @@ var (
 		"operator-controlplane",
 		"Operator Control Plane",
 		cell.Invoke(registerOperatorHooks),
-
+		cell.Provide(func() *option.DaemonConfig {
+			return option.Config
+		}),
 		cell.Provide(func() *operatorOption.OperatorConfig {
 			return operatorOption.Config
 		}),
@@ -79,10 +82,16 @@ var (
 
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
+			k8s.ResourcesCell,
+
 			libipam.Cell,
+
 			endpointgc.Cell,
+
 			controllerruntime.Cell,
+
 			gatewayapi.Cell,
+
 			secretsync.Cell,
 		),
 	)
