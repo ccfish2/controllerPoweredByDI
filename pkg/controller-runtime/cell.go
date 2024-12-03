@@ -24,8 +24,8 @@ import (
 var Cell = cell.Module(
 	"controller-runtime",
 	"Manages the controller-runtime integration and its components",
-	cell.Invoke(NewScheme),
-	cell.Invoke(NewManager),
+	cell.Provide(NewScheme),
+	cell.Provide(NewManager),
 )
 
 func NewScheme() (*runtime.Scheme, error) {
@@ -38,7 +38,6 @@ func NewScheme() (*runtime.Scheme, error) {
 			return nil, fmt.Errorf("%V", gv)
 		}
 	}
-
 	return scheme, nil
 }
 

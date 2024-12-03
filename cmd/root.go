@@ -52,7 +52,8 @@ var (
 	Infrastructure = cell.Module(
 		"operator-infra",
 		"Operator Infrastructure",
-		// API for access kubernetes client
+
+		// for access clientset, API of kubernetes objects
 		k8sClient.Cell,
 	)
 
@@ -60,6 +61,7 @@ var (
 	ControllPlane = cell.Module(
 		"operator-controlplane",
 		"Operator Control Plane",
+
 		cell.Invoke(registerOperatorHooks),
 		cell.Provide(func() *option.DaemonConfig {
 			return option.Config
@@ -142,7 +144,7 @@ func initEnv(vp *viper.Viper) {
 	}
 
 	option.LogRegisteredOptions(vp, log)
-	fmt.Println("Dolphin Operator", "v1.0.0")
+	fmt.Println("Dolphin Operator", "v2.0.0")
 }
 
 func Execute(cmd *cobra.Command) {
@@ -175,7 +177,6 @@ func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8
 }
 
 func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
-	fmt.Println("runOperator")
 	isLeader.Store(false)
 
 	leaderElectionCtx, leaderElectionCtxCancel = context.WithCancel(context.Background())
