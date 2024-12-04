@@ -43,11 +43,13 @@ var Cell = cell.Module(
 type gatewayApiConfig struct {
 	EnableGatewayAPISecretsSync bool
 	GatewayAPISecretsNamespace  string
+	EnableGatewayAPI            bool
 }
 
 func (r gatewayApiConfig) Flags(flags *pflag.FlagSet) {
 	flags.Bool("enable-gateway-api-secrets-sync", r.EnableGatewayAPISecretsSync, "")
 	flags.String("gateway-api-secrets-namespace", r.GatewayAPISecretsNamespace, "")
+	flags.Bool("enable-gateway-api", r.EnableGatewayAPI, "")
 }
 
 var requiredGVK = []schema.GroupVersionKind{
@@ -74,12 +76,10 @@ type gatewayAPIParams struct {
 
 func initGatewayAPIController(params gatewayAPIParams) error {
 	/// check operator EnableGatewayAPI optoin
-	if !operatorOption.Config.EnableGatewayAPI {
-		fmt.Println("Gateway api is not enabled")
-		fmt.Println(operatorOption.Config.EnableGatewayAPI)
+	if !params.Config.EnableGatewayAPI {
+		log.Info("Gateway api is not enabled")
 		return nil
 	}
-	fmt.Println("gateway api is enabled.")
 	// check if GatewayAPICRD installed
 	params.Logger.WithField("requiredGVK", requiredGVK).Info("checking for required GatewayAPI resources")
 
