@@ -28,7 +28,7 @@ import (
 )
 
 func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	fmt.Println("Reconciling Gateway")
+	log.Info("Reconciling Gateway")
 
 	// step 1: retrieve the gateway
 	gw := &gatewayv1.Gateway{}

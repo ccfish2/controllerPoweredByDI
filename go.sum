@@ -6,6 +6,8 @@ github.com/bombsimon/logrusr/v4 v4.1.0 h1:uZNPbwusB0eUXlO8hIUwStE6Lr5bLN6IgYgG+7
 github.com/bombsimon/logrusr/v4 v4.1.0/go.mod h1:pjfHC5e59CvjTBIU3V3sGhFWFAnsnhOR03TRc6im0l8=
 github.com/ccfish2/infra v0.0.0-20241204182854-fa919396ae83 h1:rGuGYlaURSXUzaamkXh7I2xRIns97uCUz2lTI5TvIik=
 github.com/ccfish2/infra v0.0.0-20241204182854-fa919396ae83/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
+github.com/ccfish2/infra v0.0.0-20241205013524-5e29b4fab7fc h1:Q5DMj5nF0dbOH4Yvh6AUq0oCNy4rGrKbau11EZF6itg=
+github.com/ccfish2/infra v0.0.0-20241205013524-5e29b4fab7fc/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

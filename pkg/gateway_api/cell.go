@@ -24,6 +24,7 @@ import (
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 )
 
+// Cell manages gateway api controllers
 var Cell = cell.Module(
 	"gateway-api",
 	"Manages the Gateway API controllers",
@@ -33,7 +34,9 @@ var Cell = cell.Module(
 		gatewayApiConfig{
 			EnableGatewayAPISecretsSync: true,
 			GatewayAPISecretsNamespace:  "dolphin-secrets",
+			EnableGatewayAPI:            true,
 		}),
+
 	// start controller
 	cell.Invoke(initGatewayAPIController),
 	// enable secrets sync
@@ -152,7 +155,7 @@ func registerGatewayAPITypesToScheme(scheme *runtime.Scheme) error {
 	for gv, f := range map[fmt.Stringer]func(s *runtime.Scheme) error{
 		gatewayv1.GroupVersion:       gatewayv1.AddToScheme,
 		gatewayv1beta1.GroupVersion:  gatewayv1beta1.AddToScheme,
-		gatewayv1alpha2.GroupVersion: gatewayv1beta1.AddToScheme,
+		gatewayv1alpha2.GroupVersion: gatewayv1alpha2.AddToScheme,
 	} {
 		if err := f(scheme); err != nil {
 			return fmt.Errorf("failed to add types from %s to scheme: %w", gv, err)
