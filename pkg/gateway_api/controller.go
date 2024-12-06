@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -94,4 +95,53 @@ func onlyStatusChanged() predicate.Predicate {
 			}
 		},
 	}
+}
+
+func getGatewaysForNamespace(ctx context.Context, c client.Client, ns client.Object) []types.NamespacedName {
+	gws := gatewayv1.GatewayList{}
+	if err := c.List(ctx, &gws); err != nil {
+		return nil
+	}
+	if len(gws.Items) == 0 {
+		return nil
+	}
+
+	ret := []types.NamespacedName{}
+	for _, gw := range gws.Items {
+		for _, listener := range gw.Spec.Listeners {
+			if listener.AllowedRoutes == nil || listener.AllowedRoutes.Namespaces == nil {
+				continue
+			}
+
+			switch *listener.AllowedRoutes.Namespaces.From {
+			case gatewayv1.NamespacesFromAll:
+				ret = append(ret, types.NamespacedName{
+					Namespace: gw.Namespace,
+					Name:      gw.Name,
+				})
+			case gatewayv1.NamespacesFromSame:
+				if gw.Namespace == ns.GetName() {
+					ret = append(ret, types.NamespacedName{
+						Namespace: gw.Namespace,
+						Name:      gw.Name,
+					})
+				}
+			case gatewayv1.NamespacesFromSelector:
+				nsList := &corev1.NamespaceList{}
+				if err := c.List(ctx, nsList, client.MatchingLabels(listener.AllowedRoutes.Namespaces.Selector.MatchLabels)); err != nil {
+					return nil
+				}
+				for _, nmopt := range nsList.Items {
+					if nmopt.GetName() == ns.GetName() {
+						ret = append(ret, types.NamespacedName{
+							Namespace: nmopt.Namespace,
+							Name:      nmopt.Name,
+						})
+					}
+				}
+
+			}
+		}
+	}
+	return ret
 }

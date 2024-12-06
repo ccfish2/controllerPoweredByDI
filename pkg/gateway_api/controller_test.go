@@ -11,6 +11,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
@@ -31,8 +33,7 @@ var ctrlTestFixture = []client.Object{
 
 	&gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dolphin",
-			Namespace: "default",
+			Name: "dolphin",
 		},
 		Spec: gatewayv1.GatewayClassSpec{
 			ControllerName: "io.dolphin/gateway-controller",
@@ -111,7 +112,7 @@ var ctrlTestFixture = []client.Object{
 
 	&gatewayv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "another-gw-with-tls-route",
+			Name:      "another-gw-without-tls-route",
 			Namespace: "default",
 		},
 		Spec: gatewayv1.GatewaySpec{
@@ -128,7 +129,7 @@ var ctrlTestFixture = []client.Object{
 
 	&gatewayv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "another-gw-for-tls-rOUTE",
+			Name:      "gateway-from-same-namespaces",
 			Namespace: "default",
 		},
 		Spec: gatewayv1.GatewaySpec{
@@ -150,8 +151,7 @@ var ctrlTestFixture = []client.Object{
 
 	&gatewayv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "another-gw-for-tls-rOUTE",
-			Namespace: "default",
+			Name: "gateway-from-all-namespaces",
 		},
 		Spec: gatewayv1.GatewaySpec{
 			GatewayClassName: "dolphin",
@@ -173,7 +173,7 @@ var ctrlTestFixture = []client.Object{
 
 	&gatewayv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "another-gw-for-tls-rOUTE",
+			Name:      "another-gw-for-tls-with-selector",
 			Namespace: "default",
 		},
 		Spec: gatewayv1.GatewaySpec{
@@ -200,7 +200,38 @@ var ctrlTestFixture = []client.Object{
 	},
 }
 
-var namespaceFixture = []client.Object{}
+var namespaceFixture = []client.Object{
+
+	&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+		},
+	},
+
+	&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "another-namespace",
+		},
+	},
+
+	&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gw-allowed-namespace",
+			Labels: map[string]string{
+				"gateway": "allowed",
+			},
+		},
+	},
+
+	&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gw-notallowed-namespace",
+			Labels: map[string]string{
+				"gateway": "disallowed",
+			},
+		},
+	},
+}
 
 func Test_hasMathingController(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(ctrlTestFixture...).Build()
@@ -228,4 +259,90 @@ func Test_hasMathingController(t *testing.T) {
 		})
 		assert.Equal(t, res, false)
 	})
+}
+
+func Test_OnlyStatusChange(t *testing.T) {
+	failureFunc := predicate.Funcs{
+		CreateFunc: func(tce event.TypedCreateEvent[client.Object]) bool {
+			t.Fail()
+			return false
+		},
+		DeleteFunc: func(tde event.TypedDeleteEvent[client.Object]) bool {
+			t.Fail()
+			return false
+		},
+		UpdateFunc: func(tue event.TypedUpdateEvent[client.Object]) bool {
+			t.Fail()
+			return false
+		},
+		GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool {
+			t.Fail()
+			return false
+		},
+	}
+	f := failureFunc
+	f.UpdateFunc = onlyStatusChanged().Update
+
+	type args struct {
+		evt event.UpdateEvent
+	}
+
+	tests := []struct {
+		name     string
+		arg      args
+		expected bool
+	}{
+		{
+			"unsupoorted kind",
+			args{
+				event.UpdateEvent{
+					ObjectOld: &corev1.Pod{},
+					ObjectNew: &corev1.Pod{},
+				},
+			},
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := f.Update(tt.arg.evt)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+func Test_SelectGWForNamespace(t *testing.T) {
+	c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(namespaceFixture...).Build()
+	type args struct {
+		namespacce string
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "from-same-and-all-namespace",
+			args: args{namespacce: "default"},
+			want: []string{"gateway-from-all-namespaces", "gateway-from-same-namespaces"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gwlist := getGatewaysForNamespace(context.Background(), c, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tt.args.namespacce,
+				},
+			})
+
+			res := make([]string, len(gwlist))
+			for _, gw := range gwlist {
+				res = append(res, gw.Name)
+			}
+			assert.Equal(t, tt.args.namespacce, res)
+		})
+	}
 }
