@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	controllerName = "io.dolphin/gateway-controller"
+	controllerName             = "io.dolphin/gateway-controller"
+	backendServiceIndex string = "backendServiceIndex"
+	gatewayIndex        string = "gatewayIndex"
 )
 
 func hasMatchingController(ctx context.Context, c client.Client, controllerName string) func(object client.Object) bool {
