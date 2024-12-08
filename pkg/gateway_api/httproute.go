@@ -19,11 +19,6 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 )
 
-const (
-	backendServiceIndex string = "backendServiceIndex"
-	gatewayIndex        string = "gatewayIndex"
-)
-
 type httpRouteReonciler struct {
 	Scheme *runtime.Scheme
 	client.Client
