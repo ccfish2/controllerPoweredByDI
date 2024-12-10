@@ -40,6 +40,8 @@ import (
 	k8sversion "github.com/ccfish2/infra/pkg/k8s/version"
 	"github.com/ccfish2/infra/pkg/logging"
 	"github.com/ccfish2/infra/pkg/option"
+
+	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
 )
 
 var (
@@ -90,6 +92,7 @@ var (
 			apis.RegisterCRDsCell,
 			k8s.ResourcesCell,
 
+			dolphinenvoyconfig.Cell,
 			libipam.Cell,
 
 			endpointgc.Cell,
