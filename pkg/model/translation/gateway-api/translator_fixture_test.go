@@ -3,6 +3,8 @@ package gatewayapi
 import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -63,4 +65,55 @@ var basicHTTPListenerEnvoyConfig = dolphinv1.DolphinEnvoyConfig{
 		//
 		Resources: []dolphinv1.XDSResource{},
 	},
+}
+
+var simpleNamespaceHttpListener = model.HTTPListener{
+	Name: "httpListener",
+	Sources: []model.FullyQualifiedResource{
+		{
+			Name:      "",
+			Namespace: "",
+		},
+	},
+	Port:     80,
+	Hostname: "*",
+	Routes: []model.HTTPRoute{
+		{
+			Name:     "",
+			Backends: []model.Backend{},
+		},
+	},
+}
+
+var simpleNamespaceDolphinEC = dolphinv1.DolphinEnvoyConfig{
+	ObjectMeta: v1.ObjectMeta{
+		Name:      "",
+		Namespace: "",
+		Labels: map[string]string{
+			"dolhin": "false",
+		},
+		OwnerReferences: []v1.OwnerReference{
+			{
+				APIVersion: "",
+				Kind:       "",
+				Name:       "",
+				Controller: model.AddressOf(true),
+			},
+		},
+	},
+	Spec: dolphinv1.DolphinEnvoyConfigSpec{
+		Resources: []dolphinv1.XDSResource{
+			{Any: toAny(nil)},
+			{Any: toAny(nil)},
+			{Any: toAny(nil)},
+		},
+	},
+}
+
+func toAny(message proto.Message) *anypb.Any {
+	res, err := anypb.New(message)
+	if err != nil {
+		return nil
+	}
+	return res
 }
