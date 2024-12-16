@@ -28,6 +28,7 @@ import (
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/libipam"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
@@ -93,6 +94,7 @@ var (
 			k8s.ResourcesCell,
 
 			dolphinenvoyconfig.Cell,
+			ingress.Cell,
 			libipam.Cell,
 
 			endpointgc.Cell,
