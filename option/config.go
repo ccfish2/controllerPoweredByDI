@@ -124,6 +124,7 @@ type OperatorConfig struct {
 	BGPConfigPath   string
 
 	// IPAM options
+	IPAM             string
 	IPAMAPIBurst     int
 	IPAMAPIQPSLimit  float64
 	IPAMSubnetsIDs   []string

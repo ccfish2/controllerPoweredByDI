@@ -14,8 +14,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/ccfish2/infra/pkg/controller"
-	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,7 +21,6 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
-	//operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	"github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
@@ -33,16 +30,21 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
+	store "github.com/ccfish/infra/pkg/kvstore/store"
+	"github.com/ccfish2/infra/pkg/controller"
 	"github.com/ccfish2/infra/pkg/hive"
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	"github.com/ccfish2/infra/pkg/hive/job"
+	"github.com/ccfish2/infra/pkg/ipam/allocator"
 	"github.com/ccfish2/infra/pkg/k8s/apis"
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8sversion "github.com/ccfish2/infra/pkg/k8s/version"
 	"github.com/ccfish2/infra/pkg/logging"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/ccfish2/infra/pkg/option"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
+	ipamoptin "github.com/ccfish2/infra/pkg/ipam/option"
 )
 
 var (
@@ -89,21 +91,24 @@ var (
 		controller.Cell,
 		job.Cell,
 
+		// following cells only init when operator is elected leader
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
 			k8s.ResourcesCell,
 
-			dolphinenvoyconfig.Cell,
-			ingress.Cell,
 			libipam.Cell,
+			//
+			//
+			legacyCell,
 
+			//
+			//
 			endpointgc.Cell,
-
 			controllerruntime.Cell,
-
 			gatewayapi.Cell,
-
+			ingress.Cell,
 			secretsync.Cell,
+			dolphinenvoyconfig.Cell,
 		),
 	)
 
@@ -267,4 +272,92 @@ func doCleanup() {
 	isLeader.Store(false)
 	// execute the leaderelectionCancelFunc
 	leaderElectionCtxCancel()
+}
+
+func kvstoreEnabled() bool {
+	// check kv store configuration enablement
+	return true
+}
+
+var legacyCell = cell.Invoke(registerlegacyOnLeader)
+
+func registerlegacyOnLeader(lc cell.Lifecycle, k8sclient k8sClient.Clientset, resources k8s.Resources, factory store.Factory) {
+	ctx, cancel := context.WithCancel(context.Background())
+	legacy := legacyOnLeader{
+		ctx:       ctx,
+		cancel:    cancel,
+		clientset: k8sclient,
+		resources: resources,
+		factory:   factory,
+	}
+	lc.Append(cell.Hook{
+		OnStart: legacy.onStart,
+		OnStop:  legacy.onStop,
+	})
+}
+
+type legacyOnLeader struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	clientset k8sClient.Clientset
+	wg        sync.WaitGroup
+	resources k8s.Resources
+	factory   store.Factory
+}
+
+// Start implements cell.HookInterface.
+func (legacy *legacyOnLeader) onStart(_ cell.HookContext) error {
+	isLeader.Store(true)
+	// check if clientsetenabled
+	// checck if DisableDolphinEndpointCRD
+	// if unmanagedpodwatcherinterval is specified: spin up one thread safely
+
+	var nodeManager allocator.NodeEventHandler
+	var kvstore bool
+	var err error
+	// init ipam logic
+
+	// check config ipaddress management mode
+	// could be azure, aws, multiple pool mode
+	// find the provider through allocatorProviders
+	// ensure the builtin proviers are not nil
+	// invoke alloc.init function
+	// cast the alloc to watchers.PooledAllocatorProvider, default implementation
+	// start the IPPool Allocator function
+	// got one nodeManager obj
+
+	if operatorOption.Config.BGPAnnounceLBIP {
+	}
+
+	if kvstoreEnabled() {
+	}
+
+	if legacy.clientset.IsEnabled() &&
+		(operatorOption.Config.RemoveDolphinNodeTaints && operatorOption.Config.SetDolphinIsUpCondition) {
+
+	}
+	dolphinNodeSynchronizer := newDolphinNodeSynchronizer(legacy.clientset, nodeManager, kvstore)
+	if legacy.clientset.IsEnabled() {
+		err := dolphinNodeSynchronizer.Start(legacy.ctx, &legacy.wg)
+		if err != nil {
+			return err
+		}
+	}
+	if operatorOption.Config.IPAM == ipamoptin.IPAMClusterPool || operatorOption.Config.IPAM == ipamoptin.IPAMMultiPool {
+		// feed IP Pool
+	}
+
+	// identitty
+	if legacy.clientset.IsEnabled() {
+		// some further cleanup
+	}
+	log.Info("complete initialization")
+	return err
+}
+
+// Stop implements cell.HookInterface.
+func (legacy *legacyOnLeader) onStop(_ cell.HookContext) error {
+	legacy.cancel()
+	legacy.wg.Wait()
+	return nil
 }
