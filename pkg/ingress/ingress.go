@@ -49,7 +49,21 @@ func newIngressReconciler(
 	defaultSecretName string,
 	proxyIdleTimeoutSeconds int,
 ) *ingressReconciler {
-	panic("unimpl")
+	return &ingressReconciler{
+		logger:                  logger,
+		client:                  c,
+		maxRetries:              3,
+		enforcedHTTPS:           enforceHTTPS,
+		useProxyProtocol:        useProxyProtocol,
+		secretsNamespace:        secretsNamespace,
+		lbAnnotationPrefixes:    lbAnnotationPrefixes,
+		sharedLBServiceName:     sharedLBServiceName,
+		defaultLoadbalancerMode: defaultLoadbalancerMode,
+		defaultSecretNamespace:  defaultSecretNamespace,
+		defaultSecretName:       defaultSecretName,
+		idleTimeoutSeconds:      proxyIdleTimeoutSeconds,
+		dolphinNamespace:        "dolphin",
+	}
 }
 
 func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -62,11 +76,10 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
 		Watches(&networkingv1.IngressClass{}, r.enqIngressWithExplicitControll(), r.forDolphinIngressClass()).
 		Complete(r)
-
 }
 
 func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
-	panic("unimpl")
+	return nil
 }
 
 func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {

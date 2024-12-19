@@ -10,6 +10,12 @@ github.com/ccfish2/infra v0.0.0-20241205013524-5e29b4fab7fc h1:Q5DMj5nF0dbOH4Yvh
 github.com/ccfish2/infra v0.0.0-20241205013524-5e29b4fab7fc/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
 github.com/ccfish2/infra v0.0.0-20241217195734-fe12a3d538d9 h1:FeOyqv5sHyKV7eTUVLqDcLZj/FpMo67Srl1cQ/oyqXE=
 github.com/ccfish2/infra v0.0.0-20241217195734-fe12a3d538d9/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
+github.com/ccfish2/infra v0.0.0-20241218190854-853ed174da30 h1:i85GvPrlFVJQ9LrCMHB0qfweKlGhHch5mb73J7ru4YI=
+github.com/ccfish2/infra v0.0.0-20241218190854-853ed174da30/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
+github.com/ccfish2/infra v0.0.0-20241219174017-eba0d133fc96 h1:M0hTlzTLuix5smOmG/GgFRW8N/1IwSFRi5V0c4yIElQ=
+github.com/ccfish2/infra v0.0.0-20241219174017-eba0d133fc96/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
+github.com/ccfish2/infra v0.0.0-20241219175851-d41bb987897d h1:nlf73M8+PkwdxqRgEvAwzjcJvKZH4J8ll3HHkK8z+E4=
+github.com/ccfish2/infra v0.0.0-20241219175851-d41bb987897d/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

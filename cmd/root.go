@@ -30,7 +30,6 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
-	store "github.com/ccfish/infra/pkg/kvstore/store"
 	"github.com/ccfish2/infra/pkg/controller"
 	"github.com/ccfish2/infra/pkg/hive"
 	"github.com/ccfish2/infra/pkg/hive/cell"
@@ -39,6 +38,7 @@ import (
 	"github.com/ccfish2/infra/pkg/k8s/apis"
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8sversion "github.com/ccfish2/infra/pkg/k8s/version"
+	"github.com/ccfish2/infra/pkg/kvstore/store"
 	"github.com/ccfish2/infra/pkg/logging"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/ccfish2/infra/pkg/option"
@@ -98,7 +98,7 @@ var (
 
 			libipam.Cell,
 			//
-			//
+			store.Cell,
 			legacyCell,
 
 			//

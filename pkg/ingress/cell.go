@@ -1,6 +1,8 @@
 package ingress
 
 import (
+	"fmt"
+
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -12,7 +14,7 @@ var Cell = cell.Module(
 	"Manages ingress controller",
 
 	cell.Config(
-		IngressConfig{
+		ingressConfig{
 			enableIngressController:             true,
 			enforceIngressHTTPs:                 true,
 			enableIngressProxyProtocol:          true,
@@ -22,10 +24,10 @@ var Cell = cell.Module(
 			ingressDefaultLBMode:                "dedicated",
 		},
 	),
-	cell.Provide(registerReconciler),
+	cell.Invoke(registerReconciler),
 )
 
-type IngressConfig struct {
+type ingressConfig struct {
 	enableIngressController             bool
 	enforceIngressHTTPs                 bool
 	enableIngressProxyProtocol          bool
@@ -38,26 +40,29 @@ type IngressConfig struct {
 	IngressDefaultSecretName            string
 }
 
-func (ingCfg IngressConfig) Flags(flags *pflag.FlagSet) {
-	panic("unimpl")
+func (r ingressConfig) Flags(flags *pflag.FlagSet) {
+	flags.StringSlice("ingressLoadBalancerAnnotationPrefix", r.ingressLoadBalancerAnnotationPrefix, "")
+	flags.Bool("enableIngressController", r.enableIngressController, "")
+	flags.String("ingress-sharedlb-servicename", r.ingressSharedLBServiceName, "")
 }
 
 type ingressParams struct {
 	cell.In
 
-	logger logrus.FieldLogger
-	mgr    ctrlRuntime.Manager
-	ingCfg IngressConfig
+	Logger logrus.FieldLogger
+	Mgr    ctrlRuntime.Manager
+	IngCfg ingressConfig
 }
 
 func registerReconciler(params ingressParams) error {
 	// new one reconcciler
-	ingr := newIngressReconciler(params.logger, params.mgr.GetClient(), params.ingCfg.ingressSecretNamespace, params.ingCfg.enforceIngressHTTPs, params.ingCfg.enableIngressProxyProtocol, params.ingCfg.ingressSecretNamespace,
-		params.ingCfg.ingressLoadBalancerAnnotationPrefix, params.ingCfg.ingressSecretNamespace, params.ingCfg.ingressDefaultLBMode,
-		params.ingCfg.ingressSecretNamespace, params.ingCfg.ingressSecretNamespace, 3)
+	reconciler := newIngressReconciler(params.Logger, params.Mgr.GetClient(), params.IngCfg.ingressSecretNamespace, params.IngCfg.enforceIngressHTTPs, params.IngCfg.enableIngressProxyProtocol, params.IngCfg.ingressSecretNamespace,
+		params.IngCfg.ingressLoadBalancerAnnotationPrefix, params.IngCfg.ingressSecretNamespace, params.IngCfg.ingressDefaultLBMode,
+		params.IngCfg.ingressSecretNamespace, params.IngCfg.ingressSecretNamespace, 3)
 	// setup the reconciler with manager
-	if err := ingr.SetupWithManager(params.mgr); err != nil {
-		return err
+	if err := reconciler.SetupWithManager(params.Mgr); err != nil {
+		return fmt.Errorf("failed to setup with manager %v", err)
 	}
+
 	return nil
 }

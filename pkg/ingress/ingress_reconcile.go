@@ -7,5 +7,5 @@ import (
 )
 
 func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("unimpl")
+	return ctrl.Result{}, nil
 }
