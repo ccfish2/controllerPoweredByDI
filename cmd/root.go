@@ -22,6 +22,7 @@ import (
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/k8s"
+	"github.com/ccfish2/controllerPoweredByDI/metrics"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
@@ -42,6 +43,7 @@ import (
 	"github.com/ccfish2/infra/pkg/logging"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/ccfish2/infra/pkg/option"
+	"github.com/ccfish2/infra/pkg/pprof"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
 	ipamoptin "github.com/ccfish2/infra/pkg/ipam/option"
@@ -59,8 +61,27 @@ var (
 		"operator-infra",
 		"Operator Infrastructure",
 
+		pprof.Cell,
+		cell.ProvidePrivate(func(cfg operatorPprofConfig) pprof.Config {
+			return pprof.Config{
+				Prof:        cfg.OperatorPprof,
+				ProfAddress: cfg.OperatorPprofAddress,
+				ProfPort:    cfg.OperatorPprofPort,
+			}
+		}),
+		cell.Config(operatorPprofConfig{
+			OperatorPprofAddress: operatorOption.PprofAddressOperator,
+			OperatorPprofPort:    operatorOption.PprofPortOperator,
+		}),
+
+		//
+
 		// for access clientset, API of kubernetes objects
 		k8sClient.Cell,
+
+		metrics.Cell,
+
+		//
 	)
 
 	// implements control plane functionalities
