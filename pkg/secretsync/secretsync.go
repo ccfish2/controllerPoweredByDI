@@ -21,21 +21,21 @@ import (
 type SecretSyncRegistration struct {
 	RefObject            client.Object
 	RefObjectEnqueueFunc handler.EventHandler
-	RefobjectCheckFunc   func(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool
-	SecretNamespace      string
-	AdditionWatches      []AdditionWatch
+	RefObjectCheckFunc   func(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool
+	SecretsNamespace     string
+	AdditionalWatches    []AdditionalWatch
 	DefaultSecret        *DefaultSecret
+}
+
+type AdditionalWatch struct {
+	RefObject             client.Object
+	RefObjectEnqueueFunc  handler.EventHandler
+	RefObjectWatchOptions []builder.WatchesOption
 }
 
 type DefaultSecret struct {
 	Namespace string
 	Name      string
-}
-
-type AdditionWatch struct {
-	RefObject             client.Object
-	RefObjectEnqueueFunc  handler.EventHandler
-	RefObjectWatchOptions []builder.WatchesOption
 }
 
 func EnqueueTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.EventHandler {

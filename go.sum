@@ -18,6 +18,8 @@ github.com/ccfish2/infra v0.0.0-20241219175851-d41bb987897d h1:nlf73M8+PkwdxqRgE
 github.com/ccfish2/infra v0.0.0-20241219175851-d41bb987897d/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
 github.com/ccfish2/infra v0.0.0-20241220184258-742d8c3e12f4 h1:AJb10wXNpLdrrFefxVF49o7ZCKrCQgB3xg82yZS9t9o=
 github.com/ccfish2/infra v0.0.0-20241220184258-742d8c3e12f4/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
+github.com/ccfish2/infra v0.0.0-20241222042251-8dc1418fa560 h1:MtWpqF4AYVVbQa79iEussCiYcJbkDeBAy8z06vqO6Dw=
+github.com/ccfish2/infra v0.0.0-20241222042251-8dc1418fa560/go.mod h1:sf9ggcu3n7IuoS6AWSsCY1DDXsooL5/OD8wJZiWLBGo=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

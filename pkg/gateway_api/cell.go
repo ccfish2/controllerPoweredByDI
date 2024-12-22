@@ -183,8 +183,8 @@ func registerSecretSync(params gatewayAPIParams) secretsync.SecretSyncRegistrati
 		SecretSyncRegistration: &secretsync.SecretSyncRegistration{
 			RefObject:            &gatewayv1.Gateway{},
 			RefObjectEnqueueFunc: EnqueueTLSSecrets(params.CtrlRuntimeManager.GetClient(), params.Logger),
-			RefobjectCheckFunc:   IsReferencedByDolphinGateway,
-			SecretNamespace:      params.Config.GatewayAPISecretsNamespace,
+			RefObjectCheckFunc:   IsReferencedByDolphinGateway,
+			SecretsNamespace:     params.Config.GatewayAPISecretsNamespace,
 		},
 	}
 }
