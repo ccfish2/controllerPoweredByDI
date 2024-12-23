@@ -6,9 +6,13 @@ import (
 
 	"github.com/ccfish2/infra/pkg/hive"
 	"github.com/ccfish2/infra/pkg/hive/cell"
+	"github.com/ccfish2/infra/pkg/metrics"
 	"github.com/ccfish2/infra/pkg/metrics/metric"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	ctrlRuntimeMetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 type params struct {
@@ -47,4 +51,39 @@ func (mm *metricsManager) Start(ctx cell.HookContext) error {
 	}()
 
 	return nil
+}
+
+func (mm *metricsManager) Stop(ctx cell.HookContext) error {
+	if err := mm.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func registerMetricsManager(p params) {
+	if !p.SharedConfig.EnableMetrics {
+		return
+	}
+	mm := &metricsManager{
+		logger:     p.Logger,
+		server:     http.Server{Addr: p.Cfg.OperatorPrometheusServeAddr},
+		shutdowner: p.Shutdowner,
+		metrics:    p.Metrics,
+	}
+	if p.SharedConfig.EnableGatewayAPI {
+		Registry = ctrlRuntimeMetrics.Registry
+	} else {
+		Registry = prometheus.NewPedanticRegistry()
+	}
+	Registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{Namespace: metrics.DolphinOperatorNamespace}))
+
+	for _, metric := range mm.metrics {
+		Registry.MustRegister(metric.(prometheus.Collector))
+	}
+
+	metrics.InitOperatorMetrics()
+	Registry.MustRegister(metrics.ErrorsWarnings)
+	metrics.FlushLoggingMetrics()
+
+	p.Lifecycle.Append(mm)
 }

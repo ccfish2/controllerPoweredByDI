@@ -9,6 +9,7 @@ var Cell = cell.Module(
 	"operator-metrics",
 	"Operator Metrics",
 	cell.Config(defaultConfig),
+	cell.Invoke(registerMetricsManager),
 )
 
 const (

@@ -22,7 +22,8 @@ import (
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/k8s"
-	"github.com/ccfish2/controllerPoweredByDI/metrics"
+	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
+	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
@@ -79,8 +80,7 @@ var (
 		// for access clientset, API of kubernetes objects
 		k8sClient.Cell,
 
-		metrics.Cell,
-
+		operatorMetrics.Cell,
 		//
 	)
 
@@ -108,14 +108,17 @@ var (
 				DisableDolphinEndpointCRD: daemonCfg.DisableDolphinEndpointCRD,
 			}
 		}),
-
+		// api health
+		// api metrics
 		controller.Cell,
+		// operatorapi
+		// api
 		job.Cell,
 
 		// following cells only init when operator is elected leader
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
-			k8s.ResourcesCell,
+			operatorK8s.ResourcesCell,
 
 			libipam.Cell,
 			//
@@ -123,7 +126,9 @@ var (
 			legacyCell,
 
 			//
+
 			//
+
 			endpointgc.Cell,
 			controllerruntime.Cell,
 			gatewayapi.Cell,
