@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 as base 
+FROM ubuntu:22.04 AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,5 +18,6 @@ WORKDIR /root/go/src/github.com/ccfish2
 RUN  git clone https://github.com/ccfish2/controllerPoweredByDI.git && git clone https://github.com/ccfish2/infra.git && \
      export PATH=$PATH:/usr/local/go/bin
 
+FROM base AS release
 WORKDIR /root/go/src/github.com/ccfish2/controllerPoweredByDI
 CMD [ "go run main.go" ]

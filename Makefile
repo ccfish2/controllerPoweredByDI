@@ -1,71 +1,49 @@
-SHELL :=/usr/bin/env bash
-.SHELLFLAGS := -eu -o pipefail -c
-
-ROOTDIR := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
-RELATIVE_PATH := $(shell echo $(realpath .) | sed "s;$(ROOT_DIR)[/]*;;")
-
-PREFIX?=/usr
-BINDIR?=$(PREFIX)/bin
-CNIBINDIR?=/opt/cni/bin
-CNICONFDIR?=/etc/cni/net.d
-LIBDIR?=$(PREFIX)/lib
-LOCALSTATEDIR?=/var
-RUNDIR?=/var/run
-CONFDIR?=/etc
-
-export GO ?= go
-NATIVE_ARCH = $(shell GOARCH=$(GO) env GOARCH)
-export GOARCH ?= $(NATIVE_ARCH)
-
-INSTALL = install
-
-CONTAINER_ENGINE?=docker
-DOCKER_FLAGS?=
-DOCKER_BUILD_FLAGS?=
-
-# minor diff between sed and gsed
-SED ?= $(if $(shell command -v gsed),gsed,sed)
-
-ifeq ($(DOCKER_DEV_ACCOUNT),)
-  DOCKER_DEV_ACCOUNT=jimin1
-endif
-
-ifeq ($(DOCKER_IMG_TAG),)
-  DOCKER_IMG_TAG=latest
-endif
-
-# 
+######
 DOCKER_BUILDER := default
+
+# Export with value expected by docker
 export DOCKER_BUILDKIT=1
+
+# Docker Buildx support. If ARCH is defined, a builder instance 'cross'
+# on the local node is configured for amd64 and arm64 platform targets.
+# Otherwise build on the current (typically default) builder for the host
+# platform only.
 ifdef ARCH
+  # Default to multi-arch builds, always create the builder for all the platforms we support
   DOCKER_PLATFORMS := linux/arm64,linux/amd64
-  DOCKER_BUILDER:= $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-  ifneq(,$(filter $(DOCKER_BUILDER), default, desk-linux))
+  DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+  ifneq (,$(filter $(DOCKER_BUILDER),default desktop-linux))
     DOCKER_BUILDKIT_DRIVER :=
     ifdef DOCKER_BUILDKIT_IMAGE
-      DOCKER_BUILDKIT_DRIVER := --driver docker-container --dirver-opt $(DOCKER_BUILDKIT_IMAGE)
+      DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
     endif
     BUILDER_SETUP := $(shell docker buildx create --platform $(DOCKER_PLATFORMS) $(DOCKER_BUILDKIT_DRIVER) --use)
-  # override default values
-  ifneq ($(ARCH), multi)
+  endif
+  # Override default for a single platform
+  ifneq ($(ARCH),multi)
     DOCKER_PLATFORMS := linux/$(ARCH)
   endif
   DOCKER_FLAGS += --push --platform $(DOCKER_PLATFORMS)
 else
   ifeq ($(findstring --output,$(DOCKER_FLAGS)),)
     ifeq ($(findstring --push,$(DOCKER_FLAGS)),)
-      DOCKER_FLAGS += load
+      # ARCH, --output, and --push are not specified, build for the host platform without pushing, mimicking regular docker build
+      DOCKER_FLAGS += --load
     endif
   endif
 endif
 DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+
+ifeq ($(DOCKER_DEV_ACCOUNT),)
+    DOCKER_DEV_ACCOUNT=jimin1
+endif
 
 ##@ Docker Images
 .PHONY: builder-info
 builder-info: ## Print information about the docker builder that will be used for building images.
 	@echo "Using Docker Buildx builder \"$(DOCKER_BUILDER)\" with build flags \"$(DOCKER_FLAGS)\"."
 
-# genericc rule for .gitignore files
+# Generic rule for augmented .dockerignore files.
 GIT_IGNORE_FILES := $(shell find . -not -path "./vendor*" -name .gitignore -print)
 .PRECIOUS: %.dockerignore
 %.dockerignore: $(GIT_IGNORE_FILES) Makefile.docker
@@ -86,8 +64,9 @@ GIT_IGNORE_FILES := $(shell find . -not -path "./vendor*" -name .gitignore -prin
 			-e '$$a\' \
 		{DIR}.gitignore >> $@
 
-DOCKER_REGISTRY ?= hub.docker.com
+DOCKER_REGISTRY ?= quay.io
 ifeq ($(findstring /,$(DOCKER_DEV_ACCOUNT)),/)
+    # DOCKER_DEV_ACCOUNT already contains '/', assume it specifies a registry
     IMAGE_REPOSITORY := $(DOCKER_DEV_ACCOUNT)
 else
     IMAGE_REPOSITORY := $(DOCKER_REGISTRY)/$(DOCKER_DEV_ACCOUNT)
@@ -97,17 +76,17 @@ endif
 # Template for Docker images. Paramaters are:
 # $(1) image target name
 # $(2) Dockerfile path
-# $(3) image name stem (e.g., DOLPHIN, DOLPHIN-operator, etc)
+# $(3) image name stem (e.g., dolphin, dolphin-operator, etc)
 # $(4) image tag
 # $(5) target
 #
 define DOCKER_IMAGE_TEMPLATE
-.PHONY $(1)
-$(1): GIT_VERSION $(2) $(2).gitignore GIT_VERSION builder-info 
-  $(ECHO_DOCKER)$(2) $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$$(UNSTRIPPED):$(4)
-  $(eval IMAGE_NAME := $(subst %,$$$$*,$(3)))
+.PHONY: $(1)
+$(1): GIT_VERSION $(2) $(2).dockerignore GIT_VERSION builder-info
+	$(ECHO_DOCKER)$(2) $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}:$(4)
+	$(eval IMAGE_NAME := $(subst %,$$$$*,$(3)))
 ifeq ($(5),debug)
-  @export NOSTRIP=1
+	@export NOSTRIP=1
 endif
 	$(QUIET) $(CONTAINER_ENGINE) buildx build -f $(subst %,$$*,$(2)) \
 		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
@@ -118,7 +97,7 @@ endif
 		--build-arg RACE=${RACE}\
 		--build-arg V=${V} \
 		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
-		--build-arg DOLPHIN_SHA=$(firstword $(GIT_VERSION)) \
+		--build-arg dolphin_SHA=$(firstword $(GIT_VERSION)) \
 		--build-arg OPERATOR_VARIANT=$(IMAGE_NAME) \
 		--build-arg DEBUG_HOLD=$(DEBUG_HOLD) \
 		--target $(5) \
@@ -127,7 +106,7 @@ ifneq ($(KIND_LOAD),)
 	sleep 1
 	kind load docker-image $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4)
 else
-  ifeq ($(findstring --push,$(DOCKER_FLAGS)),)
+    ifeq ($(findstring --push,$(DOCKER_FLAGS)),)
 	@echo 'Define "DOCKER_FLAGS=--push" to push the build results.'
     else
 	$(CONTAINER_ENGINE) buildx imagetools inspect $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4)
@@ -141,14 +120,24 @@ $(1)-unstripped: $(1)
 	@echo
 endef
 
-# docker-operator-images.
-# We eat the ending of "operator" in to the stem ('%') to allow this pattern
-# to build also 'docker-operator-image', where the stem would be empty otherwise.
-#$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
+# dev-docker-image
+$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-image,images/dolphin/Dockerfile,dolphin-dev,$(DOCKER_IMAGE_TAG),release))
+
+# dev-docker-image-debug
+$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-image-debug,images/dolphin/Dockerfile,dolphin-dev,$(DOCKER_IMAGE_TAG),debug))
+
+# docker-operator-images
+$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
+$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
+$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image-debug,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),debug))
+
+# docker-*-all targets are mainly used from the CI
+docker-operator-images-all: docker-operator-image docker-operator-generic-image ## Build all variants of dolphin-operator images.
+docker-operator-images-all-unstripped: docker-operator-image-unstripped docker-operator-generic-image-unstripped ## Build all variants of unstripped dolphin-operator images.
+
 
 REGISTRIES ?= docker.io/jimin1
 PUSH ?= false
-
 OUTPUT := "type=image"
 ifeq ($(PUSH),true)
 OUTPUT := "type=registry,push=true"
@@ -156,10 +145,7 @@ endif
 
 PLATFORMS=linux/amd64,linux/arm64
 
-all-images: lint operator-image
-
-lint:
-	scripts/lint.sh
+all-images: operator-image
 
 .buildx_builder:
 	# see https://github.com/docker/buildx/issues/308
@@ -167,4 +153,4 @@ lint:
 	docker buildx create --platform $(PLATFORMS) --buildkitd-flags '--debug' > $@
 
 operator-image: .buildx_builder
-	ROOT_CONTEXT=true operator-dev images/operator $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+	ROOT_CONTEXT=true scripts/build-image.sh operator-dev images $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)

@@ -1,0 +1,16 @@
+*
+
+# must-have toplevel files
+!/Makefile*
+!/go.sum
+!/go.mod
+!/VERSION
+
+# directories
+!/.git
+!/api
+!/images/runtime/build-gops.sh
+!/operator
+!/pkg
+!/tools
+!/vendor
