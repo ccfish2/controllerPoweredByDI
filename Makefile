@@ -97,7 +97,7 @@ endif
 # Template for Docker images. Paramaters are:
 # $(1) image target name
 # $(2) Dockerfile path
-# $(3) image name stem (e.g., cilium, cilium-operator, etc)
+# $(3) image name stem (e.g., DOLPHIN, DOLPHIN-operator, etc)
 # $(4) image tag
 # $(5) target
 #
@@ -118,7 +118,7 @@ endif
 		--build-arg RACE=${RACE}\
 		--build-arg V=${V} \
 		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
-		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
+		--build-arg DOLPHIN_SHA=$(firstword $(GIT_VERSION)) \
 		--build-arg OPERATOR_VARIANT=$(IMAGE_NAME) \
 		--build-arg DEBUG_HOLD=$(DEBUG_HOLD) \
 		--target $(5) \
