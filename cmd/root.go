@@ -21,22 +21,29 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
+	"github.com/ccfish2/controllerPoweredByDI/identitygc"
 	"github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinendpoint"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
 	gatewayapi "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/libipam"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
+	cmtypes "github.com/ccfish2/infra/pkg/clustermesh/types"
 	"github.com/ccfish2/infra/pkg/controller"
+	"github.com/ccfish2/infra/pkg/defaults"
+	"github.com/ccfish2/infra/pkg/gops"
 	"github.com/ccfish2/infra/pkg/hive"
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	"github.com/ccfish2/infra/pkg/hive/job"
 	"github.com/ccfish2/infra/pkg/ipam/allocator"
+	ipamoptin "github.com/ccfish2/infra/pkg/ipam/option"
 	"github.com/ccfish2/infra/pkg/k8s/apis"
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8sversion "github.com/ccfish2/infra/pkg/k8s/version"
@@ -45,17 +52,15 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/ccfish2/infra/pkg/option"
 	"github.com/ccfish2/infra/pkg/pprof"
-
-	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
-	ipamoptin "github.com/ccfish2/infra/pkg/ipam/option"
 )
 
 var (
 	Operator = cell.Module(
 		"operator",
 		"Dolphin Operator",
+
 		Infrastructure,
-		ControllPlane,
+		ControlPlane,
 	)
 
 	Infrastructure = cell.Module(
@@ -75,22 +80,33 @@ var (
 			OperatorPprofPort:    operatorOption.PprofPortOperator,
 		}),
 
-		//
+		gops.Cell(defaults.GopsPortOperator),
 
 		// for access clientset, API of kubernetes objects
 		k8sClient.Cell,
 
 		operatorMetrics.Cell,
-		//
+		cell.Provide(func(operatorConfig *operatorOption.OperatorConfig) operatorMetrics.SharedConfig {
+			return operatorMetrics.SharedConfig{
+				// this enablement gets invovle with integration or third party
+				EnableMetrics:    true,
+				EnableGatewayAPI: true,
+			}
+		}),
 	)
 
 	// implements control plane functionalities
-	ControllPlane = cell.Module(
+	ControlPlane = cell.Module(
 		"operator-controlplane",
 		"Operator Control Plane",
 
+		cell.Config(cmtypes.DefaultClusterInfo),
+		cell.Invoke(func(cinfo cmtypes.ClusterInfo) error { return cinfo.InitClusterIDMax() }),
+		cell.Invoke(func(cinfo cmtypes.ClusterInfo) error { return cinfo.Validate() }),
+
 		cell.Invoke(registerOperatorHooks),
 
+		// for daemonconfig
 		cell.Provide(func() *option.DaemonConfig {
 			return option.Config
 		}),
@@ -102,15 +118,36 @@ var (
 		cell.Provide(func(
 			operatorCfg *operatorOption.OperatorConfig,
 			daemonCfg *option.DaemonConfig,
+		) identitygc.SharedConfig {
+			return identitygc.SharedConfig{
+				IdentityAllocationMode: daemonCfg.IdentityAllocationMode,
+				K8sNamespace:           daemonCfg.DolphinNamespaceName(),
+			}
+		}),
+
+		cell.Provide(func(
+			daemonCfg *option.DaemonConfig,
+		) dolphinendpoint.SharedConfig {
+			return dolphinendpoint.SharedConfig{
+				EnableDolphinEndpointSlice: daemonCfg.EnableDolphinEndpointSlice,
+			}
+		}),
+
+		cell.Provide(func(
+			operatorCfg *operatorOption.OperatorConfig,
+			daemonCfg *option.DaemonConfig,
 		) endpointgc.SharedConfig {
 			return endpointgc.SharedConfig{
 				Interval:                  operatorCfg.EndpointGCInterval,
 				DisableDolphinEndpointCRD: daemonCfg.DisableDolphinEndpointCRD,
 			}
 		}),
+
 		// api health
 		// api metrics
+
 		controller.Cell,
+
 		// operatorapi
 		// api
 		job.Cell,
@@ -126,6 +163,8 @@ var (
 			legacyCell,
 
 			//
+
+			identitygc.Cell,
 
 			//
 
