@@ -3,6 +3,7 @@ module github.com/ccfish2/controllerPoweredByDI
 go 1.23.0
 
 require (
+	github.com/ccfish2/dolphin v0.0.0-20250102225624-60afa324cdce
 	github.com/ccfish2/infra v0.0.0-20241231194011-2f545ece06b5
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
@@ -17,10 +18,22 @@ require (
 )
 
 require (
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
+	github.com/docker/go-units v0.5.0 // indirect
+	github.com/go-openapi/analysis v0.23.0 // indirect
+	github.com/go-openapi/errors v0.22.0 // indirect
+	github.com/go-openapi/loads v0.22.0 // indirect
+	github.com/go-openapi/runtime v0.28.0 // indirect
+	github.com/go-openapi/spec v0.21.0 // indirect
+	github.com/go-openapi/strfmt v0.23.0 // indirect
+	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/google/gops v0.3.28 // indirect
+	github.com/jessevdk/go-flags v1.6.1 // indirect
+	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
+	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 )
 
