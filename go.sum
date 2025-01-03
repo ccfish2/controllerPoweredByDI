@@ -10,6 +10,8 @@ github.com/ccfish2/dolphin v0.0.0-20250102060841-6de5fb6a3282 h1:vCKcAT0o9pk+Oc5
 github.com/ccfish2/dolphin v0.0.0-20250102060841-6de5fb6a3282/go.mod h1:XrvQAVD0Jp8/Sn/tyENfHHtSdPiN+rNIeKU+3x8R7Ec=
 github.com/ccfish2/dolphin v0.0.0-20250102225624-60afa324cdce h1:6ENKlX+/8klHzpQ5WpFW4yoC68LgqX2Ev3ytQtzL7X8=
 github.com/ccfish2/dolphin v0.0.0-20250102225624-60afa324cdce/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
+github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a h1:EEtf8PxRiFrlcPOkH8AquBgkTv8+5a8Eo3LrhXBUQsk=
+github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/infra v0.0.0-20241231194011-2f545ece06b5 h1:DGqDu2TAyMhKnqBDYJi5qpWIc2kGksP4N4aStSF5E/g=
 github.com/ccfish2/infra v0.0.0-20241231194011-2f545ece06b5/go.mod h1:mFXCg5vYWcp33WuOo247D6OCg+9AQuQ3eYrgXeWm5jw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

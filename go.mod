@@ -3,7 +3,7 @@ module github.com/ccfish2/controllerPoweredByDI
 go 1.23.0
 
 require (
-	github.com/ccfish2/dolphin v0.0.0-20250102225624-60afa324cdce
+	github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a
 	github.com/ccfish2/infra v0.0.0-20241231194011-2f545ece06b5
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
