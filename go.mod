@@ -4,7 +4,9 @@ go 1.23.0
 
 require (
 	github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a
-	github.com/ccfish2/infra v0.0.0-20241231194011-2f545ece06b5
+	github.com/ccfish2/infra v0.0.0-20250104024042-410ae01b088a
+	github.com/go-openapi/loads v0.22.0
+	github.com/go-openapi/runtime v0.28.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
@@ -22,8 +24,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.0 // indirect
-	github.com/go-openapi/loads v0.22.0 // indirect
-	github.com/go-openapi/runtime v0.28.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
@@ -88,7 +88,7 @@ require (
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/sys v0.27.0
 	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
