@@ -135,6 +135,13 @@ $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image-debug,images/Dockerf
 docker-operator-images-all: docker-operator-image docker-operator-generic-image ## Build all variants of dolphin-operator images.
 docker-operator-images-all-unstripped: docker-operator-image-unstripped docker-operator-generic-image-unstripped ## Build all variants of unstripped dolphin-operator images.
 
+SUBDIR_OPERATOR_CONTAINER := operator
+
+build-container-operator: ## Builds components required for dolphin-operator container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(SUBDIR_OPERATOR_CONTAINER) all
+
+build-container-operator-generic: ## Builds components required for a dolphin-operator generic variant container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(SUBDIR_OPERATOR_CONTAINER) dolphin-operator-generic
 
 REGISTRIES ?= docker.io/jimin1
 PUSH ?= false
