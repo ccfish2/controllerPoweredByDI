@@ -23,8 +23,8 @@ var Cell = cell.Module(
 	"identity-gc",
 	"K8s Identity garbage collector",
 	cell.Config(defaultConfig),
-	// cell.Invoke(registerGC),
-	// cell.Metric(NewMetrics),
+	cell.Invoke(registerGC),
+	cell.Metric(NewMetrics),
 )
 
 type Config struct {

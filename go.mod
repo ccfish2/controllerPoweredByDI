@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a
-	github.com/ccfish2/infra v0.0.0-20250104024042-410ae01b088a
+	github.com/ccfish2/infra v0.0.0-20250106204216-b14bf2a66adc
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/runtime v0.28.0
 	github.com/prometheus/client_golang v1.20.5

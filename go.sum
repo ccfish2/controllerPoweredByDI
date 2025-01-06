@@ -14,6 +14,8 @@ github.com/ccfish2/infra v0.0.0-20250104022027-5e8b61a77dba h1:uG2Ylz6ZYqC3tn8sm
 github.com/ccfish2/infra v0.0.0-20250104022027-5e8b61a77dba/go.mod h1:mFXCg5vYWcp33WuOo247D6OCg+9AQuQ3eYrgXeWm5jw=
 github.com/ccfish2/infra v0.0.0-20250104024042-410ae01b088a h1:jvfIwUVQWUu7bNhSQbxW8kzxbW/Mnku1MKE60OnTOoM=
 github.com/ccfish2/infra v0.0.0-20250104024042-410ae01b088a/go.mod h1:mFXCg5vYWcp33WuOo247D6OCg+9AQuQ3eYrgXeWm5jw=
+github.com/ccfish2/infra v0.0.0-20250106204216-b14bf2a66adc h1:xefUtgN6Z7ufwIofTVDllm7dAfg4j1aISIrOQ7wUfxc=
+github.com/ccfish2/infra v0.0.0-20250106204216-b14bf2a66adc/go.mod h1:mFXCg5vYWcp33WuOo247D6OCg+9AQuQ3eYrgXeWm5jw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

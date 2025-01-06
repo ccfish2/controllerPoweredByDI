@@ -10,6 +10,7 @@ var Cell = cell.Module(
 	"k8s-endpoints-gc",
 	"Dolphin endpoints garbage collector",
 	cell.Invoke(registerGC),
+	cell.Metric(NewMetrics),
 )
 
 type SharedConfig struct {
