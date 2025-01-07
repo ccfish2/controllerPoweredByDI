@@ -30,7 +30,7 @@ type GC struct {
 }
 
 // Start implements cell.HookInterface.
-func (g *GC) Start(ctx cell.HookContext) error {
+func (g GC) Start(ctx cell.HookContext) error {
 	if g.once {
 		if !g.checkFoDolphinEndpointCRD(ctx) {
 			return nil
@@ -67,11 +67,6 @@ func (g *GC) doGC(ctx context.Context) error {
 	return nil
 }
 
-type deleteCheckResult struct {
-	shouldBeDeleted bool
-	validated       bool
-}
-
 func (g *GC) checkIfDepShouldBedeleted(dep *dolphinv1.DolphinEndpoint, scopedlog *logrus.Entry, ctx context.Context) bool {
 	if g.once {
 		return true
@@ -103,7 +98,7 @@ func (g *GC) checkIfDepShouldBedeleted(dep *dolphinv1.DolphinEndpoint, scopedlog
 }
 
 // Stop implements cell.HookInterface.
-func (g *GC) Stop(ctx cell.HookContext) error {
+func (g GC) Stop(ctx cell.HookContext) error {
 	if g.mgr != nil {
 		g.mgr.RemoveAllAndWait()
 	}

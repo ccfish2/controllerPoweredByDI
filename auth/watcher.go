@@ -45,7 +45,7 @@ func registerIdentityWatcher(p params) {
 	}
 	p.LifeCycle.Append(cell.Hook{
 		OnStart: func(hc cell.HookContext) error {
-			return iw.wg.Submit(func(ctx context.Context) error {
+			return iw.wg.Submit("my-id", func(ctx context.Context) error {
 				return iw.run(ctx)
 			})
 		},
