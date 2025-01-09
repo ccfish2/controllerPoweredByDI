@@ -20,12 +20,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	// myself
+	"github.com/ccfish2/controllerPoweredByDI/auth"
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/identitygc"
 	"github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
+
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinendpoint"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/dolphinenvoyconfig"
@@ -145,7 +147,6 @@ var (
 
 		// api health
 		// api metrics
-
 		controller.Cell,
 
 		// operatorapi
@@ -158,7 +159,7 @@ var (
 			operatorK8s.ResourcesCell,
 
 			libipam.Cell,
-			//
+			auth.Cell,
 			store.Cell,
 			legacyCell,
 
@@ -262,10 +263,6 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 	if clientset.IsEnabled() {
 		capabilities := k8sversion.Capabilities()
 		log.Info("apabilities <", capabilities, ">")
-		// if !capabilities.MinimalVersionMet {
-		// 	log.Fatalf("Minimal kubernetes version not met: %s < %s",
-		// 		k8sversion.Version(), k8sversion.MinimalVersionConstraint)
-		// }
 	}
 
 	operatorID, err := os.Hostname()
@@ -294,7 +291,6 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 	}
 
 	log.Info("Waiting for leader election")
-	// https://pkg.go.dev/k8s.io/client-go@v0.29.2/tools/leaderelection
 	leaderelection.RunOrDie(leaderElectionCtx, leaderelection.LeaderElectionConfig{
 		Name: leaderElectionResourceLockName,
 

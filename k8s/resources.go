@@ -31,6 +31,7 @@ type Resources struct {
 	DolphinEndpoints resource.Resource[*dolphinv1.DolphinEndpoint]
 	// Services              resource.Resource[*corev1.Service]
 	// Endpoints             resource.Resource[*corev1.Endpoints]
-	// DolphinEndpointSlices resource.Resource[*dolphinv1.DolphinEndpointSlice]
+	DolphinEndpointSlices resource.Resource[*dolphinv1.DolphinEndpointSlice]
+	Identities            resource.Resource[*dolphinv1.DolphinIdentity]
 	// Pods                  resource.Resource[*corev1.Pod]
 }
