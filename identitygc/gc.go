@@ -16,6 +16,7 @@ import (
 	"github.com/ccfish2/infra/pkg/allocator"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	k8sclient "github.com/ccfish2/infra/pkg/k8s/client"
+	dolphinVersion1 "github.com/ccfish2/infra/pkg/k8s/client/clientset/versioned/typed/dolphin.io/v1"
 	"github.com/ccfish2/infra/pkg/k8s/resource"
 	"github.com/ccfish2/infra/pkg/option"
 	"github.com/ccfish2/infra/pkg/rate"
@@ -45,7 +46,7 @@ type GC struct {
 	logger    logrus.FieldLogger
 	lifecycle cell.Lifecycle
 
-	clientset          k8sclient.Clientset
+	clientset          dolphinVersion1.DolphinIdentityInterface
 	identity           resource.Resource[*dolphinv1.DolphinIdentity]
 	endpoints          resource.Resource[*dolphinv1.DolphinEndpoint]
 	authIdentityClient authIdentity.Provider
