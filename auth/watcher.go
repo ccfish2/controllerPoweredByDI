@@ -18,7 +18,7 @@ type params struct {
 
 	Logger         logrus.FieldLogger
 	LifeCycle      cell.Lifecycle
-	IdentityClient identity.IdentityProvider
+	IdentityClient identity.Provider
 	Identity       resource.Resource[*dolphinv1.DolphinIdentity]
 	Cfg            Config
 }
@@ -26,7 +26,7 @@ type params struct {
 type ItentityWatcher struct {
 	logger logrus.FieldLogger
 
-	identityClient identity.IdentityProvider
+	identityClient identity.Provider
 	identity       resource.Resource[*dolphinv1.DolphinIdentity]
 	wg             *workerpool.WorkerPool
 	cfg            Config

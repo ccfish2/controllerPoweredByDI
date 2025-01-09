@@ -12,6 +12,7 @@ type metricsHandler struct{}
 // Handle implements metrics.GetMetricsHandler.
 func (m *metricsHandler) Handle(params metrics.GetMetricsParams) middleware.Responder {
 	opmetrics.DumpMetrics()
+	return nil
 }
 
 func newMetricsHandler() metrics.GetMetricsHandler {
