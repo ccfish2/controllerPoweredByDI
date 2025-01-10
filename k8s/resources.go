@@ -2,9 +2,9 @@ package k8s
 
 import (
 	"github.com/ccfish2/infra/pkg/hive/cell"
-	"github.com/ccfish2/infra/pkg/k8s"
 
 	// dolphin
+	"github.com/ccfish2/infra/pkg/k8s"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	"github.com/ccfish2/infra/pkg/k8s/resource"
 )
@@ -17,6 +17,9 @@ var (
 		cell.Config(k8s.DefaultConfig),
 		cell.Provide(
 			DolphinEndpointResource,
+			DolphinEndpointSliceResource,
+			k8s.DolphinIdentityResource,
+			k8s.DolphinNodeResource,
 		),
 	)
 )
@@ -33,5 +36,5 @@ type Resources struct {
 	// Endpoints             resource.Resource[*corev1.Endpoints]
 	DolphinEndpointSlices resource.Resource[*dolphinv1.DolphinEndpointSlice]
 	Identities            resource.Resource[*dolphinv1.DolphinIdentity]
-	// Pods                  resource.Resource[*corev1.Pod]
+	//Pods                  resource.Resource[*corev1.Pod]
 }

@@ -19,7 +19,7 @@ var Cell = cell.Module(
 )
 
 type Config struct {
-	Enabled bool `mapstructure:"mutual_auth_enabled,omitempty"`
+	Enabled bool `mapstructure:"mesh-mutual-auth,omitempty"`
 }
 
 func (def Config) Flags(cf *pflag.FlagSet) {

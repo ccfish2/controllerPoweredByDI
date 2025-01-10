@@ -35,7 +35,13 @@ type Config struct {
 	RateLimit    int64         `mapstructure:"identitygc-rate-limit"`
 }
 
-var defaultConfig = Config{}
+var defaultConfig = Config{
+	Interval:         15 * time.Minute,
+	HeartbeatTimeout: 2 * 15 * time.Minute,
+
+	RateInterval: time.Minute,
+	RateLimit:    2500,
+}
 
 func (def Config) Flags(flag *pflag.FlagSet) {
 	flag.Duration(Interval, def.Interval, "GC interval")

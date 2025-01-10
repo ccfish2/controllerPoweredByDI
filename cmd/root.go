@@ -23,8 +23,8 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/auth"
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/identitygc"
-	"github.com/ccfish2/controllerPoweredByDI/k8s"
-	operatorK8s "github.com/ccfish2/controllerPoweredByDI/k8s"
+
+	operatork8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 
@@ -156,15 +156,14 @@ var (
 		// following cells only init when operator is elected leader
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
-			operatorK8s.ResourcesCell,
+			operatork8s.ResourcesCell,
 
 			libipam.Cell,
+			legacyCell,
 			auth.Cell,
 			store.Cell,
-			legacyCell,
 
 			//
-
 			identitygc.Cell,
 
 			//
@@ -342,7 +341,7 @@ func kvstoreEnabled() bool {
 
 var legacyCell = cell.Invoke(registerlegacyOnLeader)
 
-func registerlegacyOnLeader(lc cell.Lifecycle, k8sclient k8sClient.Clientset, resources k8s.Resources, factory store.Factory) {
+func registerlegacyOnLeader(lc cell.Lifecycle, k8sclient k8sClient.Clientset, resources operatork8s.Resources, factory store.Factory) {
 	ctx, cancel := context.WithCancel(context.Background())
 	legacy := legacyOnLeader{
 		ctx:       ctx,
@@ -362,7 +361,7 @@ type legacyOnLeader struct {
 	cancel    context.CancelFunc
 	clientset k8sClient.Clientset
 	wg        sync.WaitGroup
-	resources k8s.Resources
+	resources operatork8s.Resources
 	factory   store.Factory
 }
 

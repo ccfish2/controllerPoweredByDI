@@ -35,6 +35,17 @@ func DolphinEndpointResource(lc cell.Lifecycle, cs client.Clientset, opts ...fun
 
 }
 
+func DolphinEndpointSliceResource(lc cell.Lifecycle, cs client.Clientset, opts ...func(*metav1.ListOptions)) (resource.Resource[*dolphin_api_v1.DolphinEndpointSlice], error) {
+	if !cs.IsEnabled() {
+		return nil, nil
+	}
+	lw := utils.ListerWatcherWithModifiers(
+		utils.ListerWatcherFromTyped[*dolphin_api_v1.DolphinEndpointSliceList](cs.DolphinV1().DolphinEndpointSlices()),
+		opts...,
+	)
+	return resource.New[*dolphin_api_v1.DolphinEndpointSlice](lc, lw, resource.WithMetric("DolphinEndpointSlice")), nil
+}
+
 func identityIndexFunc(obj interface{}) ([]string, error) {
 	switch t := obj.(type) {
 	case *dolphin_api_v1.DolphinEndpoint:
