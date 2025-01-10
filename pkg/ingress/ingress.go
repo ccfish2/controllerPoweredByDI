@@ -1,12 +1,15 @@
 package ingress
 
 import (
+	"context"
+
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
 	"github.com/sirupsen/logrus"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -79,29 +82,35 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
-	return nil
+	return builder.WithPredicates()
 }
 
 func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
-	panic("unimpl")
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
+		panic("unimpl")
+	})
 }
 
 func (r *ingressReconciler) enqIngressWithExplicitControll() handler.EventHandler {
-	panic("unimpl")
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
+		panic("unimpl")
+	})
 }
 
 func (r *ingressReconciler) forSharedLBService() builder.WatchesOption {
-	panic("unimpl")
+	return builder.WithPredicates()
 }
 
 func (r *ingressReconciler) forShaedDolphinEnvoyConfig() builder.WatchesOption {
-	panic("unimpl")
+	return builder.WithPredicates()
 }
 
 func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
-	panic("unimpl")
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
+		panic("unimpl")
+	})
 }
 
 func (r *ingressReconciler) forDolphinIngressClass() builder.WatchesOption {
-	panic("unimpl")
+	return builder.WithPredicates()
 }

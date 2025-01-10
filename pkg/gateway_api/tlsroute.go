@@ -3,8 +3,11 @@ package gateway_api
 import (
 	"context"
 
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -14,6 +17,7 @@ import (
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type tlsrouteReconciler struct {
@@ -29,17 +33,34 @@ func newtlsrouteReconciler(mgr ctrl.Manager) *tlsrouteReconciler {
 }
 
 func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TCPRoute{}, backendServiceIndex, func(o client.Object) []string {
-		backendServices := []string{}
-		// iterate the tlsroute.Spec.Rules.BackendRefs
-		// check if it is a backendService
-		// compose namespaced name objecct, and convert to string
-		return backendServices
-	}); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, backendServiceIndex,
+		func(rawObj client.Object) []string {
+			hr, ok := rawObj.(*gatewayv1alpha2.TLSRoute)
+			if !ok {
+				return nil
+			}
+			var backendServices []string
+			for _, rule := range hr.Spec.Rules {
+				for _, backend := range rule.BackendRefs {
+					if !helpers.IsService(backend.BackendObjectReference) {
+						continue
+					}
+					backendServices = append(backendServices,
+						types.NamespacedName{
+							Namespace: helpers.NamespaceDerefOr(backend.Namespace, hr.Namespace),
+							Name:      string(backend.Name),
+						}.String(),
+					)
+				}
+			}
+			return backendServices
+		},
+	); err != nil {
+
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, gatewayIndex, func(o client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, gatewayIndex, func(o client.Object) []string {
 		gws := []string{}
 		// list all gateways belonging to dolphin GWC and belongs to io.dolphin/gateway-controller
 		// compose namespacedname
@@ -49,14 +70,37 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1alpha2.TCPRoute{}).
-		Watches(&gatewayv1.Gateway{}, t.equeGateway(),
-			builder.WithPredicates(predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName)))).
+		For(&gatewayv1alpha2.TLSRoute{}).
+		Watches(&corev1.Service{}, t.enqueueRequestForBackendService()).
+		Watches(&gatewayv1beta1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
+		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway(),
+			builder.WithPredicates(
+				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName)),
+			)).
 		Complete(t)
+}
+
+func (r *tlsrouteReconciler) enqueueRequestForGateway() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(r.enqueueFromIndex(gatewayIndex))
+}
+
+func (r *tlsrouteReconciler) enqueueAll() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []reconcile.Request {
+		panic("proto only")
+	}
+
+}
+
+func (r *tlsrouteReconciler) enqueueRequestForReferenceGrant() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(r.enqueueAll())
 }
 
 func (r *tlsrouteReconciler) equeGateway() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(r.equeGatewayFromIndex(gatewayIndex))
+}
+
+func (r *tlsrouteReconciler) enqueueRequestForBackendService() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(r.enqueueFromIndex(backendServiceIndex))
 }
 
 func (r *tlsrouteReconciler) equeGatewayFromIndex(index string) handler.MapFunc {
@@ -67,5 +111,11 @@ func (r *tlsrouteReconciler) equeGatewayFromIndex(index string) handler.MapFunc 
 			return nil
 		}
 		return []reconcile.Request{}
+	}
+}
+
+func (r *tlsrouteReconciler) enqueueFromIndex(index string) handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []reconcile.Request {
+		panic("proto only")
 	}
 }

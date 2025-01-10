@@ -59,11 +59,9 @@ var requiredGVK = []schema.GroupVersionKind{
 	gatewayv1.SchemeGroupVersion.WithKind("gatewayclasses"),
 	gatewayv1.SchemeGroupVersion.WithKind("gateways"),
 	gatewayv1.SchemeGroupVersion.WithKind("httproutes"),
-
+	gatewayv1beta1.SchemeGroupVersion.WithKind("referencegrants"),
 	gatewayv1alpha2.SchemeGroupVersion.WithKind("grpcroutes"),
 	gatewayv1alpha2.SchemeGroupVersion.WithKind("tlsroutes"),
-
-	gatewayv1beta1.SchemeGroupVersion.WithKind("referencegrants"),
 }
 
 type gatewayAPIParams struct {
@@ -120,7 +118,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 
 	for _, r := range reconcilers {
 		if err := r.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("failed to setup reconciler: %w", err)
+			return fmt.Errorf("failed to setup reconciler %#v: %w", r, err)
 		}
 	}
 	return nil

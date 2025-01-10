@@ -10,8 +10,8 @@ import (
 )
 
 type l7LoadBalancerConfig struct {
-	loadbalancerL7Algo string
-	loadbalancerl7Port []string
+	LoadbalancerL7Algo string   `json:"loadbalancer-l7-algo,omitempty"`
+	LoadbalancerL7Port []string `json:"loadbalancer-l7-port,omitempty"`
 }
 
 var Cell = cell.Module(
@@ -27,8 +27,8 @@ var Cell = cell.Module(
 )
 
 func (p l7LoadBalancerConfig) Flags(pflag *pflag.FlagSet) {
-	pflag.String("l7-loadbalancer-algo", p.loadbalancerL7Algo, "speccify the loadblancer algorithm")
-	pflag.StringSlice("l7-loadbalancer-ports", p.loadbalancerl7Port, "specify the loadbalancer port")
+	pflag.String("loadbalancer-l7-algo", p.LoadbalancerL7Algo, "speccify the loadblancer algorithm")
+	pflag.StringSlice("loadbalancer-l7-port", p.LoadbalancerL7Port, "specify the loadbalancer port")
 }
 
 type l7loadbalancerParams struct {
@@ -47,8 +47,8 @@ func registerl7LoadbalancerController(p l7loadbalancerParams) error {
 	reconciler := newenvoyconfigReconciler(
 		p.CtrlRuntimeManager.GetClient(),
 		p.Logger,
-		p.Config.loadbalancerL7Algo,
-		p.Config.loadbalancerl7Port,
+		p.Config.LoadbalancerL7Algo,
+		p.Config.LoadbalancerL7Port,
 		10,
 		operatorOption.Config.ProxyIdleTimeoutSeconds,
 	)

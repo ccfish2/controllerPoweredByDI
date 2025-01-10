@@ -26,5 +26,5 @@ func newDolphinNodeSynchronizer(cli k8sclient.Clientset, nd allocator.NodeEventH
 }
 
 func (d *dolphinNodeSynchronizer) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	panic("unimpl")
+	return nil
 }
