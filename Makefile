@@ -41,3 +41,7 @@ install-aws:
 install-azure:
 	$(QUIET)$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(QUIET)$(INSTALL) -m 0755 dolphin-operator-azure $(DESTDIR)$(BINDIR)
+
+
+kind-build-image-operator: ## Build dolphin-operator-dev docker image
+	$(QUIET)$(MAKE) dev-docker-operator-generic-image$(DEBUGGER_SUFFIX) DOCKER_IMAGE_TAG=$(LOCAL_IMAGE_TAG)
