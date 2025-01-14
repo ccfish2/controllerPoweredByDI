@@ -33,7 +33,7 @@ COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/dolphin-${OPERATOR_VA
 WORKDIR /
 CMD [ "/usr/bin/dolphin-${OPERATOR_VARIANT}" ]
 
-FROM release as debug 
+FROM release AS debug 
 ARG TARGETOS
 ARG TARGETARCH
 ARG OPERATOR_VARIANT

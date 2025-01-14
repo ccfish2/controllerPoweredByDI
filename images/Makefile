@@ -18,4 +18,4 @@ all-images: operator-image
 	docker buildx create --platform $(PLATFORMS) --buildkitd-flags '--debug' > $@
 
 operator-image: .buildx_builder
-	ROOT_CONTEXT=true ./build-image.sh operator-dev images/operator $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+	ROOT_CONTEXT=true ./build-image.sh operator-dev $(CURDIR) $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
