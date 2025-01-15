@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	// myself
+	"github.com/ccfish2/controllerPoweredByDI/api"
 	"github.com/ccfish2/controllerPoweredByDI/auth"
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/identitygc"
@@ -70,6 +71,7 @@ var (
 		"Operator Infrastructure",
 
 		pprof.Cell,
+		//register pprof HTTP handler, to get runtime metrics
 		cell.ProvidePrivate(func(cfg operatorPprofConfig) pprof.Config {
 			return pprof.Config{
 				Prof:        cfg.OperatorPprof,
@@ -82,22 +84,24 @@ var (
 			OperatorPprofPort:    operatorOption.PprofPortOperator,
 		}),
 
+		// runs the gops agent, a tool diagnose go process
 		gops.Cell(defaults.GopsPortOperator),
 
-		// for access clientset, API of kubernetes objects
+		// provide clientset, API for accessing kubernetes objects
 		k8sClient.Cell,
 
+		// modular metrics registry, metric HTTP server
 		operatorMetrics.Cell,
 		cell.Provide(func(operatorConfig *operatorOption.OperatorConfig) operatorMetrics.SharedConfig {
 			return operatorMetrics.SharedConfig{
 				// this enablement gets invovle with integration or third party
-				EnableMetrics:    true,
-				EnableGatewayAPI: true,
+				EnableMetrics:    operatorConfig.EnableMetrics,
+				EnableGatewayAPI: operatorConfig.EnableGatewayAPI,
 			}
 		}),
 	)
 
-	// implements control plane functionalities
+	// implements control functions
 	ControlPlane = cell.Module(
 		"operator-controlplane",
 		"Operator Control Plane",
@@ -146,6 +150,10 @@ var (
 		}),
 
 		// api health
+		api.HealthHandlerCell(
+			kvstoreEnabled,
+			isLeader.Load,
+		),
 		// api metrics
 		controller.Cell,
 
