@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/ccfish2/dolphin v0.0.0-20250103203330-1d8f033c4f8a
-	github.com/ccfish2/infra v0.0.0-20250115051024-1e879b10428d
+	github.com/ccfish2/infra v0.0.0-20250116195302-7a6e44a0c35b
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/runtime v0.28.0
 	github.com/prometheus/client_golang v1.20.5
@@ -14,6 +14,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/goleak v1.3.0
+	google.golang.org/grpc v1.66.2
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.31.2
 	sigs.k8s.io/controller-runtime v0.19.1
@@ -35,7 +36,6 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
-	google.golang.org/grpc v1.66.2 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 )
 

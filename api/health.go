@@ -62,7 +62,7 @@ func (h *healthhandler) checkStatus() error {
 		if client == nil {
 			return errors.New("kvstore client not configured")
 		}
-		if err := client.Status(); err != nil {
+		if _, err := client.Status(); err != nil {
 			return err
 		}
 	}
