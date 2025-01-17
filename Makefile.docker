@@ -152,6 +152,8 @@ endif
 
 PLATFORMS=linux/amd64,linux/arm64
 
+$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
+
 all-images: operator-image
 
 .buildx_builder:
