@@ -38,6 +38,7 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
+	operatorapi "github.com/ccfish2/dolphin/api/v1/operator/server"
 	cmtypes "github.com/ccfish2/infra/pkg/clustermesh/types"
 	"github.com/ccfish2/infra/pkg/controller"
 	"github.com/ccfish2/infra/pkg/defaults"
@@ -155,10 +156,10 @@ var (
 			isLeader.Load,
 		),
 		// api metrics
+		api.MetricsHandlerCell,
 		controller.Cell,
-
-		// operatorapi
-		// api
+		operatorapi.SpecCell,
+		api.ServerCell,
 		job.Cell,
 
 		// following cells only init when operator is elected leader
@@ -167,14 +168,12 @@ var (
 			operatork8s.ResourcesCell,
 
 			libipam.Cell,
-			legacyCell,
 			auth.Cell,
 			store.Cell,
+			legacyCell,
 
-			//
 			identitygc.Cell,
-
-			//
+			//endpointslice
 
 			endpointgc.Cell,
 			controllerruntime.Cell,
