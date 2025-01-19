@@ -116,6 +116,22 @@ func (r *tlsrouteReconciler) equeGatewayFromIndex(index string) handler.MapFunc 
 
 func (r *tlsrouteReconciler) enqueueFromIndex(index string) handler.MapFunc {
 	return func(ctx context.Context, o client.Object) []reconcile.Request {
-		panic("proto only")
+		rList := &gatewayv1alpha2.TLSRouteList{}
+		if err := r.Client.List(context.Background(), rList, &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(index, client.ObjectKeyFromObject(o).String()),
+		}); err != nil {
+			return []reconcile.Request{}
+		}
+		res := []reconcile.Request{}
+		for _, tl := range rList.Items {
+			route := client.ObjectKey{
+				Namespace: tl.Namespace,
+				Name:      tl.Name,
+			}
+			res = append(res, reconcile.Request{
+				NamespacedName: route,
+			})
+		}
+		return res
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	// dolphin
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
@@ -85,9 +86,39 @@ func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
 	return builder.WithPredicates()
 }
 
+func isDolphinmanagedIngress(ctx context.Context, c client.Client, log logrus.FieldLogger, ing *networkingv1.Ingress) bool {
+	return true
+}
+
+func isEffectiveLoadbalancerModeDedicated(in *networkingv1.Ingress) bool {
+	return true
+}
+
 func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
-		panic("unimpl")
+		//panic("unimpl")
+		// use the client list ingress
+		var ingresslist networkingv1.IngressList
+		if err := r.client.List(ctx, &ingresslist, &client.ListOptions{}); err != nil {
+			return []reconcile.Request{}
+		}
+
+		res := []reconcile.Request{}
+		for _, in := range ingresslist.Items {
+			if !isDolphinmanagedIngress(ctx, r.client, r.logger, &in) {
+				continue
+			}
+			if !isEffectiveLoadbalancerModeDedicated(&in) {
+				continue
+			}
+			res = append(res, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: in.Namespace,
+					Name:      in.Name,
+				},
+			})
+		}
+		return res
 	})
 }
 
