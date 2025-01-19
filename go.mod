@@ -3,7 +3,7 @@ module github.com/ccfish2/controllerPoweredByDI
 go 1.23.0
 
 require (
-	github.com/ccfish2/dolphin v0.0.0-20250117222440-39f1541893c7
+	github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3
 	github.com/ccfish2/infra v0.0.0-20250116195302-7a6e44a0c35b
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/runtime v0.28.0

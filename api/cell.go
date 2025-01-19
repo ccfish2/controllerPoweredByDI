@@ -9,7 +9,7 @@ import (
 var ServerCell = cell.Module(
 	"dolphin-operator-api",
 	"Dolphin Operator API Server",
-	cell.Config(&Config{}),
+	cell.Config(Config{}),
 	cell.Provide(newServer),
 	cell.Invoke(func(Server) {}),
 )
@@ -27,5 +27,5 @@ type Config struct {
 }
 
 func (def Config) Flags(flags *pflag.FlagSet) {
-	flags.String(OperatorAPIServeAddr, def.OPeratorAPIServeAddr, "The address to serve the operator API")
+	flags.String(OperatorAPIServeAddr, operatorServeAddrDefault, "The address to serve the operator API")
 }

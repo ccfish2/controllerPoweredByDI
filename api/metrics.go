@@ -12,7 +12,7 @@ import (
 // id, title
 // the cell is metricsHandler
 var MetricsHandlerCell = cell.Module(
-	"operator metrics",
+	"operator-metrics",
 	"Operator Metrics Http Handler",
 	cell.Provide(newMetricsHandler),
 )

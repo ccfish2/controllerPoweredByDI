@@ -29,7 +29,7 @@ type Server interface {
 type params struct {
 	cell.In
 
-	cfg Config
+	Cfg Config
 
 	HealthHandler   operator.GetHealthzHandler
 	MetricsHandler  metrics.GetMetricsHandler
@@ -163,7 +163,7 @@ func newServer(p params) (Server, error) {
 		HealthHandler:  p.HealthHandler,
 		MetricsHandler: p.MetricsHandler,
 		apiSpec:        p.OperatorAPISpec,
-		address:        p.cfg.OPeratorAPIServeAddr,
+		address:        p.Cfg.OPeratorAPIServeAddr,
 	}
 	p.LC.Append(srv)
 
