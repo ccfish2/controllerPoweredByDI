@@ -14,6 +14,12 @@ github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3 h1:1dd0CmP468v9Hok
 github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/infra v0.0.0-20250121061705-c6aec18cb17b h1:RhiaTY1NiOkkz9uuzSVqlRZCXtU0eOoseaqR3s50XtY=
 github.com/ccfish2/infra v0.0.0-20250121061705-c6aec18cb17b/go.mod h1:PPzTr7Tij8gk7jIs3ZSzwQCvBq1J+XOTPzEvww28HVA=
+github.com/ccfish2/infra v0.0.0-20250121062538-5e556aab0ecf h1:YmTIb1AOT124zfMAkYY+10Zx/cc22pGLlkCIQZlfqog=
+github.com/ccfish2/infra v0.0.0-20250121062538-5e556aab0ecf/go.mod h1:PPzTr7Tij8gk7jIs3ZSzwQCvBq1J+XOTPzEvww28HVA=
+github.com/ccfish2/infra v0.0.0-20250121211524-9429fbc58725 h1:fTtmaLGFgwsWyz0xCKQgCe0PmaTmK5eSpalujxTG8gc=
+github.com/ccfish2/infra v0.0.0-20250121211524-9429fbc58725/go.mod h1:PPzTr7Tij8gk7jIs3ZSzwQCvBq1J+XOTPzEvww28HVA=
+github.com/ccfish2/infra v0.0.0-20250122202652-a106a62e7c74 h1:8k6vNVye/Jm2NIVMlYlylZTLH8XOHrEcsbhUDX04dLY=
+github.com/ccfish2/infra v0.0.0-20250122202652-a106a62e7c74/go.mod h1:PPzTr7Tij8gk7jIs3ZSzwQCvBq1J+XOTPzEvww28HVA=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
