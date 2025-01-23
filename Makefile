@@ -45,3 +45,5 @@ install-azure:
 
 kind-build-image-operator: ## Build dolphin-operator-dev docker image
 	$(QUIET)$(MAKE) dev-docker-operator-generic-image$(DEBUGGER_SUFFIX) DOCKER_IMAGE_TAG=$(LOCAL_IMAGE_TAG)
+
+-include Makefile.docker

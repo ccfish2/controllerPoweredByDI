@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=scratch
-ARG GOLANG_IMAGE=golang:1.23-alpine3.21
+ARG GOLANG_IMAGE=golang:1.23.5-alpine3.20
 
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
 
