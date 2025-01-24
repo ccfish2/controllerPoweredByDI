@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=scratch
-ARG GOLANG_IMAGE=golang:1.23.5-alpine3.20
+ARG GOLANG_IMAGE=golang:1.23.5
 
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
 
@@ -17,7 +17,7 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPowe
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg \
     make GOARCH=${TARGETARCH} RACE=${RACE} NOSTRIP=${NOSTRIP} NOOPT=${NOOPT} LOCKDEBUG=${LOCKDEBUG} \
-    DESTDIR=/out/${TARGETOS}/${TARGETARCH} build-container-${OPERATOR_VARIANT} install-container-binary-${OPERATOR_VARIANT}
+    DESTDIR=/out/${TARGETOS}/${TARGETARCH} build-container-operator install-container-binary-operator
 
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPoweredByDI \
     --mount=type=cache,target=/root/.cache \

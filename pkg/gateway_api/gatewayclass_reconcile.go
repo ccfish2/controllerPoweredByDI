@@ -29,9 +29,9 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	setGatewayClassAccepted(&gwc, true)
 
 	gwc.Status.SupportedFeatures = []gatewayv1.SupportedFeature{
-		{"HTTPRoute"},
-		{"HTTPRouteDestinationPortMatching"},
-		{"TLSRoute"},
+		{Name: "HTTPRoute"},
+		{Name: "HTTPRouteDestinationPortMatching"},
+		{Name: "TLSRoute"},
 	}
 	if err := r.Client.Update(ctx, &gwc); err != nil {
 		return ctrl.Result{}, err
