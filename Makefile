@@ -1,19 +1,31 @@
 ROOT_DIR := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 
+all: build
+	@echo "Build finished"
+
+debug: export NOOPT=1
+debug: export NOSTRIP=1
+debug: all
+
 include Makefile.defs
 
+TESTPKGS ?= ./...
+
+GOTEST_BASE := -timeout 600s
+GOTEST_COVER_OPTS += -coverprofile=coverage.out
+BENCH_EVAL := "."
+BENCH ?= $(BENCH_EVAL)
+BENCHFLAGS_EVAL := -bench=$(BENCH) -run=^$ -benchtime=10s
+BENCHFLAGS ?= $(BENCHFLAGS_EVAL)
+SKIP_KVSTORES ?= "false"
+SKIP_K8S_CODE_GEN_CHECK ?= "true"
+SKIP_CUSTOMVET_CHECK ?= "false"
+
+JOB_BASE_NAME ?= dolphin_operator_test
+
 TARGETS := dolphin-operator dolphin-operator-generic dolphin-operator-aws dolphin-operator-azure
-
 .PHONY: all $(TARGETS) clean install
-
-all: $(TARGETS)
-
-build-container-operator: ## Builds components required for a dolphin-operator generic variant container.
-	$(MAKE) $(SUBMAKEOPTS) -C dolphin-operator-generic
-
-install-container-binary-operator: ## Install binaries for all components required for dolphin-operator container.
-	$(QUIET)$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(MAKE) $(SUBMAKEOPTS) -C operator install
+build: $(TARGETS)
 
 dolphin-operator: GO_TAGS_FLAGS+=ipam_provider_aws,ipam_provider_azure,ipam_provider_operator
 dolphin-operator-generic: GO_TAGS_FLAGS+=ipam_provider_operator
@@ -49,9 +61,6 @@ install-azure:
 	$(QUIET)$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(QUIET)$(INSTALL) -m 0755 dolphin-operator-azure $(DESTDIR)$(BINDIR)
 
-
-kind-build-image-operator: ## Build dolphin-operator-dev docker image
-	$(QUIET)$(MAKE) dev-docker-operator-generic-image$(DEBUGGER_SUFFIX) DOCKER_IMAGE_TAG=$(LOCAL_IMAGE_TAG)
 
 ######
 DOCKER_BUILDER := default
@@ -181,7 +190,7 @@ $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image,images/Dockerfile,op
 $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image-debug,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),debug))
 
 # docker-*-all targets are mainly used from the CI
-docker-operator-images-all: docker-operator-generic-image ## Build all variants of dolphin-operator images.
+docker-operator-images-all: docker-operator-image ## Build all variants of dolphin-operator images.
 
 REGISTRIES ?= docker.io/jimin1
 
@@ -198,5 +207,8 @@ PLATFORMS=linux/amd64,linux/arm64
 	mkdir -p .buildx
 	docker buildx create --platform $(PLATFORMS) --buildkitd-flags '--debug' > $@
 
-docker-operator-image: .buildx_builder
-	ROOT_CONTEXT=true ./scripts/build-image.sh operator-dev $(CURDIR)/images $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+build-container-operator: ## Builds components required for dolphin-operator container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) all
+
+docker-operator-image: .buildx_builder build-container-operator
+	ROOT_CONTEXT=true ./images/build-image.sh operator-dev $(CURDIR)/images $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)

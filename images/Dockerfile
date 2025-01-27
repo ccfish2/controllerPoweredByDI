@@ -13,11 +13,12 @@ ARG OPERATOR_VARIANT
 
 WORKDIR /go/src/github.com/ccfish2/controllerPoweredByDI
 
+the build-container-operator/install target is within parent Makefile
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPoweredByDI \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg \
     make GOARCH=${TARGETARCH} RACE=${RACE} NOSTRIP=${NOSTRIP} NOOPT=${NOOPT} LOCKDEBUG=${LOCKDEBUG} \
-    DESTDIR=/out/${TARGETOS}/${TARGETARCH} build-container-operator install-container-binary-operator
+    DESTDIR=/out/${TARGETOS}/${TARGETARCH} dolphin-operator
 
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPoweredByDI \
     --mount=type=cache,target=/root/.cache \
