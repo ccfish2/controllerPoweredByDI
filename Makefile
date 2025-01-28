@@ -1,6 +1,6 @@
 ROOT_DIR := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 
-all: build
+all: build build_container
 	@echo "Build finished"
 
 debug: export NOOPT=1
@@ -22,6 +22,31 @@ SKIP_K8S_CODE_GEN_CHECK ?= "true"
 SKIP_CUSTOMVET_CHECK ?= "false"
 
 JOB_BASE_NAME ?= dolphin_operator_test
+
+GIT_VERSION: force
+	@if [ "$(GIT_VERSION)" != "`cat 2>/dev/null GIT_VERSION`" ] ; then echo "$(GIT_VERSION)" >GIT_VERSION; fi
+force :;
+
+build_container: $(ROOT_DIR) ## Builds all the components for dolphin by executing make in the respective sub directories.
+
+build-container-operator: ## Builds components required for dolphin-operator container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) all
+
+build-container-operator-generic: ## Builds components required for a dolphin-operator generic variant container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-generic
+
+build-container-operator-aws: ## Builds components required for a dolphin-operator aws variant container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-aws
+
+build-container-operator-azure: ## Builds components required for a dolphin-operator azure variant container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-azure
+
+build-container-operator-alibabacloud: ## Builds components required for a dolphin-operator alibabacloud variant container.
+	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-alibabacloud
+
+$(ROOT_DIR): force ## Execute default make target(make all) for the provided subdirectory.
+	@ $(MAKE) $(SUBMAKEOPTS) -C $@ all
+
 
 TARGETS := dolphin-operator dolphin-operator-generic dolphin-operator-aws dolphin-operator-azure
 .PHONY: all $(TARGETS) clean install
@@ -184,31 +209,17 @@ $(1)-unstripped: $(1)
 	@echo
 endef
 
-# docker-operator-images
+# docker-dolphin-image
+$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-dolphin-image,images/Dockerfile,dolphin,$(DOCKER_IMAGE_TAG),release))
+
+# docker-operator-images.
+# We eat the ending of "operator" in to the stem ('%') to allow this pattern
+# to build also 'docker-operator-image', where the stem would be empty otherwise.
 $(eval $(call DOCKER_IMAGE_TEMPLATE,docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
 $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
 $(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image-debug,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),debug))
 
+#
 # docker-*-all targets are mainly used from the CI
-docker-operator-images-all: docker-operator-image ## Build all variants of dolphin-operator images.
-
-REGISTRIES ?= docker.io/jimin1
-
-PUSH ?= false
-
-OUTPUT := "type=image"
-ifeq ($(PUSH),true)
-OUTPUT := "type=registry,push=true"
-endif
-
-PLATFORMS=linux/amd64,linux/arm64
-
-.buildx_builder:
-	mkdir -p .buildx
-	docker buildx create --platform $(PLATFORMS) --buildkitd-flags '--debug' > $@
-
-build-container-operator: ## Builds components required for dolphin-operator container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) all
-
-docker-operator-image: .buildx_builder build-container-operator
-	ROOT_CONTEXT=true ./images/build-image.sh operator-dev $(CURDIR)/images $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+#
+docker-images-all: docker-dolphin-image #docker-plugin-image docker-hubble-relay-image docker-clustermesh-apiserver-image docker-operator-images-all ## Build all dolphin related docker images.

@@ -13,12 +13,11 @@ ARG OPERATOR_VARIANT
 
 WORKDIR /go/src/github.com/ccfish2/controllerPoweredByDI
 
-the build-container-operator/install target is within parent Makefile
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPoweredByDI \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg \
     make GOARCH=${TARGETARCH} RACE=${RACE} NOSTRIP=${NOSTRIP} NOOPT=${NOOPT} LOCKDEBUG=${LOCKDEBUG} \
-    DESTDIR=/out/${TARGETOS}/${TARGETARCH} dolphin-operator
+    DESTDIR=/out/${TARGETOS}/${TARGETARCH} build-container-operator
 
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/ccfish2/controllerPoweredByDI \
     --mount=type=cache,target=/root/.cache \
@@ -29,9 +28,10 @@ FROM ${BASE_IMAGE} AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG OPERATOR_VARIANT
-COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/dolphin-${OPERATOR_VARIANT} /usr/bin/dolphin-${OPERATOR_VARIANT}
+COPY --from=builder ${WORKDIR}dolphin-operator-generic /usr/bin/dolphin-operator
+#COPY ../dolphin-operator-generic /usr/bin/dolphin-operator
 WORKDIR /
-CMD [ "/usr/bin/dolphin-${OPERATOR_VARIANT}" ]
+CMD [ "/usr/bin/dolphin-operator --enable-k8s" ]
 
 FROM release AS debug 
 ARG TARGETOS
