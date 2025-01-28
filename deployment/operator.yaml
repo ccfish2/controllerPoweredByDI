@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dolphin-operator
+  namespace: dolphin
+  labels:
+    app: dolphin
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dolphin
+  strategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxUnavailable: 20%
+      maxSurge: 20%
+  template:
+    metadata:
+      labels:
+        app: dolphin
+    spec: 
+      restartPolicy: Always 
+      containers:
+        - name: dolphin-operator
+          image: jimin1/dolphin-operator:v1
+          ports:
+          - containerPort: 80
