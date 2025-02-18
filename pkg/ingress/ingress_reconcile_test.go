@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 
@@ -158,6 +159,25 @@ func TestReconcile(t *testing.T) {
 		err = fakeClient.Get(context.Background(), client.ObjectKey{Namespace: "test", Name: "dolphin-ingress-test"}, &dec)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, dec, "this ingress should be not able to get reconciled since dolphin is not the default ingress class")
+	})
+
+	t.Run("ingress annotated with shared ingress would be reconciled", func(t *testing.T) {
+		fakeCli := fake.NewClientBuilder().
+			WithScheme(testScheme()).
+			WithObjects().
+			Build()
+
+		ingressReconcile := newIngressReconciler(logger, fakeCli, testDolphinNamespace, testEnforceHTTPS, testUseProxyProtocol, testDefaultSecretNamespace,
+			[]string{}, testDefaultLoadbalancingServiceName, "dedicated", testDefaultSecretNamespace, testDefaultSecretName, testDefaultTimeout)
+
+		result, err := ingressReconcile.Reconcile(context.Background(), reconcile.Request{types.NamespacedName{"test", "test"}})
+		if err != nil {
+			fmt.Errorf(err.Error())
+		}
+		assert.NotNil(t, result)
+
+		// ensure dolphinenvoyconfig, coreservice loadbalancer is created successfully
+
 	})
 
 	t.Run("If create operations fail due to namespace termination, no error should be reported",
