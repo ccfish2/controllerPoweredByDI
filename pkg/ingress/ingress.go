@@ -8,7 +8,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1 "k8s.io/api/core/v1"
@@ -86,10 +88,6 @@ func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
 	return builder.WithPredicates()
 }
 
-func isDolphinmanagedIngress(ctx context.Context, c client.Client, log logrus.FieldLogger, ing *networkingv1.Ingress) bool {
-	return true
-}
-
 func isEffectiveLoadbalancerModeDedicated(in *networkingv1.Ingress) bool {
 	return true
 }
@@ -144,4 +142,114 @@ func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
 
 func (r *ingressReconciler) forDolphinIngressClass() builder.WatchesOption {
 	return builder.WithPredicates()
+}
+
+var _ predicate.Predicate = &defaultIngressPredicates{}
+
+type defaultIngressPredicates struct{}
+
+// Create implements predicate.TypedPredicate.
+func (d *defaultIngressPredicates) Create(event.CreateEvent) bool {
+	panic("unimplemented")
+}
+
+// Delete implements predicate.TypedPredicate.
+func (d *defaultIngressPredicates) Delete(event.DeleteEvent) bool {
+	panic("unimplemented")
+}
+
+// Generic implements predicate.TypedPredicate.
+func (d *defaultIngressPredicates) Generic(event.GenericEvent) bool {
+	panic("unimplemented")
+}
+
+// Update implements predicate.TypedPredicate.
+func (d *defaultIngressPredicates) Update(event.UpdateEvent) bool {
+	panic("unimplemented")
+}
+
+func (d *defaultIngressPredicates) isIngressClassMarkedAsDefault(o client.Object) bool {
+	panic("")
+}
+
+func withDefaultIngressAnnotationClass() builder.WatchesOption {
+	return builder.WithPredicates(&defaultIngressPredicates{})
+}
+
+var _ predicate.Predicate = &matchesInstancePredicate{}
+
+type matchesInstancePredicate struct {
+	namespace string
+	name      string
+}
+
+// Create implements predicate.TypedPredicate.
+func (m *matchesInstancePredicate) Create(event.CreateEvent) bool {
+	panic("unimplemented")
+}
+
+// Delete implements predicate.TypedPredicate.
+func (m *matchesInstancePredicate) Delete(event.DeleteEvent) bool {
+	panic("unimplemented")
+}
+
+// Generic implements predicate.TypedPredicate.
+func (m *matchesInstancePredicate) Generic(event.GenericEvent) bool {
+	panic("unimplemented")
+}
+
+// Update implements predicate.TypedPredicate.
+func (m *matchesInstancePredicate) Update(event.UpdateEvent) bool {
+	panic("unimplemented")
+}
+
+var _ predicate.Predicate = &defaultIngressClassPredicate{}
+
+type defaultIngressClassPredicate struct{}
+
+// Create implements predicate.TypedPredicate.
+func (d *defaultIngressClassPredicate) Create(event.CreateEvent) bool {
+	panic("unimplemented")
+}
+
+// Delete implements predicate.TypedPredicate.
+func (d *defaultIngressClassPredicate) Delete(event.DeleteEvent) bool {
+	panic("unimplemented")
+}
+
+// Generic implements predicate.TypedPredicate.
+func (d *defaultIngressClassPredicate) Generic(event.GenericEvent) bool {
+	panic("unimplemented")
+}
+
+// Update implements predicate.TypedPredicate.
+func (d *defaultIngressClassPredicate) Update(event.UpdateEvent) bool {
+	panic("unimplemented")
+}
+
+var _ predicate.Predicate = &matchesDolphinRelavantIngressPredicate{}
+
+type matchesDolphinRelavantIngressPredicate struct {
+	client client.Client
+	logger logrus.FieldLogger
+}
+
+// Create implements predicate.TypedPredicate.
+func (m *matchesDolphinRelavantIngressPredicate) Create(event.CreateEvent) bool {
+	panic("unimplemented")
+}
+
+// Delete implements predicate.TypedPredicate.
+func (m *matchesDolphinRelavantIngressPredicate) Delete(event.DeleteEvent) bool {
+	panic("unimplemented")
+}
+
+// Generic implements predicate.TypedPredicate.
+func (m *matchesDolphinRelavantIngressPredicate) Generic(event.GenericEvent) bool {
+	panic("unimplemented")
+}
+
+// Update implements predicate.TypedPredicate.
+func (m *matchesDolphinRelavantIngressPredicate) Update(event.UpdateEvent) bool {
+	panic("unimplemented")
 }
