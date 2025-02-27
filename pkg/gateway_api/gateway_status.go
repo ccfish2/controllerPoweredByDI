@@ -63,6 +63,30 @@ func gwStsAcpCondition(gw *gatewayv1.Gateway, accepted bool, msg string) metav1.
 		}
 	}
 }
+
+func gwStsReadyCondition(gw *gatewayv1.Gateway, scheduled bool, msg string) metav1.Condition {
+	switch scheduled {
+	case true:
+		return metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionReady),
+			Status:             metav1.ConditionTrue,
+			Reason:             string(gatewayv1.GatewayReasonReady),
+			Message:            msg,
+			ObservedGeneration: gw.GetGeneration(),
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+	default:
+		return metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionReady),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(gatewayv1.GatewayReasonNoResources),
+			Message:            msg,
+			ObservedGeneration: gw.GetGeneration(),
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+
+	}
+}
 func setGatewayProgrammed(gw *gatewayv1.Gateway, ready bool, msg string) *gatewayv1.Gateway {
 	gw.Status.Conditions = merge(gw.Status.Conditions, gwStsProgrmCondition(gw, ready, msg))
 	return gw
