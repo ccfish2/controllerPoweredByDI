@@ -22,6 +22,8 @@ github.com/ccfish2/infra v0.0.0-20250122202652-a106a62e7c74 h1:8k6vNVye/Jm2NIVMl
 github.com/ccfish2/infra v0.0.0-20250122202652-a106a62e7c74/go.mod h1:PPzTr7Tij8gk7jIs3ZSzwQCvBq1J+XOTPzEvww28HVA=
 github.com/ccfish2/infra v0.0.0-20250321174728-10c7ead16d04 h1:XJctHPheTAbmbfHg89a8qiLYdN3XW5fMcrj92ou37Rs=
 github.com/ccfish2/infra v0.0.0-20250321174728-10c7ead16d04/go.mod h1:RRdQmojlLBXA9Q69hie49s/wDMx4R9OpZ9bAzr9j1Yk=
+github.com/ccfish2/infra v0.0.0-20250324183418-a64413700244 h1:d4s7WQ1hWzRhGlKLXzwE9knGEGZVKR6V6wzj6rAZAR8=
+github.com/ccfish2/infra v0.0.0-20250324183418-a64413700244/go.mod h1:RRdQmojlLBXA9Q69hie49s/wDMx4R9OpZ9bAzr9j1Yk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
