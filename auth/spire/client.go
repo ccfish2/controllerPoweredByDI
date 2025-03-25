@@ -8,15 +8,20 @@ import (
 	"github.com/spf13/pflag"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	workloadapi "github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/auth/identity"
 	// dolphin
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	k8sclient "github.com/ccfish2/infra/pkg/k8s/client"
+
+	
 )
 
-const ()
+
 
 var Cell = cell.Module(
 	"spire-client",
@@ -122,7 +127,47 @@ func (c Client) onStart(_ cell.HookContext) error {
 }
 
 func (c *Client) connect(ctx context.Context) (*grpc.ClientConn, error) {
-	panic("implement me")
+	timeoutCtx, cancel := context.WithTimeout(ctx, c.cfg.SpireServerConnectionTimeout)
+	defer cancel()
+
+	if err != nil {
+		c.log.WithError(err).
+		WithField(logfields.URL, c.cfg.SpireServerAddress).
+		Warning("Unable to resolve SPIRE server address, using original value")
+		resolvedTarget = &c.cfg.SpireServerAddress
+	}
+
+	source, err := workloadapi.NewX509Resource(
+		timeoutCtx,
+		workloadapi.WithClientOptions(
+			workloadapi.WithAddr(fmt.Sprintf("unix://%s", c.cfg.SpireAgentSocketPath)),
+			workloadapi.WithLogger(newSpiffeLogWrapper(c.log)),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed init x509 resource %w", err)
+	}
+
+	trustDomain, err := spiffeid.TrustDomainFromString(c.cfg.SpiffeTrustDomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %w", err)
+	}
+	tlsConfig := tlsConfig.MTLSClientConfig(source, source, tlsConfig.AuthorizeMemberOf(trustDomain))
+
+	c.log.WithFields(logrus.Fields{
+		logfields.Address: c.cfg.SpireServerAddress,
+		logfields.IPAddress: resolvedTarget,
+	}).Info("Trying to connect to SPIRE server")
+	conn, err := grpc.Dial(*resolvedTarget, grpc.WithTransportCredentials(
+		credentials.NewTLS(tlsConfig)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection to SPIRE server: %w", err)
+	}
+	c.log.WithFields(logrus.Fields{
+		logfields.Address: c.cfg.SpireServerAddress,
+		logfields.IPAddr: resolvedTarget,
+	}).Info("Connected to SPIRE server")
+	return conn, nil
 }
 
 func (c Client) Upsert(ctx context.Context, id string) error {

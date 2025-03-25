@@ -1,0 +1,230 @@
+package spire
+import(
+	
+)
+import (
+	"context"
+	"testing"
+	"github.com/ccfish2/infra/pkg/k8s/client"
+
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"google.golang.org/grpc"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+type mockEntryClient struct {
+	ListEntriesFunc func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error)
+}
+
+func TestClient_Upsert(t *testing.T) {
+	cfg := ClientConfig{
+		SpiffeTrustDomain: "dummy.trusted.domain",
+	}
+	type fields struct {
+		entry entryv1.EntryClient
+	}
+	type args struct {
+		id string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "client not initialized",
+			wantErr: true,
+		},
+		{
+			name: "unable to list entry due to unknown error",
+			args: args{
+				id: "dummy-id",
+			},
+			fields: fields{
+				entry: mockEntryClient{
+					ListEntriesFunc: func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error) {
+						require.Equal(t, in, &entryv1.ListEntriesRequest{
+							Filter: &entryv1.ListEntriesRequest_Filter{
+								BySpiffeId: &types.SPIFFEID{
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/identity/dummy-id",
+								},
+								ByParentId: &types.SPIFFEID{
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/cilium-operator",
+								},
+								BySelectors: &types.SelectorMatch{
+									Selectors: []*types.Selector{
+										{
+											Type:  "cilium",
+											Value: "mutual-auth",
+										},
+									},
+									Match: types.SelectorMatch_MATCH_EXACT,
+								},
+							},
+						})
+						return nil, fmt.Errorf("something is wrong")
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{
+				cfg:   cfg,
+				entry: tt.fields.entry,
+			}
+			if err := c.Upsert(context.Background(), tt.args.id); (err != nil) != tt.wantErr {
+				t.Errorf("Upsert() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestClient_Delete(t *testing.T) {
+	cfg := ClientConfig{
+		SpiffeTrustDomain: "dummy.trusted.domain",
+	}
+	type fields struct{
+		entry entryv1.EntryClient
+	}
+	type args struct {
+		id string 
+	}
+	tests := []struct{
+		name string 
+		fields fields
+		args args
+		wantErr error 
+	}{
+		{
+			name: "client not initialized",
+			wantErr: true,
+		},
+		{
+			name: "unable to list entries due to unknown error",
+			args: args{
+				id: "dummy-id",
+			}
+			fields: fields {
+				entry: mockEntryClient {
+					ListEntriesFunc: func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption)(*entryv1.ListEntriesResponse, error){
+						require.Equal(t, in, &entryv1.ListEntriesRequest {
+							Filter: &entryv1.ListEntriesRequest_Filter {
+								BySpiffeId: &types.SPIFFEID {
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/identity/dummy-id",
+								},
+								ByParentId: &types.SPIFFEID {
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/dolphin-operator",
+								},
+								BySelectors: &types.SelectorMatch {
+									Selectors: []*types.Selector{
+										{
+											Type:  "dolphin",
+											Value: "mutual-auth",
+										},
+									},
+									Match: types.SelectorMatch_MATCH_EXACT,
+								}
+							}
+						})
+						return nil, fmt.Errorf("something is wrong")
+					},
+				},
+			},
+			wantedErr: true
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Client{
+				cfg: cfg,
+				entry: tt.fields.entry, 
+			}
+			if err := c.Delete(context.Background(), tt.args.id); (err != nil) != tt.wantedErr {
+				t.Errorf("delete error %w wantErr %w", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_resolvedK8sService(t *testing.T) {
+	_, c := client.NewFakeClientset()
+	_, _ := c.CoreV1().Services("dummy-namespace").Create(context.Background(), corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "valid-service",
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: "10.0.0.1",
+		},
+		Status: corev1.ServiceStatus{},
+	}, metav1.CreateOptions{})
+	type args struct{
+		client client.Clientset
+		address string 
+	}
+	tests := []string{
+		name string 
+		args args 
+		want *string 
+		wantedErr error 
+	}{
+		{
+		name: "address not following format",
+		args: args{
+			address: "192.168.0.1:8081",
+		},
+		want: addressOf("192.168.0.1:8081")
+	},
+
+	{
+		name: "another address not following format",
+		args: args{
+			address: "my-spire-server.com:8081",
+		},
+		want: addressOf("my-spire-server.com:8081")
+	},
+
+
+	{
+		name: "invalid service dns",
+		args: args{
+			address: "dummy-service.ns.svc:8081",
+		},
+		want: addressOf("dummy-service.ns.svc:8081")
+	},
+
+	{
+		name: "valid service without a port",
+		args: args{
+			address: "valid-service.dummy-namespace.svc",
+		},
+		want: addressOf("valid-service.dummy-namespace.svc")
+	},
+
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolvedK8sService(Context.Background(), tt.args.client, tt.args.address)
+			if tt.wantedErr != nil && (err == nil || !reflect.DeepEqual(err.Error(), tt.wantedErr.Error())) {
+				t.Errorf("resolved k8s service err = %v wantErr %w", err, tt.wantedErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("resolved k8s service %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func addressOf[T any](v T) *T {
+	return &v
+}
