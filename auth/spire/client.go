@@ -2,26 +2,46 @@ package spire
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	workloadapi "github.com/spiffe/go-spiffe/v2/workloadapi"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	workloadapi "github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	metav1 "k8s.io/api/meta/v1"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/auth/identity"
-	// dolphin
-	"github.com/ccfish2/infra/pkg/hive/cell"
-	k8sclient "github.com/ccfish2/infra/pkg/k8s/client"
 
-	
+	// dolphin
+	"github.com/ccfish2/infra/pkg/backoff"
+	"github.com/ccfish2/infra/pkg/hive/cell"
+
+	k8sclient "github.com/ccfish2/infra/pkg/k8s/client"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
 )
 
+const (
+	defaultParentID = "/dolphin-operator"
+	pathPrfix       = "identity"
+)
 
+var defaultSelectors = []*types.Selector{
+	{
+		Type:  "dolphin",
+		Value: "mutual-auth",
+	},
+}
+
+var ()
 
 var Cell = cell.Module(
 	"spire-client",
@@ -31,18 +51,18 @@ var Cell = cell.Module(
 )
 
 type ClientConfig struct {
-	MutualAuthEnabled    bool          `mapstructure:"mesh-auth-mutual-enabled,omitempty"`
-	SpireAgentSocketPath string        `mapstructure:"mesh-auth-spire-agent-socket,omitempty"`
-	SpireServerAddress   string        `mapstructure:"mesh-auth-spire-server-address,omitempty"`
-	SpireServerTimeout   time.Duration `mapstructure:"mesh-auth-spire-server-timeout"`
-	SpiffeTrustDomain    string        `mapstructure:"mesh-auth-spiffe-trust-domain"`
+	MutualAuthEnabled            bool          `mapstructure:"mesh-auth-mutual-enabled,omitempty"`
+	SpireAgentSocketPath         string        `mapstructure:"mesh-auth-spire-agent-socket,omitempty"`
+	SpireServerAddress           string        `mapstructure:"mesh-auth-spire-server-address,omitempty"`
+	SpireServerConnectionTimeout time.Duration `mapstructure:"mesh-auth-spire-server-timeout"`
+	SpiffeTrustDomain            string        `mapstructure:"mesh-auth-spiffe-trust-domain"`
 }
 
 func (cfg ClientConfig) Flags(flags *pflag.FlagSet) {
 	flags.BoolVar(&cfg.MutualAuthEnabled, "mesh-auth-mutual-enabled", true, "")
 	flags.StringVar(&cfg.SpireAgentSocketPath, "mesh-auth-spire-agent-socket", "/run/spire/sockets/agent/agent.sock", "")
 	flags.StringVar(&cfg.SpireServerAddress, "mesh-auth-spire-server-address", "spire-server.spire.io:8081", "")
-	flags.DurationVar(&cfg.SpireServerTimeout, "mesh-auth-spire-server-timeout", 10*time.Second, "")
+	flags.DurationVar(&cfg.SpireServerConnectionTimeout, "mesh-auth-spire-server-timeout", 10*time.Second, "")
 	flags.StringVar(&cfg.SpiffeTrustDomain, "mesh-auth-spiffe-trust-domain", "spiffe.dolphin", "")
 
 }
@@ -68,14 +88,14 @@ func NewClient(p params, lc cell.Lifecycle, cfg ClientConfig, log logrus.FieldLo
 	c := Client{
 		k8sClient: p.K8sClient,
 		cfg:       cfg,
-		log:    log.WithField(logfields.LogSubsys, "spire-client"),
+		logger:    log.WithField(logfields.LogSubsys, "spire-client"),
 	}
 
 	lc.Append(
 		cell.Hook{
-			onStart: c.onStart,
+			OnStart: c.onStart,
 			OnStop: func(_ cell.HookContext) error {
-				return nil,
+				return nil
 			}})
 
 	return c
@@ -86,13 +106,13 @@ func (c Client) List(ctx context.Context) ([]string, error) {
 		Filter: &entryv1.ListEntriesRequest_Filter{
 			ByParentId: &types.SPIFFEID{
 				TrustDomain: c.cfg.SpiffeTrustDomain,
-				Path: defaultParentID,
+				Path:        defaultParentID,
 			},
-			BySelector: []*types.SelectorMatch{
+			BySelectors: &types.SelectorMatch{
 				Selectors: defaultSelectors,
-				Match: types.SelectorMatch_MATCH_EXACT,
-		},
-		},	})
+				Match:     types.SelectorMatch_MATCH_EXACT,
+			},
+		}})
 	if err != nil {
 		return nil, err
 	}
@@ -107,10 +127,10 @@ func (c Client) List(ctx context.Context) ([]string, error) {
 }
 
 func (c Client) onStart(_ cell.HookContext) error {
-	go func(){
-		c.log.Info("Initializing Spire Client")
+	go func() {
+		c.logger.Info("Initializing Spire Client")
 		attempts := 0
-		backOffTime := backoff.Exponential{Min: 100*time.Millisecond, Max: 10*time.Second}
+		backOffTime := backoff.Exponential{Min: 100 * time.Millisecond, Max: 10 * time.Second}
 		for {
 			attempts++
 			conn, err := c.connect(context.Background())
@@ -118,10 +138,10 @@ func (c Client) onStart(_ cell.HookContext) error {
 				c.entry = entryv1.NewEntryClient(conn)
 				break
 			}
-			c.log.WithError(err).WithField("attempts", attempts).Error("Failed to connect to Spire Server")
+			c.logger.WithError(err).WithField("attempts", attempts).Error("Failed to connect to Spire Server")
 			time.Sleep(backOffTime.Duration(attempts))
 		}
-		c.log.Info("Spire Client initialized successfully")
+		c.logger.Info("Spire Client initialized successfully")
 	}()
 	return nil
 }
@@ -130,18 +150,19 @@ func (c *Client) connect(ctx context.Context) (*grpc.ClientConn, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, c.cfg.SpireServerConnectionTimeout)
 	defer cancel()
 
+	resolvedTarget, err := resolvedK8sService(ctx, c.k8sClient, c.cfg.SpireServerAddress)
 	if err != nil {
-		c.log.WithError(err).
-		WithField(logfields.URL, c.cfg.SpireServerAddress).
-		Warning("Unable to resolve SPIRE server address, using original value")
+		c.logger.WithError(err).
+			WithField("url", c.cfg.SpireServerAddress).
+			Warning("Unable to resolve SPIRE server address, using original value")
 		resolvedTarget = &c.cfg.SpireServerAddress
 	}
 
-	source, err := workloadapi.NewX509Resource(
+	source, err := workloadapi.NewX509Source(
 		timeoutCtx,
 		workloadapi.WithClientOptions(
 			workloadapi.WithAddr(fmt.Sprintf("unix://%s", c.cfg.SpireAgentSocketPath)),
-			workloadapi.WithLogger(newSpiffeLogWrapper(c.log)),
+			workloadapi.WithLogger(newSpiffeLogWrapper(c.logger)),
 		),
 	)
 	if err != nil {
@@ -152,30 +173,29 @@ func (c *Client) connect(ctx context.Context) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %w", err)
 	}
-	tlsConfig := tlsConfig.MTLSClientConfig(source, source, tlsConfig.AuthorizeMemberOf(trustDomain))
+	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeMemberOf(trustDomain))
 
-	c.log.WithFields(logrus.Fields{
+	c.logger.WithFields(logrus.Fields{
 		logfields.Address: c.cfg.SpireServerAddress,
-		logfields.IPAddress: resolvedTarget,
+		logfields.IPAddr:  resolvedTarget,
 	}).Info("Trying to connect to SPIRE server")
 	conn, err := grpc.Dial(*resolvedTarget, grpc.WithTransportCredentials(
 		credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection to SPIRE server: %w", err)
 	}
-	c.log.WithFields(logrus.Fields{
+	c.logger.WithFields(logrus.Fields{
 		logfields.Address: c.cfg.SpireServerAddress,
-		logfields.IPAddr: resolvedTarget,
+		logfields.IPAddr:  resolvedTarget,
 	}).Info("Connected to SPIRE server")
 	return conn, nil
 }
 
 func (c Client) Upsert(ctx context.Context, id string) error {
-	if c.entry == nil{
+	if c.entry == nil {
 		return fmt.Errorf("entry client is not initialized")
 	}
 
-	
 	entries, err := c.listEntries(ctx, id)
 	if err != nil && strings.Contains(err.Error(), "not found") {
 		return err
@@ -184,30 +204,30 @@ func (c Client) Upsert(ctx context.Context, id string) error {
 		{
 			SpiffeId: &types.SPIFFEID{
 				TrustDomain: c.cfg.SpiffeTrustDomain,
-				Path: toPath(id),
+				Path:        toPath(id),
 			},
 			ParentId: &types.SPIFFEID{
 				TrustDomain: c.cfg.SpiffeTrustDomain,
-				Path: defaultParentID,
+				Path:        defaultParentID,
 			},
 			Selectors: defaultSelectors,
 		},
 	}
-	if entires == nil || len(entries.Entries) == 0 {
-		_, err := c.entry.BatchCreateEntries(ctx, &entryv1.BatchCreateEntriesRequest{
+	if entries == nil || len(entries.Entries) == 0 {
+		_, err := c.entry.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{
 			Entries: desired,
-	})
-	return err
-}
-	
-	_, err := c.entry.BatchUpdateEntries(ctx, &entryv1.BatchUpdateEntriesRequest{
+		})
+		return err
+	}
+
+	_, err = c.entry.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: desired,
 	})
 	return err
 }
 
 func (c Client) Delete(ctx context.Context, id string) error {
-	if c.entry == nil{
+	if c.entry == nil {
 		return fmt.Errorf("entry client is not initialized")
 	}
 	if len(id) == 0 {
@@ -225,37 +245,53 @@ func (c Client) Delete(ctx context.Context, id string) error {
 	}
 	var ids = make([]string, 0, len(entries.Entries))
 	for _, e := range entries.Entries {
-		ids =append(ids, e.Id)
+		ids = append(ids, e.Id)
 	}
-	_, err := c.entry.BatchDeleteEntries(ctx, &entryv1.BatchDeleteEntriesRequest{
+	_, err = c.entry.BatchDeleteEntry(ctx, &entryv1.BatchDeleteEntryRequest{
 		Ids: ids,
 	})
 	return err
 }
 
 func (c *Client) listEntries(ctx context.Context, id string) (*entryv1.ListEntriesResponse, error) {
-	return c.entires.ListEntries(ctx, &entryv1.ListEntriesRequest{
+	return c.entry.ListEntries(ctx, &entryv1.ListEntriesRequest{
 		Filter: &entryv1.ListEntriesRequest_Filter{
 			BySpiffeId: &types.SPIFFEID{
 				TrustDomain: c.cfg.SpiffeTrustDomain,
-				Path: toPath(id),
+				Path:        toPath(id),
 			},
 			ByParentId: &types.SPIFFEID{
 				TrustDomain: c.cfg.SpiffeTrustDomain,
-				Path: defaultParentID,
+				Path:        defaultParentID,
 			},
-			BySelector: []*types.SelectorMatch{
+			BySelectors: &types.SelectorMatch{
 				Selectors: defaultSelectors,
-				Match: types.SelectorMatch_MATCH_EXACT,
+				Match:     types.SelectorMatch_MATCH_EXACT,
 			},
 		},
 	})
 }
 
 func resolvedK8sService(ctx context.Context, client k8sclient.Clientset, address string) (*string, error) {
-	panic("implement me")
+	names := strings.Split(address, ":")
+	if len(names) < 3 || !strings.HasPrefix(names[2], "svcc") {
+		return &address, nil
+	}
+
+	svc, err := client.CoreV1().Services(names[1]).Get(ctx, names[0], metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+
+	res := net.JoinHostPort(svc.Spec.ClusterIP, port)
+	return &res, nil
 }
 
-func toPath(id string) string{
-	return fmt.Sprintf("%v/%v", defaultPath, id)
-} 
+func toPath(id string) string {
+	return fmt.Sprintf("%v/%v", pathPrfix, id)
+}
