@@ -16,7 +16,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	metav1 "k8s.io/api/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/auth/identity"
