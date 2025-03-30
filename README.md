@@ -1,1 +1,1 @@
-It is a framework leveraging reflect resolving object dependencies, and use viper and pflag doing application configuration.
+This is modern application leverage modern development pattern, multiple controllers developed using go.uber.org/dig, controller-runtime manager, reconcile function, reflection, viper
