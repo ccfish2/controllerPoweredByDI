@@ -1,21 +1,57 @@
 package spire
-import(
-	
-)
+
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"testing"
+
 	"github.com/ccfish2/infra/pkg/k8s/client"
+	"github.com/stretchr/testify/require"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc"
 
 	corev1 "k8s.io/api/core/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type mockEntryClient struct {
-	ListEntriesFunc func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error)
+	ListEntriesFunc      func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error)
+	BatchCreateEntryFunc func(ctx context.Context, in *entryv1.BatchCreateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchCreateEntryResponse, error)
+	BatchUpdateEntryFunc func(ctx context.Context, in *entryv1.BatchUpdateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchUpdateEntryResponse, error)
+	BatchDeleteEntryFunc func(ctx context.Context, in *entryv1.BatchDeleteEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchDeleteEntryResponse, error)
+}
+
+func (m mockEntryClient) CountEntries(ctx context.Context, in *entryv1.CountEntriesRequest, opts ...grpc.CallOption) (*entryv1.CountEntriesResponse, error) {
+	panic("implement me")
+}
+
+func (m mockEntryClient) ListEntries(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error) {
+	return m.ListEntriesFunc(ctx, in, opts...)
+}
+
+func (m mockEntryClient) GetEntry(ctx context.Context, in *entryv1.GetEntryRequest, opts ...grpc.CallOption) (*types.Entry, error) {
+	panic("implement me")
+}
+
+func (m mockEntryClient) BatchCreateEntry(ctx context.Context, in *entryv1.BatchCreateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchCreateEntryResponse, error) {
+	return m.BatchCreateEntryFunc(ctx, in, opts...)
+}
+
+func (m mockEntryClient) BatchUpdateEntry(ctx context.Context, in *entryv1.BatchUpdateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchUpdateEntryResponse, error) {
+	return m.BatchUpdateEntryFunc(ctx, in, opts...)
+}
+
+func (m mockEntryClient) BatchDeleteEntry(ctx context.Context, in *entryv1.BatchDeleteEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchDeleteEntryResponse, error) {
+	return m.BatchDeleteEntryFunc(ctx, in, opts...)
+}
+
+func (m mockEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entryv1.GetAuthorizedEntriesResponse, error) {
+	panic("implement me")
 }
 
 func TestClient_Upsert(t *testing.T) {
@@ -54,12 +90,12 @@ func TestClient_Upsert(t *testing.T) {
 								},
 								ByParentId: &types.SPIFFEID{
 									TrustDomain: "dummy.trusted.domain",
-									Path:        "/cilium-operator",
+									Path:        "/dolphin-operator",
 								},
 								BySelectors: &types.SelectorMatch{
 									Selectors: []*types.Selector{
 										{
-											Type:  "cilium",
+											Type:  "dolphin",
 											Value: "mutual-auth",
 										},
 									},
@@ -91,41 +127,41 @@ func TestClient_Delete(t *testing.T) {
 	cfg := ClientConfig{
 		SpiffeTrustDomain: "dummy.trusted.domain",
 	}
-	type fields struct{
+	type fields struct {
 		entry entryv1.EntryClient
 	}
 	type args struct {
-		id string 
+		id string
 	}
-	tests := []struct{
-		name string 
-		fields fields
-		args args
-		wantErr error 
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr error
 	}{
 		{
-			name: "client not initialized",
-			wantErr: true,
+			name:    "client not initialized",
+			wantErr: nil,
 		},
 		{
 			name: "unable to list entries due to unknown error",
 			args: args{
 				id: "dummy-id",
-			}
-			fields: fields {
-				entry: mockEntryClient {
-					ListEntriesFunc: func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption)(*entryv1.ListEntriesResponse, error){
-						require.Equal(t, in, &entryv1.ListEntriesRequest {
-							Filter: &entryv1.ListEntriesRequest_Filter {
-								BySpiffeId: &types.SPIFFEID {
+			},
+			fields: fields{
+				entry: mockEntryClient{
+					ListEntriesFunc: func(ctx context.Context, in *entryv1.ListEntriesRequest, opts ...grpc.CallOption) (*entryv1.ListEntriesResponse, error) {
+						require.Equal(t, in, &entryv1.ListEntriesRequest{
+							Filter: &entryv1.ListEntriesRequest_Filter{
+								BySpiffeId: &types.SPIFFEID{
 									TrustDomain: "dummy.trusted.domain",
 									Path:        "/identity/dummy-id",
 								},
-								ByParentId: &types.SPIFFEID {
+								ByParentId: &types.SPIFFEID{
 									TrustDomain: "dummy.trusted.domain",
 									Path:        "/dolphin-operator",
 								},
-								BySelectors: &types.SelectorMatch {
+								BySelectors: &types.SelectorMatch{
 									Selectors: []*types.Selector{
 										{
 											Type:  "dolphin",
@@ -133,21 +169,21 @@ func TestClient_Delete(t *testing.T) {
 										},
 									},
 									Match: types.SelectorMatch_MATCH_EXACT,
-								}
-							}
+								},
+							},
 						})
 						return nil, fmt.Errorf("something is wrong")
 					},
 				},
 			},
-			wantedErr: true
+			wantedErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Client{
-				cfg: cfg,
-				entry: tt.fields.entry, 
+				cfg:   cfg,
+				entry: tt.fields.entry,
 			}
 			if err := c.Delete(context.Background(), tt.args.id); (err != nil) != tt.wantedErr {
 				t.Errorf("delete error %w wantErr %w", err, tt.wantErr)
@@ -158,7 +194,7 @@ func TestClient_Delete(t *testing.T) {
 
 func Test_resolvedK8sService(t *testing.T) {
 	_, c := client.NewFakeClientset()
-	_, _ := c.CoreV1().Services("dummy-namespace").Create(context.Background(), corev1.Service{
+	_, _ = c.CoreV1().Services("dummy-namespace").Create(context.Background(), corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "valid-service",
 		},
@@ -167,53 +203,51 @@ func Test_resolvedK8sService(t *testing.T) {
 		},
 		Status: corev1.ServiceStatus{},
 	}, metav1.CreateOptions{})
-	type args struct{
-		client client.Clientset
-		address string 
+	type args struct {
+		client  client.Clientset
+		address string
 	}
-	tests := []string{
-		name string 
-		args args 
-		want *string 
-		wantedErr error 
+	tests := []struct {
+		name      string
+		args      args
+		want      *string
+		wantedErr error
 	}{
 		{
-		name: "address not following format",
-		args: args{
-			address: "192.168.0.1:8081",
+			name: "address not following format",
+			args: args{
+				address: "192.168.0.1:8081",
+			},
+			want: addressOf("192.168.0.1:8081"),
 		},
-		want: addressOf("192.168.0.1:8081")
-	},
 
-	{
-		name: "another address not following format",
-		args: args{
-			address: "my-spire-server.com:8081",
+		{
+			name: "another address not following format",
+			args: args{
+				address: "my-spire-server.com:8081",
+			},
+			want: addressOf("my-spire-server.com:8081"),
 		},
-		want: addressOf("my-spire-server.com:8081")
-	},
 
-
-	{
-		name: "invalid service dns",
-		args: args{
-			address: "dummy-service.ns.svc:8081",
+		{
+			name: "invalid service dns",
+			args: args{
+				address: "dummy-service.ns.svc:8081",
+			},
+			want: addressOf("dummy-service.ns.svc:8081"),
 		},
-		want: addressOf("dummy-service.ns.svc:8081")
-	},
 
-	{
-		name: "valid service without a port",
-		args: args{
-			address: "valid-service.dummy-namespace.svc",
+		{
+			name: "valid service without a port",
+			args: args{
+				address: "valid-service.dummy-namespace.svc",
+			},
+			want: addressOf("valid-service.dummy-namespace.svc"),
 		},
-		want: addressOf("valid-service.dummy-namespace.svc")
-	},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolvedK8sService(Context.Background(), tt.args.client, tt.args.address)
+			got, err := resolvedK8sService(context.Background(), tt.args.client, tt.args.address)
 			if tt.wantedErr != nil && (err == nil || !reflect.DeepEqual(err.Error(), tt.wantedErr.Error())) {
 				t.Errorf("resolved k8s service err = %v wantErr %w", err, tt.wantedErr)
 				return
