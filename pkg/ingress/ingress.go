@@ -120,9 +120,25 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 	})
 }
 
-func (r *ingressReconciler) enqIngressWithExplicitControll() handler.EventHandler {
+func (r *ingressReconciler) enqueueIngressesWithoutExplicitClass() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
-		panic("unimpl")
+		inglist := &networkingv1.IngressList{}
+		if err := r.client.List(ctx, inglist, &client.ListOptions{}); err != nil {
+			return nil
+		}
+
+		res := []reconcile.Request{}
+		for _, in := range inglist.Items {
+			if in.Spec.IngressClassName != nil {
+				continue
+			}
+			res = append(res, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: in.Namespace,
+					Name:      in.Name,
+				}})
+		}
+		return res
 	})
 }
 
@@ -136,7 +152,14 @@ func (r *ingressReconciler) forShaedDolphinEnvoyConfig() builder.WatchesOption {
 
 func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
-		panic("unimpl")
+		return []reconcile.Request{
+			{
+				NamespacedName: types.NamespacedName{
+					Namespace: r.dolphinNamespace,
+					Name:      "pseudo-ingress",
+				}
+			},
+		}
 	})
 }
 
