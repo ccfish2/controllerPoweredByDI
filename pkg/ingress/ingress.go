@@ -80,7 +80,7 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
 		Watches(&corev1.Service{}, r.enqueSharedDolphinIngress(), r.forSharedLBService()).
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
-		Watches(&networkingv1.IngressClass{}, r.enqIngressWithExplicitControll(), r.forDolphinIngressClass()).
+		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass()).
 		Complete(r)
 }
 
@@ -157,7 +157,7 @@ func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
 				NamespacedName: types.NamespacedName{
 					Namespace: r.dolphinNamespace,
 					Name:      "pseudo-ingress",
-				}
+				},
 			},
 		}
 	})
