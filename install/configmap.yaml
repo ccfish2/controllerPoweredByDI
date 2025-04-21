@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+  enable-ipv4: "true"
+  enable-ipv4-masquerade: "true"
+  enable-ipv6: "false"
+  enable-ipv6-masquerade: "true"
+  enable-k8s-networkpolicy: "true"
+  enable-k8s-terminating-endpoint: "true"
+  nodePort.enabled: "true"
+  nodeport-addresses: ""
+  operator-api-serve-addr: 127.0.0.1:9234
+  operator-prometheus-serve-addr: :9963
+  policy-cidr-match-mode: ""
+  policy-secrets-namespace: dolphin-secrets
+  policy-secrets-only-from-secrets-namespace: "true"
+  preallocate-bpf-maps: "false"
+  procfs: /host/proc
+  tunnel-protocol: vxlan
+  tunnel-source-port-range: 0-0
+kind: ConfigMap
+metadata:
+  name: dolphin-config
+  namespace: dolphin
