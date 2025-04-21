@@ -1,56 +1,18 @@
 ROOT_DIR := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
 
-all: build build_container
-	@echo "Build finished"
-
-debug: export NOOPT=1
-debug: export NOSTRIP=1
-debug: all
-
 include Makefile.defs
 
-TESTPKGS ?= ./...
-
-GOTEST_BASE := -timeout 600s
-GOTEST_COVER_OPTS += -coverprofile=coverage.out
-BENCH_EVAL := "."
-BENCH ?= $(BENCH_EVAL)
-BENCHFLAGS_EVAL := -bench=$(BENCH) -run=^$ -benchtime=10s
-BENCHFLAGS ?= $(BENCHFLAGS_EVAL)
-SKIP_KVSTORES ?= "false"
-SKIP_K8S_CODE_GEN_CHECK ?= "true"
-SKIP_CUSTOMVET_CHECK ?= "false"
-
-JOB_BASE_NAME ?= dolphin_operator_test
-
-GIT_VERSION: force
-	@if [ "$(GIT_VERSION)" != "`cat 2>/dev/null GIT_VERSION`" ] ; then echo "$(GIT_VERSION)" >GIT_VERSION; fi
-force :;
-
-build_container: $(ROOT_DIR) ## Builds all the components for dolphin by executing make in the respective sub directories.
-
-build-container-operator: ## Builds components required for dolphin-operator container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) all
-
-build-container-operator-generic: ## Builds components required for a dolphin-operator generic variant container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-generic
-
-build-container-operator-aws: ## Builds components required for a dolphin-operator aws variant container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-aws
-
-build-container-operator-azure: ## Builds components required for a dolphin-operator azure variant container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-azure
-
-build-container-operator-alibabacloud: ## Builds components required for a dolphin-operator alibabacloud variant container.
-	$(MAKE) $(SUBMAKEOPTS) -C $(ROOT_DIR) dolphin-operator-alibabacloud
-
-$(ROOT_DIR): force ## Execute default make target(make all) for the provided subdirectory.
-	@ $(MAKE) $(SUBMAKEOPTS) -C $@ all
-
-
 TARGETS := dolphin-operator dolphin-operator-generic dolphin-operator-aws dolphin-operator-azure
-.PHONY: all $(TARGETS) clean install
+.PHONY: all $(TARGETS) clean install docker-operator-image-generic
 build: $(TARGETS)
+
+docker-operator-image-generic: dolphin-operator-generic
+	@echo "Building Docker image for dolphin-operator-generic"
+	make -C images docker-image-generic
+
+dolphin-operator-generic:
+	@echo "Running go build -o dolphin-operator-generic with GO_TAGS_FLAGS=ipam_provider_operator"
+	go build -tags "ipam_provider_operator" -o dolphin-operator-generic .
 
 dolphin-operator: GO_TAGS_FLAGS+=ipam_provider_aws,ipam_provider_azure,ipam_provider_operator
 dolphin-operator-generic: GO_TAGS_FLAGS+=ipam_provider_operator
@@ -58,8 +20,8 @@ dolphin-operator-aws: GO_TAGS_FLAGS+=ipam_provider_aws
 dolphin-operator-azure: GO_TAGS_FLAGS+=ipam_provider_azure
 
 $(TARGETS):
-	@$(ECHO_GO)
-	$(QUIET)$(GO_BUILD) -o $(@)
+	@echo "Running go build -o $@ with GO_TAGS_FLAGS=$(GO_TAGS_FLAGS)"
+	go build -tags "$(GO_TAGS_FLAGS)" -o $@ .
 
 $(TARGET):
 	@$(ECHO_GO)
@@ -86,140 +48,14 @@ install-azure:
 	$(QUIET)$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(QUIET)$(INSTALL) -m 0755 dolphin-operator-azure $(DESTDIR)$(BINDIR)
 
+# Docker image build (from image/Makefile)
+docker-image-generic:
+	$(MAKE) -C image docker-image-generic
 
-######
-DOCKER_BUILDER := default
+clean:
+	@echo "Cleaning up"
+	rm -f $(TARGETS)
 
-# Export with value expected by docker
-export DOCKER_BUILDKIT=1
-
-# Docker Buildx support. If ARCH is defined, a builder instance 'cross'
-# on the local node is configured for amd64 and arm64 platform targets.
-# Otherwise build on the current (typically default) builder for the host
-# platform only.
-ifdef ARCH
-  # Default to multi-arch builds, always create the builder for all the platforms we support
-  DOCKER_PLATFORMS := linux/arm64,linux/amd64
-  DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-  ifneq (,$(filter $(DOCKER_BUILDER),default desktop-linux))
-    DOCKER_BUILDKIT_DRIVER :=
-    ifdef DOCKER_BUILDKIT_IMAGE
-      DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
-    endif
-    BUILDER_SETUP := $(shell docker buildx create --platform $(DOCKER_PLATFORMS) $(DOCKER_BUILDKIT_DRIVER) --use)
-  endif
-  # Override default for a single platform
-  ifneq ($(ARCH),multi)
-    DOCKER_PLATFORMS := linux/$(ARCH)
-  endif
-  DOCKER_FLAGS += --push --platform $(DOCKER_PLATFORMS)
-else
-  ifeq ($(findstring --output,$(DOCKER_FLAGS)),)
-    ifeq ($(findstring --push,$(DOCKER_FLAGS)),)
-      # ARCH, --output, and --push are not specified, build for the host platform without pushing, mimicking regular docker build
-      DOCKER_FLAGS += --load
-    endif
-  endif
-endif
-DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-
-ifeq ($(DOCKER_DEV_ACCOUNT),)
-    DOCKER_DEV_ACCOUNT=jimin1
-endif
-
-##@ Docker Images
-.PHONY: builder-info
-builder-info: ## Print information about the docker builder that will be used for building images.
-	@echo "Using Docker Buildx builder \"$(DOCKER_BUILDER)\" with build flags \"$(DOCKER_FLAGS)\"."
-
-# Generic rule for augmented .dockerignore files.
-GIT_IGNORE_FILES := $(shell find . -not -path "./vendor*" -name .gitignore -print)
-.PRECIOUS: %.dockerignore
-%.dockerignore: $(GIT_IGNORE_FILES) Makefile.docker
-	@-mkdir -p $(dir $@)
-	@echo "/hack" > $@
-	@echo ".git" >> $@
-	@echo "/Makefile.docker" >> $@
-	@echo $(dir $(GIT_IGNORE_FILES)) | tr ' ' '\n' | xargs -P1 -I {DIR} -n1 sed \
-		-e '# Remove lines with white space, comments and files that must be passed to docker, "$$" due to make. #' \
-			-e '/^[[:space:]]*$$/d' -e '/^#/d' -e '/GIT_VERSION/d' \
-		-e '# Apply pattern in all directories if it contains no "/", keep "!" up front. #' \
-			-e '/^[^!/][^/]*$$/s<^<**/<' -e '/^![^/]*$$/s<^!<!**/<' \
-		-e '# Prepend with the directory name, keep "!" up front. #' \
-			-e '/^[^!]/s<^<{DIR}<' -e '/^!/s<^!<!{DIR}<'\
-		-e '# Remove leading "./", keep "!" up front. #' \
-			-e 's<^\./<<' -e 's<^!\./<!<' \
-		-e '# Append newline to the last line if missing. GNU sed does not do this automatically. #' \
-			-e '$$a\' \
-		{DIR}.gitignore >> $@
-
-DOCKER_REGISTRY ?= quay.io
-ifeq ($(findstring /,$(DOCKER_DEV_ACCOUNT)),/)
-    # DOCKER_DEV_ACCOUNT already contains '/', assume it specifies a registry
-    IMAGE_REPOSITORY := $(DOCKER_DEV_ACCOUNT)
-else
-    IMAGE_REPOSITORY := $(DOCKER_REGISTRY)/$(DOCKER_DEV_ACCOUNT)
-endif
-
-#
-# Template for Docker images. Paramaters are:
-# $(1) image target name
-# $(2) Dockerfile path
-# $(3) image name stem (e.g., dolphin, dolphin-operator, etc)
-# $(4) image tag
-# $(5) target
-#
-define DOCKER_IMAGE_TEMPLATE
-.PHONY: $(1)
-$(1): GIT_VERSION $(2) $(2).dockerignore GIT_VERSION builder-info
-	$(ECHO_DOCKER)$(2) $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}:$(4)
-	$(eval IMAGE_NAME := $(subst %,$$$$*,$(3)))
-ifeq ($(5),debug)
-	@export NOSTRIP=1
-endif
-	$(QUIET) $(CONTAINER_ENGINE) buildx build -f $(subst %,$$*,$(2)) \
-		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
-		$(if $(BASE_IMAGE),--build-arg BASE_IMAGE=$(BASE_IMAGE),) \
-		--build-arg NOSTRIP=$${NOSTRIP} \
-		--build-arg NOOPT=${NOOPT} \
-		--build-arg LOCKDEBUG=${LOCKDEBUG} \
-		--build-arg RACE=${RACE}\
-		--build-arg V=${V} \
-		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
-		--build-arg dolphin_SHA=$(firstword $(GIT_VERSION)) \
-		--build-arg OPERATOR_VARIANT=$(IMAGE_NAME) \
-		--build-arg DEBUG_HOLD=$(DEBUG_HOLD) \
-		--target $(5) \
-		-t $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4) .
-ifneq ($(KIND_LOAD),)
-	sleep 1
-	kind load docker-image $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4)
-else
-    ifeq ($(findstring --push,$(DOCKER_FLAGS)),)
-	@echo 'Define "DOCKER_FLAGS=--push" to push the build results.'
-    else
-	$(CONTAINER_ENGINE) buildx imagetools inspect $(IMAGE_REPOSITORY)/$(IMAGE_NAME)$${UNSTRIPPED}$(DOCKER_IMAGE_SUFFIX):$(4)
-	@echo '^^^ Images pushed, multi-arch manifest should be above. ^^^'
-    endif
-endif
-
-$(1)-unstripped: NOSTRIP=1
-$(1)-unstripped: UNSTRIPPED=-unstripped
-$(1)-unstripped: $(1)
-	@echo
-endef
-
-# docker-dolphin-image
-$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-dolphin-image,images/Dockerfile,dolphin,$(DOCKER_IMAGE_TAG),release))
-
-# docker-operator-images.
-# We eat the ending of "operator" in to the stem ('%') to allow this pattern
-# to build also 'docker-operator-image', where the stem would be empty otherwise.
-$(eval $(call DOCKER_IMAGE_TEMPLATE,docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
-$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),release))
-$(eval $(call DOCKER_IMAGE_TEMPLATE,dev-docker-opera%-image-debug,images/Dockerfile,opera%,$(DOCKER_IMAGE_TAG),debug))
-
-#
-# docker-*-all targets are mainly used from the CI
-#
-docker-images-all: docker-dolphin-image #docker-plugin-image docker-hubble-relay-image docker-clustermesh-apiserver-image docker-operator-images-all ## Build all dolphin related docker images.
+install:
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
+	$(foreach target,$(TARGETS), $(INSTALL) -m 0755 $(target) $(DESTDIR)$(BINDIR);)

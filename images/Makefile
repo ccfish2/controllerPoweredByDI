@@ -10,7 +10,22 @@ endif
 
 PLATFORMS=linux/amd64,linux/arm64
 
-all-images: operator-image
+all-images: docker-image-generic
 
-operator-image: .buildx_builder
-	ROOT_CONTEXT=true scripts/build-image.sh operator-dev images/ $(PLATFORMS) $(OUTPUT) "$$(cat .buildx_builder)" $(REGISTRIES)
+docker-image-generic:
+	docker build \
+		--build-arg TARGETOS=linux \
+		--build-arg TARGETARCH=amd64 \
+		--build-arg GO_TAGS_FLAGS="home_provider_generic" \
+		-f Dockerfile \
+		-t dolphin-operator-generic:latest \
+		..
+
+docker-image-%:
+	docker build \
+		--build-arg TARGETOS=linux \
+		--build-arg TARGETARCH=amd64 \
+		--build-arg GO_TAGS_FLAGS="home_provider_$*" \
+		-f Dockerfile \
+		-t dolphin-operator-$*:latest \
+		..
