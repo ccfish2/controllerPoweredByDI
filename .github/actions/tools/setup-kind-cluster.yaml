@@ -1,1 +1,47 @@
 
+name: Create an EKS cluster
+description: Create an EKS cluster
+inputs:
+  cluster_name:
+    description: ''
+    required: true
+  region:
+    description: ''
+    required: true
+  owner:
+    description: ''
+    required: true
+  version:
+    description: ''
+    required: false
+    default: ''
+  spot:
+    description: ''
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Create kind cluster
+      shell: bash
+      run: |
+        cat <<EOF > kind-config.yaml
+        kind: Cluster
+        apiVersion: kind.x-k8s.io/v1alpha4
+        nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+              # To make sure that there is no taint for master node Otherwise additional worker node might be required for conformance testing.
+              - |
+                apiVersion: kubeadm.k8s.io/v1beta3
+                kind: InitConfiguration
+                nodeRegistration:
+                  taints: []
+          - role: worker
+        networking:
+          disableDefaultCNI: true
+          podSubnet: "10.0.2.0/16"
+          serviceSubnet: "10.0.3.0/16"
+        EOF
+
+        kind create cluster --config kind-config.yaml

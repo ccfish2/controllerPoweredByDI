@@ -1,0 +1,16 @@
+name: Set environment variables
+description: Set environment variables
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # renovate: datasource=github-releases depName=kubernetes-sigs/kind
+        KIND_VERSION="v0.22.0"
+        # renovate: datasource=docker
+        KIND_K8S_IMAGE="kindest/node:v1.29.2@sha256:51a1434a5397193442f0be2a297b488b6c919ce8a3931be0ce822606ea5ca245"
+        KIND_K8S_VERSION=$(echo "$KIND_K8S_IMAGE" | sed -r 's|.+:(v[0-9a-z.-]+)(@.+)?|\1|')
+
+        echo "KIND_VERSION=$KIND_VERSION" >> $GITHUB_ENV
+        echo "KIND_K8S_IMAGE=$KIND_K8S_IMAGE" >> $GITHUB_ENV
+        echo "KIND_K8S_VERSION=$KIND_K8S_VERSION" >> $GITHUB_ENV
