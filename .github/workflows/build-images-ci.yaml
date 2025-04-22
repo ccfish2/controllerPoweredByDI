@@ -1,4 +1,5 @@
 name: Image CI Builder
+
 on:
   pull_request_target:
     types:
@@ -26,7 +27,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: dolphin
+          - name: dolphin-operator
             dockerfile: ./images/Dockerfile
 
     steps:
@@ -36,9 +37,6 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Set Environment Variables
-        uses: ./.github/actions/set-env-variables
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action
 
@@ -46,8 +44,8 @@ jobs:
         uses: docker/login-action
         with:
           registry: docker.io
-          username: ${{ secrets.QUAY_USERNAME_CI }}
-          password: ${{ secrets.QUAY_PASSWORD_CI }}
+          username: ${{ secrets.DOCKER_USERNAME_CI }}
+          password: ${{ secrets.DOCKER_PASSWORD_CI }}
 
       - name: Getting image tag
         id: tag
@@ -62,6 +60,25 @@ jobs:
           else
             echo floating_tag=${{ github.ref_name }} >> $GITHUB_OUTPUT
           fi
+
+      # Load Golang cache build from GitHub
+      - name: Load ${{ matrix.name }} Golang cache build from GitHub
+        uses: actions/cache
+        id: cache
+        with:
+          path: /tmp/.cache/${{ matrix.name }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ matrix.name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ matrix.name }}-
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
+            ${{ runner.os }}-go-
+
+      - name: Create ${{ matrix.name }} cache directory
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/.cache/${{ matrix.name }}
+      
 
   image-digests:
     if: ${{ always() }}
