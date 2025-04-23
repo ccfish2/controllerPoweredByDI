@@ -103,7 +103,7 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 
 		res := []reconcile.Request{}
 		for _, in := range ingresslist.Items {
-			if !isDolphinmanagedIngress(ctx, r.client, r.logger, &in) {
+			if !isdolphinManagedIngress(ctx, r.client, r.logger, in) {
 				continue
 			}
 			if !isEffectiveLoadbalancerModeDedicated(&in) {
