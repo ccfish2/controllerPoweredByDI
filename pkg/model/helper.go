@@ -81,3 +81,12 @@ func hostnameMatchesWildcardHostName(hostname, wildcardHostname string) bool {
 	wildMatch := strings.TrimSuffix(hostname, strings.TrimPrefix(wildcardHostname, allhost))
 	return len(wildMatch) > 0
 }
+
+func AddSource(sourceList []FullyQualifiedResource, source FullyQualifiedResource) []FullyQualifiedResource {
+	for _, s := range sourceList {
+		if cmp.Equal(s, source) {
+			return sourceList
+		}
+	}
+	return append(sourceList, source)
+}

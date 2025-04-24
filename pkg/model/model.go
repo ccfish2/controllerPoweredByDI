@@ -83,7 +83,7 @@ type DirectResponse struct {
 type HTTPRoute struct {
 	Name               string              `json:"name,omitempty"`
 	Hostnames          []string            `json:"hostnames,omitempty"`
-	PatchMatch         StringMatch         `json:"patch_match,omitempty"`
+	PathMatch          StringMatch         `json:"path_match,omitempty"`
 	HeadersMatch       []KeyValueMatch     `json:"headers_match,omitempty"`
 	QueryParamsMatch   []KeyValueMatch     `json:"query_params_match,omitempty"`
 	Method             *string             `json:"method,omitempty"`

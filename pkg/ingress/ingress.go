@@ -21,6 +21,10 @@ import (
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 )
 
+const (
+	dolphinIngressPrefix = "dolphin-ingress"
+)
+
 type ingressReconciler struct {
 	logger logrus.FieldLogger
 	client client.Client

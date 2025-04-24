@@ -216,6 +216,32 @@ func (r *ingressReconciler) updateIngressLoadbalancerStatus(ctx context.Context,
 	return nil
 }
 
+func convertToNetworkV1IngressLoadBalancerIngress(lbIngresses []corev1.LoadBalancerIngress) []networkingv1.IngressLoadBalancerIngress {
+	if lbIngresses == nil {
+		return nil
+	}
+
+	ingLBIngs := make([]networkingv1.IngressLoadBalancerIngress, 0, len(lbIngresses))
+	for _, lbIng := range lbIngresses {
+		ports := make([]networkingv1.IngressPortStatus, 0, len(lbIng.Ports))
+		for _, port := range lbIng.Ports {
+			ports = append(ports, networkingv1.IngressPortStatus{
+				Port:     port.Port,
+				Protocol: corev1.Protocol(port.Protocol),
+				Error:    port.Error,
+			})
+		}
+		ingLBIngs = append(ingLBIngs,
+			networkingv1.IngressLoadBalancerIngress{
+				IP:       lbIng.IP,
+				Hostname: lbIng.Hostname,
+				Ports:    ports,
+			})
+	}
+
+	return ingLBIngs
+}
+
 // generic way, but specifically for shared load balance
 func (r *ingressReconciler) propagateIngressAnnotationsAndLabels(ingress *networkingv1.Ingress, objectMeta *metav1.ObjectMeta) {
 	if len(r.lbAnnotationPrefixes) > 0 {
@@ -237,7 +263,7 @@ func (r *ingressReconciler) createOrUpdateSharedResources(ctx context.Context) e
 	return nil
 }
 
-func (r *ingressReconciler) tryCleanupDedicatedResources(ctx context.Context, lim types.NamespacedName) error {
+func (r *ingressReconciler) tryCleanupDedicatedResources(ctx context.Context, ingressNamespacedName types.NamespacedName) error {
 	resources := map[client.Object]types.NamespacedName{
 		&corev1.Service{}:               {Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", dolphinIngressPrefix, ingressNamespacedName.Name)},
 		&corev1.Endpoints{}:             {Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", dolphinIngressPrefix, ingressNamespacedName.Name)},
@@ -279,7 +305,7 @@ func (r *ingressReconciler) tryDeletingResource(ctx context.Context, object clie
 	return nil
 }
 
-func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv1.DolphinEnvoyConfig, *corev1.Service, *corev1.Endpoints, error) {
+func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv1.DolphinEnvoyConfig, error) {
 	ingressList := networkingv1.IngressList{}
 	if err := r.client.List(ctx, &ingressList); err != nil {
 		return nil, fmt.Errorf("failed to list Ingresses: %w", err)
