@@ -318,7 +318,7 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 	})
 
 	for _, item := range allSharedIngresses {
-		if !isDolphinManagedIngress(ctx, r.client, r.logger, item) || r.isEffectiveLoadbalancerModeDedicated(&item) || item.GetDeletionTimestamp() != nil {
+		if !isdolphinManagedIngress(ctx, r.client, r.logger, item) || r.isEffectiveLoadbalancerModeDedicated(&item) || item.GetDeletionTimestamp() != nil {
 			continue
 		}
 		if annotations.GetAnnotationTLSPassthroughEnabled(&item) {

@@ -7,6 +7,8 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+
+	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress/annotations"
 )
 
 // translate ingress into TLSListener
