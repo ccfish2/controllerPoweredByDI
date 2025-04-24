@@ -43,3 +43,11 @@ func GetAnnotationTLSPassthroughEnabled(ingress *networkingv1.Ingress) bool {
 
 	return boolVal
 }
+
+func GetAnnotationServiceType(ingress *networkingv1.Ingress) string {
+	val, exists := annotation.Get(ingress, ServiceTypeAnnotation, ServiceTypeAnnotationAlias)
+	if !exists {
+		return string(corev1.ServiceTypeLoadBalancer)
+	}
+	return val
+}

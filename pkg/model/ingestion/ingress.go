@@ -5,11 +5,12 @@ import (
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
 // translate ingress into TLSListener
-func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName string) []model.TLSListener {
+func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName string) []model.HTTPListener {
 
 	insecureListenerMap := make(map[string]model.HTTPListener)
 
@@ -286,8 +287,8 @@ func getService(ing networkingv1.Ingress) *model.Service {
 	return m
 }
 
-func appendValuesInKeyOrder[T model.HTTPListener | model.TLSListener](listenerMAP map[string]T, appendSlice []T) []T {
-	var key []string
+func appendValuesInKeyOrder[T model.HTTPListener | model.TLSListener](listeneMap map[string]T, appendSlice []T) []T {
+	var keys []string
 	for key := range listeneMap {
 		keys = append(keys, key)
 	}
