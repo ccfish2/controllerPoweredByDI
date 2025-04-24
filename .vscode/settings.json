@@ -1,0 +1,9 @@
+{
+    "go.useLanguageServer": true,
+    "go.toolsEnvVars": {
+        "GOFLAGS":"-mod=vendor",
+    },
+    "gopls": {
+        "build.expandWorkspaceToModule": true,
+    }
+}

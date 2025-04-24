@@ -197,7 +197,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.GRPC
 
 			for _, match := range rule.Matches {
 				grpcRoutes = append(grpcRoutes, model.HTTPRoute{
-					PatchMatch:             toGRPCPathMatch(match),
+					PathMatch:              toGRPCPathMatch(match),
 					HeadersMatch:           toGRPCHeaderMatch(match),
 					IsGRPC:                 true,
 					Hostnames:              matchedHosts,
@@ -554,7 +554,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 
 				for _, match := range rule.Matches {
 					httpRoutes = append(httpRoutes, model.HTTPRoute{
-						PatchMatch:             toPathMatch(match),
+						PathMatch:              toPathMatch(match),
 						HeadersMatch:           toHeaderMatch(match),
 						QueryParamsMatch:       toQueryMatch(match),
 						IsGRPC:                 true,

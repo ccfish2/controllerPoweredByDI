@@ -1,6 +1,8 @@
 package ingestion
 
 import (
+	"sort"
+
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -282,4 +284,16 @@ func getService(ing networkingv1.Ingress) *model.Service {
 	}
 
 	return m
+}
+
+func appendValuesInKeyOrder[T model.HTTPListener | model.TLSListener](listenerMAP map[string]T, appendSlice []T) []T {
+	var key []string
+	for key := range listeneMap {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		appendSlice = append(appendSlice, listeneMap[key])
+	}
+	return appendSlice
 }
