@@ -203,6 +203,7 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.SetDolphinIsUpCondition = vp.GetBool(SetDolphinIsUpCondition)
 	c.IngressProxyXffNumTrustedHops = vp.GetUint32(IngressDefaultXffNumTrustedHops)
 	c.PodRestartSelector = vp.GetString(PodRestartSelector)
+	c.IngressProxyXffNumTrustedHops = vp.GetUint32(IngressDefaultXffNumTrustedHops)
 
 	c.DolphinK8sNamespace = vp.GetString(DolphinK8sNamespace)
 

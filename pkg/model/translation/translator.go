@@ -3,9 +3,12 @@ package translation
 import (
 	"cmp"
 	"fmt"
+	goslices "slices"
 	"sort"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "k8s.io/api/core/v1"
@@ -362,4 +365,12 @@ func getNamespaceNamePortsMapForTLS(m *model.Model) map[string]map[string][]stri
 		}
 	}
 	return namespaceNamePortMap
+}
+
+func toAny(msg proto.Message) *anypb.Any {
+	a, err := anypb.New(msg)
+	if err != nil {
+		return nil
+	}
+	return a
 }
