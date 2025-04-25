@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
-	"github.com/ccfish2/dolphin/pkg/envoy"
-	dolphinv1 "github.com/ccfish2/dolphin/pkg/k8s/apis/dolphin.io/v1"
+	"github.com/ccfish2/infra/pkg/envoy"
+	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 )
 
 type HttpConnectionManagerMutator func(*httpConnectionManagerv3.HttpConnectionManager) *httpConnectionManagerv3.HttpConnectionManager
