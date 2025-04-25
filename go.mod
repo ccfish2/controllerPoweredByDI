@@ -4,7 +4,8 @@ go 1.23.0
 
 require (
 	github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3
-	github.com/ccfish2/infra v0.0.0-20250425035714-ac25f190b665
+	github.com/ccfish2/infra v0.0.0-20250425222308-f4106b58ec89
+	github.com/cilium/proxy v0.0.0-20250425043255-28e494373b24
 	github.com/go-openapi/loads v0.22.0
 	github.com/go-openapi/runtime v0.28.0
 	github.com/prometheus/client_golang v1.21.1
@@ -22,11 +23,13 @@ require (
 )
 
 require (
+	cel.dev/expr v0.20.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 // indirect
-	github.com/cilium/proxy v0.0.0-20250425043255-28e494373b24 // indirect
+	github.com/cncf/xds/go v0.0.0-20250326154945-ae57f3c0d45f // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
 	github.com/go-kit/kit v0.13.0 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
@@ -47,6 +50,7 @@ require (
 	github.com/zeebo/errs v1.4.0 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250422160041-2d3770c4ea7f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250422160041-2d3770c4ea7f // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 )
@@ -97,7 +101,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/oauth2 v0.26.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
