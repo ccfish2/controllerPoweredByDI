@@ -11,12 +11,20 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
+	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
+
 	v1 "k8s.io/api/core/v1"
 
 	// dolphin
 	"github.com/ccfish2/infra/pkg/k8s"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	"github.com/ccfish2/infra/pkg/slices"
+)
+
+const (
+	secureHost   = "secure"
+	insecureHost = "insecure"
 )
 
 type defaultTranslator struct {
