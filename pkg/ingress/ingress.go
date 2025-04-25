@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
+	ingressTranslation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/ingress"
 	"github.com/sirupsen/logrus"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -60,8 +61,12 @@ func newIngressReconciler(
 	proxyIdleTimeoutSeconds int,
 ) *ingressReconciler {
 	return &ingressReconciler{
-		logger:                  logger,
-		client:                  c,
+		logger: logger,
+		client: c,
+
+		sharedTranslator:    ingressTranslation.NewSharedIngressTranslator(sharedLBServiceName, dolphinNamespace, secretsNamespace, enforceHTTPS, useProxyProtocol, proxyIdleTimeoutSeconds),
+		dedicatedTranslator: ingressTranslation.NewDedicatedIngressTranslator(secretsNamespace, enforceHTTPS, useProxyProtocol, proxyIdleTimeoutSeconds),
+
 		maxRetries:              3,
 		enforcedHTTPS:           enforceHTTPS,
 		useProxyProtocol:        useProxyProtocol,
