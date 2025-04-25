@@ -16,8 +16,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/ccfish2/controllerPoweredByDI/pkg/envoy"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	"github.com/ccfish2/infra/pkg/envoy"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	"github.com/ccfish2/infra/pkg/slices"
 )
