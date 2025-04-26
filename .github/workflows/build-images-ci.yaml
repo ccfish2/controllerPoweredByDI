@@ -82,7 +82,7 @@ jobs:
           docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
 
       - name: Upload Docker Image as Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: dolphin-operator-image
           path: dolphin-operator-generic.tar
@@ -100,8 +100,9 @@ jobs:
           mkdir -p image-digest/
 
       - name: Download digests of all images built
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v3
         with:
+          name: dolphin-operator-image
           path: image-digest/
 
       - name: Image Digests Output
