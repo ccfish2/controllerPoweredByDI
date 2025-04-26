@@ -26,10 +26,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout v1 code (trusted)
-        uses: actions/checkout@v1
+      - name: Checkout V1 code (trusted)
+        uses: actions/checkout@V1
         with:
-          ref: v1
+          ref: V1
 
       - name: Set up Docker Buildx (for caching)
         uses: docker/setup-buildx-action@v3
