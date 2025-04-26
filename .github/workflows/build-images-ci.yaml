@@ -12,7 +12,7 @@ on:
       - development
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout V1 code (trusted)
-        uses: actions/checkout@V1
+        uses: actions/checkout@v4
         with:
           ref: V1
 
@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
+          key: ${{ runner.os }}-docker-${{ github.ref_name }}
           restore-keys: |
             ${{ runner.os }}-docker-
 
@@ -81,20 +81,20 @@ jobs:
         run: |
           docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
 
-      - name: Upload Docker Image as Artifact
+      - name: Upload Docker Image Tar as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: dolphin-operator-image
           path: dolphin-operator-generic.tar
-          retention-days: 1
 
   image-digests:
     if: ${{ always() }}
     name: Display Digests
     runs-on: ubuntu-22.04
     needs: build-and-push-prs
+
     steps:
-      - name: Download digests of all images built
+      - name: Download Dolphin Operator Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: dolphin-operator-image

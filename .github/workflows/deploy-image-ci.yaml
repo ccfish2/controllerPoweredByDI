@@ -29,21 +29,26 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Download Built Docker Image
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Download Dolphin Operator Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: dolphin-operator-image
-          path: ./image
+          path: dolphin-operator-image/
 
       - name: Load Docker Image into KinD
         run: |
-          kind load image-archive ./image/dolphin-operator-generic.tar
+          kind load image-archive ./dolphin-operator-image/dolphin-operator-generic.tar
 
-      - name: Deploy using install/ manifests (override image)
+      - name: Deploy using install/manifests (override image)
         run: |
           kubectl create namespace dolphin || true
           for file in install/*.yaml; do
-            sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ github.sha }}|g" "$file" | kubectl apply -n dolphin -f -
+            sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
 
       - name: Wait for Deployment to be Ready
@@ -57,3 +62,8 @@ jobs:
       - name: Run Unit Tests
         run: |
           bash actions/tests/unit-tests.sh
+
+      - name: Delete KinD cluster
+        if: always()
+        run: kind delete cluster
+
