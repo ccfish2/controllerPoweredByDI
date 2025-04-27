@@ -1,8 +1,10 @@
 package translation
 
 import (
+	"fmt"
 	"net"
 	"sort"
+	"strings"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
@@ -197,4 +199,148 @@ func envoyHTTPRoutes(httpRoutes []model.HTTPRoute, hostnames []string, hostNameS
 		delete(matchBackendMap, r.GetMatchKey())
 	}
 	return routes
+}
+
+func getRouteMatch(hostnames []string, hostNameSuffixMatch bool, pathMatch model.StringMatch, headers []model.KeyValueMatch, query []model.KeyValueMatch, method *string) *envoy_config_route_v3.RouteMatch {
+	headerMatchers := getHeaderMatchers(hostnames, hostNameSuffixMatch, headers, method)
+	queryMatchers := getQueryMatchers(query)
+
+	switch {
+	case pathMatch.Exact != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
+				Path: pathMatch.Exact,
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Prefix == "/":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
+				Prefix: pathMatch.Prefix,
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Prefix != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_PathSeparatedPrefix{
+				PathSeparatedPrefix: strings.TrimSuffix(pathMatch.Prefix, "/"),
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Regex != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_SafeRegex{
+				SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+					Regex: pathMatch.Regex,
+				},
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	default:
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
+				Prefix: "/",
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	}
+}
+
+func getQueryMatchers(query []model.KeyValueMatch) []*envoy_config_route_v3.QueryParameterMatcher {
+	res := make([]*envoy_config_route_v3.QueryParameterMatcher, 0, len(query))
+	for _, q := range query {
+		res = append(res, &envoy_config_route_v3.QueryParameterMatcher{
+			Name: q.Key,
+			QueryParameterMatchSpecifier: &envoy_config_route_v3.QueryParameterMatcher_StringMatch{
+				StringMatch: getEnvoyStringMatcher(q.Match),
+			},
+		})
+	}
+	return res
+}
+
+func getMatchingHeaderRegex(host string) string {
+	if strings.HasPrefix(host, starDot) {
+		return fmt.Sprintf("^%s+%s%s$", notDotRegex, dotRegex, strings.ReplaceAll(host[2:], dot, dotRegex))
+	}
+	return fmt.Sprintf("^%s$", strings.ReplaceAll(host, dot, dotRegex))
+}
+
+func getHeaderMatchers(hostnames []string, hostNameSuffixMatch bool, headers []model.KeyValueMatch, method *string) []*envoy_config_route_v3.HeaderMatcher {
+	var result []*envoy_config_route_v3.HeaderMatcher
+
+	if !hostNameSuffixMatch {
+		for _, host := range hostnames {
+			if len(host) != 0 && host != wildCard && strings.Contains(host, wildCard) {
+				result = append(result, &envoy_config_route_v3.HeaderMatcher{
+					Name: envoyAuthority,
+					HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+						StringMatch: &envoy_type_matcher_v3.StringMatcher{
+							MatchPattern: &envoy_type_matcher_v3.StringMatcher_SafeRegex{
+								SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+									Regex: getMatchingHeaderRegex(host),
+								},
+							},
+						},
+					},
+				})
+			}
+		}
+	}
+
+	for _, h := range headers {
+		result = append(result, &envoy_config_route_v3.HeaderMatcher{
+			Name: h.Key,
+			HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+				StringMatch: getEnvoyStringMatcher(h.Match),
+			},
+		})
+	}
+
+	if method != nil {
+		result = append(result, &envoy_config_route_v3.HeaderMatcher{
+			Name: ":method",
+			HeaderMatchSpecifier: &envoy_config_route_v3.HeaderMatcher_StringMatch{
+				StringMatch: &envoy_type_matcher_v3.StringMatcher{
+					MatchPattern: &envoy_type_matcher_v3.StringMatcher_Exact{
+						Exact: strings.ToUpper(*method),
+					},
+				},
+			},
+		})
+	}
+
+	return result
+}
+
+func getEnvoyStringMatcher(s model.StringMatch) *envoy_type_matcher_v3.StringMatcher {
+	if s.Exact != "" {
+		return &envoy_type_matcher_v3.StringMatcher{
+			MatchPattern: &envoy_type_matcher_v3.StringMatcher_Exact{
+				Exact: s.Exact,
+			},
+		}
+	}
+	if s.Prefix != "" {
+		return &envoy_type_matcher_v3.StringMatcher{
+			MatchPattern: &envoy_type_matcher_v3.StringMatcher_Prefix{
+				Prefix: s.Prefix,
+			},
+		}
+	}
+	if s.Regex != "" {
+		return &envoy_type_matcher_v3.StringMatcher{
+			MatchPattern: &envoy_type_matcher_v3.StringMatcher_SafeRegex{
+				SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+					Regex: s.Regex,
+				},
+			},
+		}
+	}
+	return nil
 }

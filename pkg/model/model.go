@@ -1,7 +1,9 @@
 package model
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -230,4 +232,38 @@ func (b *BackendPort) GetPort() string {
 		return strconv.Itoa(int(b.Port))
 	}
 	return b.Name
+}
+
+func (r *HTTPRoute) GetMatchKey() string {
+	sb := strings.Builder{}
+
+	if r.Method != nil {
+		sb.WriteString("method:")
+		sb.WriteString(*r.Method)
+		sb.WriteString("|")
+	}
+
+	sb.WriteString("path:")
+	sb.WriteString(r.PathMatch.String())
+	sb.WriteString("|")
+
+	sort.Slice(r.HeadersMatch, func(i, j int) bool {
+		return r.HeadersMatch[i].String() < r.HeadersMatch[j].String()
+	})
+	for _, hm := range r.HeadersMatch {
+		sb.WriteString("header:")
+		sb.WriteString(hm.String())
+		sb.WriteString("|")
+	}
+
+	sort.Slice(r.QueryParamsMatch, func(i, j int) bool {
+		return r.QueryParamsMatch[i].String() < r.QueryParamsMatch[j].String()
+	})
+	for _, qm := range r.QueryParamsMatch {
+		sb.WriteString("query:")
+		sb.WriteString(qm.String())
+		sb.WriteString("|")
+	}
+
+	return sb.String()
 }
