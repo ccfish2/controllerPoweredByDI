@@ -36,7 +36,7 @@ jobs:
 
       - name: Download Dolphin Operator Image from GitHub Release
         run: |
-          curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/V1/dolphin-operator-generic.tar
+          curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/civ1/dolphin-operator-generic.tar
 
       - name: Load Docker Image into KinD
         run: |

@@ -81,9 +81,16 @@ jobs:
         run: |
           docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
 
-      - name: Create Release and Upload Docker Image Tar
-        uses: softprops/action-gh-release@V1
+      - name: Upload Docker Tar as Artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: dolphin-operator-image
+          path: dolphin-operator-generic.tar
+
+      - name: Create Release and Upload Docker Image Tar
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: civ1
           files: dolphin-operator-generic.tar  # Path to the file to upload
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
