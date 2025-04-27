@@ -47,7 +47,7 @@ jobs:
           echo "Deploying image: jimin1/dolphin-operator-generic:${{ needs.build-and-push-prs.outputs.image_tag }}"
           kubectl create namespace dolphin || true
           for file in install/*.yaml; do
-            sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ needs.build-and-push-prs.outputs.image_tag }}|g" "$file" | kubectl apply -n dolphin -f -
+            sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
 
       - name: Wait for Deployment to be Ready
