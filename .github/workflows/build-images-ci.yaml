@@ -82,7 +82,7 @@ jobs:
           docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
 
       - name: Create Release and Upload Docker Image Tar
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@V1
         with:
           files: dolphin-operator-generic.tar  # Path to the file to upload
         env:
