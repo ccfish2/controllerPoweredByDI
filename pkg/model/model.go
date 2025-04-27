@@ -120,7 +120,7 @@ type HTTPRoute struct {
 
 	ResponseHeaderMatch    *HttpHeaderFilter `json:"response_header_match,omitempty"`
 	ResponseHeaderModifier *HttpHeaderFilter `json:"response_header_modifier,omitempty"`
-	RequestHeaderFilter    *HTTPHeaderFilter `json:"request_header_filter,omitempty"`
+	RequestHeaderFilter    *HttpHeaderFilter `json:"request_header_filter,omitempty"`
 
 	RequestRedirect *HTTPRequestRedirectFilter `json:"requestRedirect,omitempty"`
 
