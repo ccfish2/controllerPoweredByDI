@@ -118,11 +118,11 @@ type HTTPRoute struct {
 	BackendHttpFilters []BackendHttpFilter `json:"backend_http_filters,omitempty"`
 	DirectResponse     *DirectResponse     `json:"direct_response,omitempty"`
 
-	RequestHeadFile        *HttpHeaderFilter `json:"request_head_file,omitempty"`
 	ResponseHeaderMatch    *HttpHeaderFilter `json:"response_header_match,omitempty"`
 	ResponseHeaderModifier *HttpHeaderFilter `json:"response_header_modifier,omitempty"`
+	RequestHeaderFilter    *HTTPHeaderFilter `json:"request_header_filter,omitempty"`
 
-	RequestRedirected *HTTPRequestRedirectFilter `json:"request_redirected,omitempty"`
+	RequestRedirect *HTTPRequestRedirectFilter `json:"requestRedirect,omitempty"`
 
 	Rewrite *HTTPURLRewriteFilter `json:"rewrite,omitempty"`
 

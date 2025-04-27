@@ -7,7 +7,11 @@ import (
 	"strings"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
+	envoy_type_matcher_v3 "github.com/cilium/proxy/go/envoy/type/matcher/v3"
+
+	"github.com/ccfish2/infra/pkg/math"
 )
 
 const (
@@ -343,4 +347,117 @@ func getEnvoyStringMatcher(s model.StringMatch) *envoy_type_matcher_v3.StringMat
 		}
 	}
 	return nil
+}
+
+func envoyHTTPRouteNoBackend(route model.HTTPRoute, hostnames []string, hostNameSuffixMatch bool) *envoy_config_route_v3.Route {
+	if route.DirectResponse == nil {
+		return nil
+	}
+
+	return &envoy_config_route_v3.Route{
+		Match: getRouteMatch(hostnames,
+			hostNameSuffixMatch,
+			route.PathMatch,
+			route.HeadersMatch,
+			route.QueryParamsMatch,
+			route.Method),
+		Action: &envoy_config_route_v3.Route_DirectResponse{
+			DirectResponse: &envoy_config_route_v3.DirectResponseAction{
+				Status: uint32(route.DirectResponse.StatusCode),
+				Body: &envoy_config_core_v3.DataSource{
+					Specifier: &envoy_config_core_v3.DataSource_InlineString{
+						InlineString: route.DirectResponse.Body,
+					},
+				},
+			},
+		},
+	}
+}
+
+func getRouteMatch(hostnames []string, hostNameSuffixMatch bool, pathMatch model.StringMatch, headers []model.KeyValueMatch, query []model.KeyValueMatch, method *string) *envoy_config_route_v3.RouteMatch {
+	headerMatchers := getHeaderMatchers(hostnames, hostNameSuffixMatch, headers, method)
+	queryMatchers := getQueryMatchers(query)
+
+	switch {
+	case pathMatch.Exact != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
+				Path: pathMatch.Exact,
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Prefix == "/":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
+				Prefix: pathMatch.Prefix,
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Prefix != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_PathSeparatedPrefix{
+				PathSeparatedPrefix: strings.TrimSuffix(pathMatch.Prefix, "/"),
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	case pathMatch.Regex != "":
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_SafeRegex{
+				SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
+					Regex: pathMatch.Regex,
+				},
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	default:
+		return &envoy_config_route_v3.RouteMatch{
+			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
+				Prefix: "/",
+			},
+			Headers:         headerMatchers,
+			QueryParameters: queryMatchers,
+		}
+	}
+}
+
+func getHeadersToAdd(filter *model.HTTPHeaderFilter) []*envoy_config_core_v3.HeaderValueOption {
+	if filter == nil {
+		return nil
+	}
+	result := make(
+		[]*envoy_config_core_v3.HeaderValueOption,
+		0,
+		len(filter.HeadersToAdd)+len(filter.HeadersToSet),
+	)
+	for _, h := range filter.HeadersToAdd {
+		result = append(result, &envoy_config_core_v3.HeaderValueOption{
+			Header: &envoy_config_core_v3.HeaderValue{
+				Key:   h.Name,
+				Value: h.Value,
+			},
+			AppendAction: envoy_config_core_v3.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD,
+		})
+	}
+
+	for _, h := range filter.HeadersToSet {
+		result = append(result, &envoy_config_core_v3.HeaderValueOption{
+			Header: &envoy_config_core_v3.HeaderValue{
+				Key:   h.Name,
+				Value: h.Value,
+			},
+			AppendAction: envoy_config_core_v3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
+		})
+	}
+	return result
+}
+
+func getHeadersToRemove(filter *model.HTTPHeaderFilter) []string {
+	if filter == nil {
+		return nil
+	}
+	return filter.HeadersToRemove
 }
