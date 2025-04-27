@@ -81,11 +81,12 @@ jobs:
         run: |
           docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
 
-      - name: Upload Docker Image Tar as Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload Docker Image Tar
+        uses: softprops/action-gh-release@v1
         with:
-          name: dolphin-operator-image
-          path: dolphin-operator-generic.tar
+          files: dolphin-operator-generic.tar  # Path to the file to upload
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   image-digests:
     if: ${{ always() }}

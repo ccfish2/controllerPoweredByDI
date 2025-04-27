@@ -34,11 +34,9 @@ jobs:
           sudo apt update
           sudo apt install gh -y
 
-      - name: Download Dolphin Operator Image Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dolphin-operator-image
-          path: dolphin-operator-image/
+      - name: Download Dolphin Operator Image from GitHub Release
+        run: |
+          curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/V1/dolphin-operator-generic.tar
 
       - name: Load Docker Image into KinD
         run: |
