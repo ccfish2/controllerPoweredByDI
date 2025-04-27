@@ -55,9 +55,34 @@ type StringMatch struct {
 	Exact  string
 	Regex  string
 }
+
+func (sm StringMatch) String() string {
+	sb := strings.Builder{}
+	if sm.Prefix != "" {
+		sb.WriteString("prefix:")
+		sb.WriteString(sm.Prefix)
+	} else if sm.Exact != "" {
+		sb.WriteString("exact:")
+		sb.WriteString(sm.Exact)
+	} else if sm.Regex != "" {
+		sb.WriteString("regex:")
+		sb.WriteString(sm.Regex)
+	}
+	return sb.String()
+}
+
 type KeyValueMatch struct {
 	Key   string
 	Match StringMatch
+}
+
+func (kv KeyValueMatch) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("kv:")
+	sb.WriteString(kv.Key)
+	sb.WriteString(":")
+	sb.WriteString(kv.Match.String())
+	return sb.String()
 }
 
 type Header struct {
