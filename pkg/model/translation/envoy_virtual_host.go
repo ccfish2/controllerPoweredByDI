@@ -584,56 +584,6 @@ func envoyHTTPRouteNoBackend(route model.HTTPRoute, hostnames []string, hostName
 	}
 }
 
-func getRouteMatch(hostnames []string, hostNameSuffixMatch bool, pathMatch model.StringMatch, headers []model.KeyValueMatch, query []model.KeyValueMatch, method *string) *envoy_config_route_v3.RouteMatch {
-	headerMatchers := getHeaderMatchers(hostnames, hostNameSuffixMatch, headers, method)
-	queryMatchers := getQueryMatchers(query)
-
-	switch {
-	case pathMatch.Exact != "":
-		return &envoy_config_route_v3.RouteMatch{
-			PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-				Path: pathMatch.Exact,
-			},
-			Headers:         headerMatchers,
-			QueryParameters: queryMatchers,
-		}
-	case pathMatch.Prefix == "/":
-		return &envoy_config_route_v3.RouteMatch{
-			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
-				Prefix: pathMatch.Prefix,
-			},
-			Headers:         headerMatchers,
-			QueryParameters: queryMatchers,
-		}
-	case pathMatch.Prefix != "":
-		return &envoy_config_route_v3.RouteMatch{
-			PathSpecifier: &envoy_config_route_v3.RouteMatch_PathSeparatedPrefix{
-				PathSeparatedPrefix: strings.TrimSuffix(pathMatch.Prefix, "/"),
-			},
-			Headers:         headerMatchers,
-			QueryParameters: queryMatchers,
-		}
-	case pathMatch.Regex != "":
-		return &envoy_config_route_v3.RouteMatch{
-			PathSpecifier: &envoy_config_route_v3.RouteMatch_SafeRegex{
-				SafeRegex: &envoy_type_matcher_v3.RegexMatcher{
-					Regex: pathMatch.Regex,
-				},
-			},
-			Headers:         headerMatchers,
-			QueryParameters: queryMatchers,
-		}
-	default:
-		return &envoy_config_route_v3.RouteMatch{
-			PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
-				Prefix: "/",
-			},
-			Headers:         headerMatchers,
-			QueryParameters: queryMatchers,
-		}
-	}
-}
-
 func getHeadersToAdd(filter *model.HttpHeaderFilter) []*envoy_config_core_v3.HeaderValueOption {
 	if filter == nil {
 		return nil
@@ -670,4 +620,21 @@ func getHeadersToRemove(filter *model.HttpHeaderFilter) []string {
 		return nil
 	}
 	return filter.HeadersToRemove
+}
+
+func toRedirectResponseCode(statusCode int) envoy_config_route_v3.RedirectAction_RedirectResponseCode {
+	switch statusCode {
+	case 301:
+		return envoy_config_route_v3.RedirectAction_MOVED_PERMANENTLY
+	case 302:
+		return envoy_config_route_v3.RedirectAction_FOUND
+	case 303:
+		return envoy_config_route_v3.RedirectAction_SEE_OTHER
+	case 307:
+		return envoy_config_route_v3.RedirectAction_TEMPORARY_REDIRECT
+	case 308:
+		return envoy_config_route_v3.RedirectAction_PERMANENT_REDIRECT
+	default:
+		return envoy_config_route_v3.RedirectAction_MOVED_PERMANENTLY
+	}
 }

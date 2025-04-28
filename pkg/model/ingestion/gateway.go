@@ -697,7 +697,7 @@ func toHTTPRewriteFilter(rewrite *gatewayv1.HTTPURLRewriteFilter) *model.HTTPURL
 		}
 	}
 	return &model.HTTPURLRewriteFilter{
-		Hostname: (*string)(rewrite.Hostname),
+		HostName: (*string)(rewrite.Hostname),
 		Path:     pathFilter,
 	}
 }
