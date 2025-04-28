@@ -5,6 +5,7 @@ import (
 
 	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
 
+	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -110,7 +111,7 @@ func WithIdleTimeout(seconds int) ClusterMutator {
 	}
 }
 
-func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (ciliumv2.XDSResource, error) {
+func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
 	cluster := &envoy_config_cluster_v3.Cluster{
 		Name: clusterName,
 		TypedExtensionProtocolOptions: map[string]*anypb.Any{
@@ -137,6 +138,45 @@ func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc 
 
 	clusterBytes, err := proto.Marshal(cluster)
 	if err != nil {
+		return dolphinv1.XDSResource{}, err
+	}
+
+	return dolphinv1.XDSResource{
+		Any: &anypb.Any{
+			TypeUrl: envoy.ClusterTypeURL,
+			Value:   clusterBytes,
+		},
+	}, nil
+}
+
+// NewTCPClusterWithDefaults same as NewTCPCluster but has default mutation functions applied.
+func NewTCPClusterWithDefaults(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
+	fns := append(mutationFunc,
+		WithConnectionTimeout(5),
+		WithClusterLbPolicy(int32(envoy_config_cluster_v3.Cluster_ROUND_ROBIN)),
+		WithOutlierDetection(true),
+	)
+	return NewTCPCluster(clusterName, clusterServiceName, fns...)
+}
+
+func NewTCPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (ciliumv2.XDSResource, error) {
+	cluster := &envoy_config_cluster_v3.Cluster{
+		Name: clusterName,
+		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{
+			Type: envoy_config_cluster_v3.Cluster_EDS,
+		},
+		EdsClusterConfig: &envoy_config_cluster_v3.Cluster_EdsClusterConfig{
+			ServiceName: clusterServiceName,
+		},
+	}
+
+	// Apply mutation functions for customizing the cluster.
+	for _, fn := range mutationFunc {
+		cluster = fn(cluster)
+	}
+
+	clusterBytes, err := proto.Marshal(cluster)
+	if err != nil {
 		return ciliumv2.XDSResource{}, err
 	}
 
@@ -146,14 +186,4 @@ func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc 
 			Value:   clusterBytes,
 		},
 	}, nil
-}
-
-// NewTCPClusterWithDefaults same as NewTCPCluster but has default mutation functions applied.
-func NewTCPClusterWithDefaults(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (ciliumv2.XDSResource, error) {
-	fns := append(mutationFunc,
-		WithConnectionTimeout(5),
-		WithClusterLbPolicy(int32(envoy_config_cluster_v3.Cluster_ROUND_ROBIN)),
-		WithOutlierDetection(true),
-	)
-	return NewTCPCluster(clusterName, clusterServiceName, fns...)
 }
