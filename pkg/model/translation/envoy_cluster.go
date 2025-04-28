@@ -5,6 +5,7 @@ import (
 
 	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
 
+	"github.com/ccfish2/infra/pkg/envoy"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	"google.golang.org/protobuf/proto"
