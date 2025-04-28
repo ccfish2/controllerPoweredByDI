@@ -12,6 +12,10 @@ import (
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
 	envoy_type_matcher_v3 "github.com/cilium/proxy/go/envoy/type/matcher/v3"
+	envoy_type_v3 "github.com/cilium/proxy/go/envoy/type/v3"
+
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/ccfish2/infra/pkg/math"
 )
@@ -260,7 +264,7 @@ func pathFullReplaceMutation(rewrite *model.HTTPURLRewriteFilter) routeActionMut
 	}
 }
 
-func requestMirrorMutation(mirrors []*model.HTTPRequestMirror) routeActionMutation {
+func requestMirrorMutation(mirrors []*model.HttpRequestMirror) routeActionMutation {
 	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
 		if len(mirrors) == 0 {
 			return route

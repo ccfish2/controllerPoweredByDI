@@ -108,15 +108,15 @@ type DirectResponse struct {
 }
 
 type HTTPRoute struct {
-	Name               string              `json:"name,omitempty"`
-	Hostnames          []string            `json:"hostnames,omitempty"`
-	PathMatch          StringMatch         `json:"path_match,omitempty"`
-	HeadersMatch       []KeyValueMatch     `json:"headers_match,omitempty"`
-	QueryParamsMatch   []KeyValueMatch     `json:"query_params_match,omitempty"`
-	Method             *string             `json:"method,omitempty"`
-	Backends           []Backend           `json:"backends,omitempty"`
-	BackendHttpFilters []BackendHttpFilter `json:"backend_http_filters,omitempty"`
-	DirectResponse     *DirectResponse     `json:"direct_response,omitempty"`
+	Name               string               `json:"name,omitempty"`
+	Hostnames          []string             `json:"hostnames,omitempty"`
+	PathMatch          StringMatch          `json:"path_match,omitempty"`
+	HeadersMatch       []KeyValueMatch      `json:"headers_match,omitempty"`
+	QueryParamsMatch   []KeyValueMatch      `json:"query_params_match,omitempty"`
+	Method             *string              `json:"method,omitempty"`
+	Backends           []Backend            `json:"backends,omitempty"`
+	BackendHttpFilters []*BackendHttpFilter `json:"backend_http_filters,omitempty"`
+	DirectResponse     *DirectResponse      `json:"direct_response,omitempty"`
 
 	ResponseHeaderMatch    *HttpHeaderFilter `json:"response_header_match,omitempty"`
 	ResponseHeaderModifier *HttpHeaderFilter `json:"response_header_modifier,omitempty"`
@@ -132,8 +132,8 @@ type HTTPRoute struct {
 }
 
 type Timeout struct {
-	Request time.Duration `json:"request,omitempty"`
-	Backend time.Duration `json:"backend,omitempty"`
+	Request *time.Duration `json:"request,omitempty"`
+	Backend *time.Duration `json:"backend,omitempty"`
 }
 
 type HttpRequestMirror struct {
@@ -149,7 +149,7 @@ type HTTPRequestRedirectFilter struct {
 }
 
 type HTTPURLRewriteFilter struct {
-	Hostname *string      `json:"hostname,omitempty"`
+	HostName *string      `json:"hostname,omitempty"`
 	Path     *StringMatch `json:"path,omitempty"`
 }
 
