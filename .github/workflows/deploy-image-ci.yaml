@@ -23,6 +23,7 @@ jobs:
         uses: helm/kind-action@v1.8.0
         with:
           cluster_name: kind
+          node_image: kindest/node:v1.30.0
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
@@ -41,6 +42,16 @@ jobs:
       # - name: Load Docker Image into KinD
       #   run: |
       #     kind load image-archive ./dolphin-operator-generic.tar
+      - name: Checkout infra repo (with CRD yamls)
+        uses: actions/checkout@v4
+        with:
+          repository: ccfish2/infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: infra
+
+      - name: Deploy the  CRD YAMLs
+        run: |
+          kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
 
       - name: Deploy using install/manifests (override image)
         run: |

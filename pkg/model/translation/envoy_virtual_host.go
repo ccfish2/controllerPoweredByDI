@@ -188,11 +188,11 @@ func envoyHTTPRoutes(httpRoutes []model.HTTPRoute, hostnames []string, hostNameS
 		if hRoutes[0].RequestRedirect != nil {
 			route.Action = getRouteRedirect(hRoutes[0].RequestRedirect, listenerPort)
 		} else {
-			route.Action = getRouteAction(&r, backends, r.BackendHTTPFilters, r.Rewrite, r.RequestMirrors)
+			route.Action = getRouteAction(&r, backends, r.BackendHttpFilters, r.Rewrite, r.RequestMirrors)
 		}
 		// If there is only one backend, we can add the header filter to the route
 		if len(backends) == 1 {
-			for _, fn := range hRoutes[0].BackendHTTPFilters {
+			for _, fn := range hRoutes[0].BackendHttpFilters {
 				route.RequestHeadersToAdd = append(route.RequestHeadersToAdd, getHeadersToAdd(fn.RequestHeaderFilter)...)
 				route.RequestHeadersToRemove = append(route.RequestHeadersToRemove, getHeadersToRemove(fn.RequestHeaderFilter)...)
 				route.ResponseHeadersToAdd = append(route.ResponseHeadersToAdd, getHeadersToAdd(fn.ResponseHeaderModifier)...)
@@ -203,6 +203,119 @@ func envoyHTTPRoutes(httpRoutes []model.HTTPRoute, hostnames []string, hostNameS
 		delete(matchBackendMap, r.GetMatchKey())
 	}
 	return routes
+}
+
+// http Path redirect, rewite
+func getRouteAction(route *model.HTTPRoute, backends []model.Backend, backendHTTPFilter []*model.BackendHTTPFilter, rewrite *model.HTTPURLRewriteFilter, mirrors []*model.HTTPRequestMirror) *envoy_config_route_v3.Route_Route {
+	var routeAction *envoy_config_route_v3.Route_Route
+
+	mutators := []routeActionMutation{
+		hostRewriteMutation(rewrite),
+		pathPrefixMutation(rewrite, route),
+		pathFullReplaceMutation(rewrite),
+		requestMirrorMutation(mirrors),
+		timeoutMutation(route.Timeout.Backend, route.Timeout.Request),
+	}
+
+	if len(backends) == 1 {
+		r := &envoy_config_route_v3.Route_Route{
+			Route: &envoy_config_route_v3.RouteAction{
+				ClusterSpecifier: &envoy_config_route_v3.RouteAction_Cluster{
+					Cluster: getClusterName(backends[0].Namespace, backends[0].Name, backends[0].Port.GetPort()),
+				},
+			},
+		}
+
+		for _, mutator := range mutators {
+			r = mutator(r)
+		}
+		return r
+	}
+	backendFilter := make(map[string]*model.BackendHTTPFilter)
+	for _, f := range backendHTTPFilter {
+		backendFilter[f.Name] = f
+	}
+	weightedClusters := make([]*envoy_config_route_v3.WeightedCluster_ClusterWeight, 0, len(backends))
+	for _, be := range backends {
+		var weight int32 = 1
+		if be.Weight != nil {
+			weight = *be.Weight
+		}
+		clusterWeight := &envoy_config_route_v3.WeightedCluster_ClusterWeight{
+			Name:   getClusterName(be.Namespace, be.Name, be.Port.GetPort()),
+			Weight: wrapperspb.UInt32(uint32(weight)),
+		}
+
+		if fn, ok := backendFilter[getClusterName(be.Namespace, be.Name, be.Port.GetPort())]; ok {
+			clusterWeight.RequestHeadersToAdd = append(clusterWeight.RequestHeadersToAdd, getHeadersToAdd(fn.RequestHeaderFilter)...)
+			clusterWeight.RequestHeadersToRemove = append(clusterWeight.RequestHeadersToRemove, getHeadersToRemove(fn.RequestHeaderFilter)...)
+			clusterWeight.ResponseHeadersToAdd = append(clusterWeight.ResponseHeadersToAdd, getHeadersToAdd(fn.ResponseHeaderModifier)...)
+			clusterWeight.ResponseHeadersToRemove = append(clusterWeight.ResponseHeadersToRemove, getHeadersToRemove(fn.ResponseHeaderModifier)...)
+		}
+		weightedClusters = append(weightedClusters, clusterWeight)
+	}
+	routeAction = &envoy_config_route_v3.Route_Route{
+		Route: &envoy_config_route_v3.RouteAction{
+			ClusterSpecifier: &envoy_config_route_v3.RouteAction_WeightedClusters{
+				WeightedClusters: &envoy_config_route_v3.WeightedCluster{
+					Clusters: weightedClusters,
+				},
+			},
+		},
+	}
+	for _, mutator := range mutators {
+		routeAction = mutator(routeAction)
+	}
+	return routeAction
+}
+
+func getRouteRedirect(redirect *model.HTTPRequestRedirectFilter, listenerPort uint32) *envoy_config_route_v3.Route_Redirect {
+	redirectAction := &envoy_config_route_v3.RedirectAction{}
+
+	if redirect.Scheme != nil {
+		redirectAction.SchemeRewriteSpecifier = &envoy_config_route_v3.RedirectAction_SchemeRedirect{
+			SchemeRedirect: *redirect.Scheme,
+		}
+	}
+
+	if redirect.Hostname != nil {
+		redirectAction.HostRedirect = *redirect.Hostname
+	}
+
+	if redirect.Port != nil {
+		redirectAction.PortRedirect = uint32(*redirect.Port)
+	} else {
+		if redirect.Scheme != nil {
+			if *redirect.Scheme == "https" {
+				redirectAction.PortRedirect = 443
+			} else if *redirect.Scheme == "http" {
+				redirectAction.PortRedirect = 80
+			}
+		} else {
+			redirectAction.PortRedirect = listenerPort
+		}
+	}
+
+	if redirect.StatusCode != nil {
+		redirectAction.ResponseCode = toRedirectResponseCode(*redirect.StatusCode)
+	}
+
+	if redirect.Path != nil {
+		if len(redirect.Path.Prefix) != 0 {
+			redirectAction.PathRewriteSpecifier = &envoy_config_route_v3.RedirectAction_PrefixRewrite{
+				PrefixRewrite: redirect.Path.Prefix,
+			}
+		}
+		if len(redirect.Path.Exact) != 0 {
+			redirectAction.PathRewriteSpecifier = &envoy_config_route_v3.RedirectAction_PathRedirect{
+				PathRedirect: redirect.Path.Exact,
+			}
+		}
+	}
+
+	return &envoy_config_route_v3.Route_Redirect{
+		Redirect: redirectAction,
+	}
 }
 
 func getRouteMatch(hostnames []string, hostNameSuffixMatch bool, pathMatch model.StringMatch, headers []model.KeyValueMatch, query []model.KeyValueMatch, method *string) *envoy_config_route_v3.RouteMatch {
@@ -424,7 +537,7 @@ func getRouteMatch(hostnames []string, hostNameSuffixMatch bool, pathMatch model
 	}
 }
 
-func getHeadersToAdd(filter *model.HTTPHeaderFilter) []*envoy_config_core_v3.HeaderValueOption {
+func getHeadersToAdd(filter *model.HttpHeaderFilter) []*envoy_config_core_v3.HeaderValueOption {
 	if filter == nil {
 		return nil
 	}
@@ -455,7 +568,7 @@ func getHeadersToAdd(filter *model.HTTPHeaderFilter) []*envoy_config_core_v3.Hea
 	return result
 }
 
-func getHeadersToRemove(filter *model.HTTPHeaderFilter) []string {
+func getHeadersToRemove(filter *model.HttpHeaderFilter) []string {
 	if filter == nil {
 		return nil
 	}

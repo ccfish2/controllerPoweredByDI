@@ -189,7 +189,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.GRPC
 					Hostnames:              matchedHosts,
 					Backends:               bes,
 					DirectResponse:         dr,
-					RequestHeadFile:        requestHeaderFilter,
+					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
 					RequestMirrors:         requestMirrors,
 				})
@@ -203,7 +203,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.GRPC
 					Hostnames:              matchedHosts,
 					Backends:               bes,
 					DirectResponse:         dr,
-					RequestHeadFile:        requestHeaderFilter,
+					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
 					RequestMirrors:         requestMirrors,
 				})
@@ -544,10 +544,10 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 						Hostnames:              matchedHosts,
 						Backends:               bes,
 						DirectResponse:         dr,
-						RequestHeadFile:        requestHeaderFilter,
+						RequestHeaderFilter:    requestHeaderFilter,
 						ResponseHeaderModifier: responseHeaderFilter,
 						RequestMirrors:         requestMirrors,
-						RequestRedirected:      requestRedirectFilter,
+						RequestRedirect:        requestRedirectFilter,
 						Rewrite:                rewriteFilter,
 					})
 				}
@@ -561,10 +561,10 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 						Hostnames:              matchedHosts,
 						Backends:               bes,
 						DirectResponse:         dr,
-						RequestHeadFile:        requestHeaderFilter,
+						RequestHeaderFilter:    requestHeaderFilter,
 						ResponseHeaderModifier: responseHeaderFilter,
 						RequestMirrors:         requestMirrors,
-						RequestRedirected:      requestRedirectFilter,
+						RequestRedirect:        requestRedirectFilter,
 						Rewrite:                rewriteFilter,
 					})
 				}
