@@ -333,16 +333,67 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 	return dec, err
 }
 
-func (r *ingressReconciler) createOrUpdateEnvoyConfig(ctx context.Context, dec *dolphinv1.DolphinEnvoyConfig) error {
-	panic("impl")
+func (r *ingressReconciler) createOrUpdateEnvoyConfig(ctx context.Context, desiredCEC *dolphinv1.DolphinEnvoyConfig) error {
+	cec := desiredCEC.DeepCopy()
+
+	result, err := controllerutil.CreateOrUpdate(ctx, r.client, cec, func() error {
+		cec.Spec = desiredCEC.Spec
+		cec.OwnerReferences = desiredCEC.OwnerReferences
+		cec.Annotations = mergeMap(cec.Annotations, desiredCEC.Annotations)
+		cec.Labels = mergeMap(cec.Labels, desiredCEC.Labels)
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create or update DolphinEnvoyConfig: %w", err)
+	}
+
+	r.logger.Debugf("DolphinEnvoyConfig %s has been %s", client.ObjectKeyFromObject(cec), result)
+
+	return nil
 }
 
-func (r *ingressReconciler) createOrUpdateService(ctx context.Context, svc *corev1.Service) error {
-	panic("impl")
+func (r *ingressReconciler) createOrUpdateService(ctx context.Context, desiredService *corev1.Service) error {
+	svc := desiredService.DeepCopy()
+
+	result, err := controllerutil.CreateOrUpdate(ctx, r.client, svc, func() error {
+		lbClass := svc.Spec.LoadBalancerClass
+		svc.Spec = desiredService.Spec
+		svc.Spec.LoadBalancerClass = lbClass
+
+		svc.OwnerReferences = desiredService.OwnerReferences
+		svc.Annotations = mergeMap(svc.Annotations, desiredService.Annotations)
+		svc.Labels = mergeMap(svc.Labels, desiredService.Labels)
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create or update Service: %w", err)
+	}
+
+	r.logger.Debugf("Service %s has been %s", client.ObjectKeyFromObject(svc), result)
+
+	return nil
 }
 
-func (r *ingressReconciler) createOrUpdateEndpoints(ctx context.Context, dec *corev1.Endpoints) error {
-	panic("impl")
+func (r *ingressReconciler) createOrUpdateEndpoints(ctx context.Context, desiredEndpoints *corev1.Endpoints) error {
+	ep := desiredEndpoints.DeepCopy()
+
+	result, err := controllerutil.CreateOrUpdate(ctx, r.client, ep, func() error {
+		ep.Subsets = desiredEndpoints.Subsets
+		ep.OwnerReferences = desiredEndpoints.OwnerReferences
+		ep.Annotations = mergeMap(ep.Annotations, desiredEndpoints.Annotations)
+		ep.Labels = mergeMap(ep.Labels, desiredEndpoints.Labels)
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create or update Endpoints: %w", err)
+	}
+
+	r.logger.Debugf("Endpoints %s has been %s", client.ObjectKeyFromObject(ep), result)
+
+	return nil
 }
 
 func mergeMap(src, dst map[string]string, prefixes ...string) map[string]string {
