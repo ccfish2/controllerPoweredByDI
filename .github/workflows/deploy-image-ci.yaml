@@ -71,7 +71,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          bash .github/actions/tests/unit-tests.sh
+          bash .github/actions/tests/network-tests.sh
 
       - name: Delete KinD cluster
         if: always()
