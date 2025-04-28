@@ -19,11 +19,11 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      - name: Create KinD Cluster
+      - name: Set up Kind
         uses: helm/kind-action@v1.8.0
         with:
           cluster_name: kind
-          node_image: kindest/node:v1.30.0
+          config: .github/kind-config.yaml
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4

@@ -58,7 +58,7 @@ spec:
         - name: KUBERNETES_SERVICE_PORT
           value: "6443"
         name: dolphin-operator
-        image: docker.io/jimin1/dolphin-operator-generic:0421
+        image: docker.io/jimin1/dolphin-operator-generic:0427
         imagePullPolicy: IfNotPresent
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: FallbackToLogsOnError
