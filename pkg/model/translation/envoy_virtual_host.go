@@ -3,8 +3,10 @@ package translation
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
@@ -205,8 +207,99 @@ func envoyHTTPRoutes(httpRoutes []model.HTTPRoute, hostnames []string, hostNameS
 	return routes
 }
 
+type routeActionMutation func(*envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route
+
+// imple of HTTP Path Redirect, Re-write, HTTP Request Mirror
+func hostRewriteMutation(rewrite *model.HTTPURLRewriteFilter) routeActionMutation {
+	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
+		if rewrite == nil || rewrite.HostName == nil || route.Route == nil {
+			return route
+		}
+		route.Route.HostRewriteSpecifier = &envoy_config_route_v3.RouteAction_HostRewriteLiteral{
+			HostRewriteLiteral: *rewrite.HostName,
+		}
+		return route
+	}
+}
+
+func pathPrefixMutation(rewrite *model.HTTPURLRewriteFilter, httpRoute *model.HTTPRoute) routeActionMutation {
+	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
+		if rewrite == nil || rewrite.Path == nil || httpRoute == nil || len(rewrite.Path.Exact) != 0 || len(rewrite.Path.Regex) != 0 {
+			return route
+		}
+
+		// Refer to: https://gateway-api.sigs.k8s.io/references/spec/#gateway.networking.k8s.io%2fv1beta1.HTTPPathModifier
+		// ReplacePrefix is allowed to be empty.
+		if len(rewrite.Path.Prefix) == 0 || rewrite.Path.Prefix == "/" {
+			route.Route.RegexRewrite = &envoy_type_matcher_v3.RegexMatchAndSubstitute{
+				Pattern: &envoy_type_matcher_v3.RegexMatcher{
+					Regex: fmt.Sprintf(`^%s(/?)(.*)`, regexp.QuoteMeta(httpRoute.PathMatch.Prefix)),
+				},
+				// hold `/` in case the entire path is removed
+				Substitution: `/\2`,
+			}
+		} else {
+			route.Route.PrefixRewrite = rewrite.Path.Prefix
+		}
+		return route
+	}
+}
+
+func pathFullReplaceMutation(rewrite *model.HTTPURLRewriteFilter) routeActionMutation {
+	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
+		if rewrite == nil || rewrite.Path == nil || len(rewrite.Path.Exact) == 0 {
+			return route
+		}
+		route.Route.RegexRewrite = &envoy_type_matcher_v3.RegexMatchAndSubstitute{
+			Pattern: &envoy_type_matcher_v3.RegexMatcher{
+				Regex: "^/.*$",
+			},
+			Substitution: rewrite.Path.Exact,
+		}
+		return route
+	}
+}
+
+func requestMirrorMutation(mirrors []*model.HTTPRequestMirror) routeActionMutation {
+	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
+		if len(mirrors) == 0 {
+			return route
+		}
+		var action []*envoy_config_route_v3.RouteAction_RequestMirrorPolicy
+		for _, m := range mirrors {
+			if m.Backend == nil {
+				continue
+			}
+			action = append(action, &envoy_config_route_v3.RouteAction_RequestMirrorPolicy{
+				Cluster: fmt.Sprintf("%s:%s:%s", m.Backend.Namespace, m.Backend.Name, m.Backend.Port.GetPort()),
+				RuntimeFraction: &envoy_config_core_v3.RuntimeFractionalPercent{
+					DefaultValue: &envoy_type_v3.FractionalPercent{
+						Numerator: 100,
+					},
+				},
+			})
+		}
+		route.Route.RequestMirrorPolicies = action
+		return route
+	}
+}
+
+func timeoutMutation(backend *time.Duration, request *time.Duration) routeActionMutation {
+	return func(route *envoy_config_route_v3.Route_Route) *envoy_config_route_v3.Route_Route {
+		if backend == nil && request == nil {
+			return route
+		}
+		minTimeout := backend
+		if request != nil && (minTimeout == nil || *request < *minTimeout) {
+			minTimeout = request
+		}
+		route.Route.Timeout = durationpb.New(*minTimeout)
+		return route
+	}
+}
+
 // http Path redirect, rewite
-func getRouteAction(route *model.HTTPRoute, backends []model.Backend, backendHTTPFilter []*model.BackendHTTPFilter, rewrite *model.HTTPURLRewriteFilter, mirrors []*model.HTTPRequestMirror) *envoy_config_route_v3.Route_Route {
+func getRouteAction(route *model.HTTPRoute, backends []model.Backend, BackendHttpFilter []*model.BackendHttpFilter, rewrite *model.HTTPURLRewriteFilter, mirrors []*model.HttpRequestMirror) *envoy_config_route_v3.Route_Route {
 	var routeAction *envoy_config_route_v3.Route_Route
 
 	mutators := []routeActionMutation{
@@ -231,8 +324,8 @@ func getRouteAction(route *model.HTTPRoute, backends []model.Backend, backendHTT
 		}
 		return r
 	}
-	backendFilter := make(map[string]*model.BackendHTTPFilter)
-	for _, f := range backendHTTPFilter {
+	backendFilter := make(map[string]*model.BackendHttpFilter)
+	for _, f := range BackendHttpFilter {
 		backendFilter[f.Name] = f
 	}
 	weightedClusters := make([]*envoy_config_route_v3.WeightedCluster_ClusterWeight, 0, len(backends))
