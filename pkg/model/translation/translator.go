@@ -37,8 +37,10 @@ type defaultTranslator struct {
 	idleTimeoutSeconds  int
 }
 
+var _ Translator = (*defaultTranslator)(nil)
+
 func NewTranslator(ns, nspace, secretsns string, enforcehttps bool, useproxyprotocl bool, hostNamesSuffixMatch bool, idleTimeoutSeconds int) Translator {
-	return defaultTranslator{
+	return &defaultTranslator{
 		name:                ns,
 		namespace:           nspace,
 		secretsNamespace:    secretsns,
