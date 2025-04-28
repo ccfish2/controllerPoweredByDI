@@ -1,5 +1,6 @@
 name: Image CI Builder
-
+# fix me: only PR merge into main trigger image built
+# release tag needs be passed in through automation
 on:
   pull_request_target:
     types:
@@ -92,8 +93,10 @@ jobs:
       - name: Create Release and Upload Docker Image Tar
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: civ1
+          tag_name: v1.3
           files: dolphin-operator-generic.tar  # Path to the file to upload
+          body: |
+            http ingress tests are included
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
