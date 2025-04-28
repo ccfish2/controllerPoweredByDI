@@ -159,7 +159,7 @@ func NewTCPClusterWithDefaults(clusterName string, clusterServiceName string, mu
 	return NewTCPCluster(clusterName, clusterServiceName, fns...)
 }
 
-func NewTCPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (ciliumv2.XDSResource, error) {
+func NewTCPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
 	cluster := &envoy_config_cluster_v3.Cluster{
 		Name: clusterName,
 		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{
@@ -177,10 +177,10 @@ func NewTCPCluster(clusterName string, clusterServiceName string, mutationFunc .
 
 	clusterBytes, err := proto.Marshal(cluster)
 	if err != nil {
-		return ciliumv2.XDSResource{}, err
+		return dolphinv1.XDSResource{}, err
 	}
 
-	return ciliumv2.XDSResource{
+	return dolphinv1.XDSResource{
 		Any: &anypb.Any{
 			TypeUrl: envoy.ClusterTypeURL,
 			Value:   clusterBytes,
