@@ -6,7 +6,7 @@ FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
-ARG GO_TAGS_FLAGS="home_provider_operator"
+ARG GO_TAGS_FLAGS="containered_operator"
 
 WORKDIR /app
 
@@ -25,4 +25,3 @@ FROM scratch AS release
 COPY --from=builder /app/dolphin-operator-generic /usr/bin/dolphin-operator
 
 ENTRYPOINT ["/usr/bin/dolphin-operator"]
-CMD ["--enable-k8s", "--k8s-kubeconfig-path=/etc/kubernetes/admin.conf"]

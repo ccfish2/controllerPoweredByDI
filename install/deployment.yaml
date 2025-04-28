@@ -34,8 +34,8 @@ spec:
       - args:
         command:
         - /usr/bin/dolphin-operator
-        - --enable-k8s=true
-        - --k8s-kubeconfig-path=/root/.kube/config
+        # - --enable-k8s=true
+        # - --k8s-kubeconfig-path=/root/.kube/config
         env:
         - name: K8S_NODE_NAME
           valueFrom:
@@ -66,9 +66,9 @@ spec:
         - name: dolphin-config-path
           mountPath: /tmp/dolphin/config-map
           readOnly: true
-        - name: kubeconfig
-          mountPath: /root/.kube/config
-          readOnly: true
+        # - name: kubeconfig
+        #   mountPath: /root/.kube/config
+        #   readOnly: true
       dnsPolicy: ClusterFirst
       hostNetwork: true
       nodeSelector:
@@ -86,7 +86,7 @@ spec:
           defaultMode: 420
           name: dolphin-config
         name: dolphin-config-path
-      - name: kubeconfig
-        hostPath:
-          path: /root/.kube/config  # Adjust /home/$USER_NAME/.kube/config path as needed
-          type: File
+      # - name: kubeconfig
+      #   hostPath:
+      #     path: /root/.kube/config  # Adjust /home/$USER_NAME/.kube/config path as needed
+      #     type: File
