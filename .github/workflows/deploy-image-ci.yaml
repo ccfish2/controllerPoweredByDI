@@ -67,11 +67,11 @@ jobs:
 
       - name: Run Operator Tests
         run: |
-          bash actions/tests/operator-tests.sh
+          bash .github/actions/tests/operator-tests.sh
 
       - name: Run Unit Tests
         run: |
-          bash actions/tests/unit-tests.sh
+          bash .github/actions/tests/unit-tests.sh
 
       - name: Delete KinD cluster
         if: always()
