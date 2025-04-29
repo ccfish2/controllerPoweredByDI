@@ -52,11 +52,21 @@ spec:
             configMapKeyRef:
               key: debug
               name: dolphin-config
-              optional: true
+              optional: true      
         - name: KUBERNETES_SERVICE_HOST
           value: 10.0.2.102
         - name: KUBERNETES_SERVICE_PORT
           value: "6443"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-creds
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-creds
+              key: AWS_SECRET_ACCESS_KEY
         name: dolphin-operator
         image: docker.io/jimin1/dolphin-operator-generic:0427
         imagePullPolicy: IfNotPresent
@@ -69,6 +79,8 @@ spec:
         # - name: kubeconfig
         #   mountPath: /root/.kube/config
         #   readOnly: true
+        - name: log-volume
+          mountPath: /app/logs
       dnsPolicy: ClusterFirst
       hostNetwork: true
       nodeSelector:
@@ -90,3 +102,7 @@ spec:
       #   hostPath:
       #     path: /root/.kube/config  # Adjust /home/$USER_NAME/.kube/config path as needed
       #     type: File
+      - name: log-volume
+        persistentVolumeClaim:
+          claimName: logs-pvc
+

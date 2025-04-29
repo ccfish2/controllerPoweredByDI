@@ -24,6 +24,7 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/auth"
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/identitygc"
+	scalable "github.com/ccfish2/controllerPoweredByDI/scalable/logcontroller/microsvclog"
 
 	operatork8s "github.com/ccfish2/controllerPoweredByDI/k8s"
 	operatorMetrics "github.com/ccfish2/controllerPoweredByDI/metrics"
@@ -182,6 +183,9 @@ var (
 			secretsync.Cell,
 			dolphinenvoyconfig.Cell,
 		),
+
+		// show case: extensible controller
+		scalable.Cell,
 	)
 
 	binaryName                     = filepath.Base(os.Args[0])
