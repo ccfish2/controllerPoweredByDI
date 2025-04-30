@@ -21,12 +21,13 @@ var Cell = cell.Module(
 	"Logs from microservices controller",
 
 	cell.Config(
-		&logctl.LogConfig{
+		logctl.LogConfig{
 			AppNames: []string{},
 		},
 	),
 	cell.Invoke(loadCfg),
-	cell.Provide(registerLogController),
+	cell.Provide(generateS3Client),
+	cell.Invoke(registerLogController),
 )
 
 type logControllerParams struct {
@@ -34,57 +35,49 @@ type logControllerParams struct {
 
 	Logger    logrus.FieldLogger
 	K8sClient k8sClient.Clientset
-
-	Config   logctl.LogConfig
-	S3Client logctl.S3Client
+	Config    logctl.LogConfig
+	S3Client  logctl.S3Client
 }
 
-func loadCfg(params logControllerParams) error {
-	cfg := &params.Config
+func generateS3Client(cfg logctl.LogConfig) (context.Context, logctl.S3Client, error) {
 	ctx := context.Background()
-	cm, err := params.K8sClient.CoreV1().ConfigMaps("dolphin").Get(ctx, "dolphin-config", metav1.GetOptions{})
+	s3cli, err := logctl.NewS3Client(context.Background(), cfg.AWSRegion)
 	if err != nil {
-		return fmt.Errorf("failed to get configmap: %w", err)
+		return ctx, nil, fmt.Errorf("failed to create S3 client: %w", err)
+	}
+	return ctx, s3cli, nil
+}
+
+func loadCfg(params logControllerParams) (logctl.LogConfig, error) {
+	cfg := logctl.LogConfig{}
+	cm, err := params.K8sClient.CoreV1().ConfigMaps("dolphin").Get(context.Background(), "dolphin-config", metav1.GetOptions{})
+	if err != nil {
+		return cfg, fmt.Errorf("failed to get configmap: %w", err)
 	}
 
 	raw := cm.Data["Apps"]
 	if err := json.Unmarshal([]byte(raw), &cfg.AppNames); err != nil {
-		return fmt.Errorf("failed to unmarshal Apps list: %w", err)
+		return cfg, fmt.Errorf("failed to unmarshal Apps list: %w", err)
 	}
 
-	raw = cm.Data["LogRootPath"]
-	if err := json.Unmarshal([]byte(raw), &cfg.LogRootPath); err != nil {
-		return fmt.Errorf("failed to unmarshal LogRootPath list: %w", err)
-	}
+	cfg.LogRootPath = cm.Data["LogRootPath"]
+	cfg.S3Bucket = cm.Data["S3Bucket"]
+	cfg.AWSRegion = cm.Data["AWSRegion"]
 
-	raw = cm.Data["S3Bucket"]
-	if err := json.Unmarshal([]byte(raw), &cfg.S3Bucket); err != nil {
-		return fmt.Errorf("failed to unmarshal S3Bucket list: %w", err)
-	}
-
-	raw = cm.Data["AWSRegion"]
-	if err := json.Unmarshal([]byte(raw), &cfg.AWSRegion); err != nil {
-		return fmt.Errorf("failed to unmarshal AWSRegion list: %w", err)
-	}
-
-	params.S3Client, err = logctl.NewS3Client(ctx, params.Config.AWSRegion)
-	if err != nil {
-		return fmt.Errorf("failed to create S3 client: %w", err)
-	}
-
-	return nil
+	return cfg, nil
 }
 
-func registerLogController(params logControllerParams, ctx context.Context) {
+func registerLogController(ctx context.Context, params logControllerParams) {
+	ticker := time.NewTicker(12 * time.Hour)
+	defer ticker.Stop()
+
 	go func() {
-		ticker := time.NewTicker(12 * time.Hour)
-		defer ticker.Stop()
 
 		sem := make(chan struct{}, 10) // limit concurrent uploads
 		for {
 			select {
 			case <-ctx.Done():
-				params.Logger.Info("log controller shutting down")
+				fmt.Printf("log controller shutting down")
 				return
 			case <-ticker.C:
 				uploadLogs(ctx, params, sem)
@@ -102,7 +95,7 @@ func uploadLogs(ctx context.Context, params logControllerParams, sem chan struct
 		logfile := filepath.Join(params.Config.LogRootPath, app, targetAppLogName)
 
 		if _, err := os.Stat(logfile); os.IsNotExist(err) {
-			params.Logger.WithField("logfile", logfile).Info("log file does not exist")
+			fmt.Printf("log file does not exist")
 			continue
 		}
 
