@@ -53,10 +53,10 @@ spec:
               key: debug
               name: dolphin-config
               optional: true      
-        - name: KUBERNETES_SERVICE_HOST
-          value: 10.0.2.102
-        - name: KUBERNETES_SERVICE_PORT
-          value: "6443"
+        # - name: KUBERNETES_SERVICE_HOST
+        #   value: 10.0.2.102
+        # - name: KUBERNETES_SERVICE_PORT
+        #   value: "6443"
         # - name: AWS_ACCESS_KEY_ID
         #   valueFrom:
         #     secretKeyRef:
