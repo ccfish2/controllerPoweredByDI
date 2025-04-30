@@ -79,8 +79,8 @@ spec:
         # - name: kubeconfig
         #   mountPath: /root/.kube/config
         #   readOnly: true
-        - name: log-volume
-          mountPath: /app/logs
+        # - name: log-volume
+        #   mountPath: /app/logs
       dnsPolicy: ClusterFirst
       hostNetwork: true
       nodeSelector:
@@ -102,7 +102,7 @@ spec:
       #   hostPath:
       #     path: /root/.kube/config  # Adjust /home/$USER_NAME/.kube/config path as needed
       #     type: File
-      - name: log-volume
-        persistentVolumeClaim:
-          claimName: logs-pvc
+      # - name: log-volume
+      #   persistentVolumeClaim:
+      #     claimName: logs-pvc
 
