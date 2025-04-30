@@ -17,7 +17,7 @@ import (
 )
 
 var Cell = cell.Module(
-	"MicroSvcLogs",
+	"microsvc-logs",
 	"Logs from microservices controller",
 
 	cell.Config(
