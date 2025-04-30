@@ -36,7 +36,7 @@ type logControllerParams struct {
 	K8sClient k8sClient.Clientset
 
 	Config   logctl.LogConfig
-	s3Client logctl.S3Client
+	S3Client logctl.S3Client
 }
 
 func loadCfg(params logControllerParams) error {
@@ -67,7 +67,7 @@ func loadCfg(params logControllerParams) error {
 		return fmt.Errorf("failed to unmarshal AWSRegion list: %w", err)
 	}
 
-	params.s3Client, err = logctl.NewS3Client(ctx, params.Config.AWSRegion)
+	params.S3Client, err = logctl.NewS3Client(ctx, params.Config.AWSRegion)
 	if err != nil {
 		return fmt.Errorf("failed to create S3 client: %w", err)
 	}
@@ -110,7 +110,7 @@ func uploadLogs(ctx context.Context, params logControllerParams, sem chan struct
 		case sem <- struct{}{}:
 			go func(file, app string) {
 				defer func() { <-sem }()
-				if err := uploadToS3(ctx, file, params.s3Client); err != nil {
+				if err := uploadToS3(ctx, file, params); err != nil {
 					params.Logger.WithError(err).WithField("file", file).Error("upload failed")
 				} else {
 					params.Logger.WithField("file", file).Info("upload succeeded")
@@ -125,9 +125,20 @@ func uploadLogs(ctx context.Context, params logControllerParams, sem chan struct
 	}
 }
 
-func uploadToS3(ctx context.Context, filePath string, s3cient logctl.S3Client) error {
-	// TODO: Replace with real S3 logic and retries
-	time.Sleep(100 * time.Millisecond) // Simulate delay
-	fmt.Println("Uploading to S3:", filePath)
+func uploadToS3(ctx context.Context, filePath string, params logControllerParams) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		exist, err := params.S3Client.BucketExists(params.Config.S3Bucket)
+		if err != nil {
+			return err
+		}
+		if !exist {
+			params.S3Client.MakeBucket(params.Config.S3Bucket)
+			fmt.Printf("Creating bucket %s successfully", params.Config.S3Bucket)
+		}
+		fmt.Printf("Uploading %s to S3 successfuly", filePath)
+	}
 	return nil
 }

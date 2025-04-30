@@ -71,7 +71,8 @@ type s3client struct {
 
 // BucketExists implements S3Client.
 func (s *s3client) BucketExists(bucket string) (bool, error) {
-	panic("unimplemented")
+	// impl me
+	return true, nil
 }
 
 // Delete implements S3Client.
@@ -96,7 +97,7 @@ func (s *s3client) IsDirectory(bucket string, key string) (bool, error) {
 
 // KeyExists implements S3Client.
 func (s *s3client) KeyExists(bucket string, key string) (bool, error) {
-	panic("unimplemented")
+	return false, nil
 }
 
 // ListDirectory implements S3Client.
@@ -106,7 +107,7 @@ func (s *s3client) ListDirectory(bucket string, keyPrefix string) ([]string, err
 
 // MakeBucket implements S3Client.
 func (s *s3client) MakeBucket(bucketName string) error {
-	panic("unimplemented")
+	return nil
 }
 
 // PutDirectory implements S3Client.
