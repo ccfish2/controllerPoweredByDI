@@ -51,7 +51,7 @@ jobs:
 
       - name: Allocate Directory for local storage
         run: |
-          sudo mkdir -p /tmp/dolphin/logs
+          sudo mkdir -p /mnt/disks/logs
           sudo chmod 777 /mnt/disks/logs
           sudo mount --bind /mnt/disks/logs /mnt/disks/logs
           kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
