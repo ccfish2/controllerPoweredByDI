@@ -70,7 +70,7 @@ jobs:
 
       - name: Wait for Deployment to be Ready
         run: |
-          kubectl rollout status deployment/dolphin-operator -n dolphin --timeout=120s
+          kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s
 
       - name: Run Operator Tests
         run: |
