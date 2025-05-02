@@ -19,6 +19,13 @@ jobs:
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
+      - name: Create host directories
+        run: |
+          sudo mkdir -p /tmp/kind-node1-logs /tmp/kind-node2-logs
+          sudo chmod 777 /tmp/kind-node1-logs /tmp/kind-node2-logs
+          sudo mount --bind /tmp/kind-node1-logs /tmp/kind-node1-logs
+          sudo mount --bind /tmp/kind-node2-logs /tmp/kind-node2-logs
+
       - name: Set up Kind
         uses: helm/kind-action@v1.8.0
         with:
@@ -49,11 +56,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: infra
 
-      - name: Deploy local volume provisioner
+      - name: Deploy local volume provisioner and wait for PV
         run: |
-          sudo mkdir -p /mnt/disks/logs
-          sudo chmod 777 /mnt/disks/logs
-          sudo mount --bind /mnt/disks/logs /mnt/disks/logs
           kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
           if kubectl -n kube-system rollout status ds/local-volume-provisioner --timeout=2m; then
             echo "DaemonSet local-volume-provisioner rolled out successfully"
@@ -61,6 +65,27 @@ jobs:
             echo "DaemonSet local-volume-provisioner rollout failed or timed out"
             exit 1
           fi
+
+          # Wait for at least 2 Available PVs on different nodes
+          timeout=120  # 2 minutes
+          interval=5   # check every 5 seconds
+          elapsed=0
+
+          while [ $elapsed -lt $timeout ]; do
+              # Get count of Available PVs per node
+              mapfile -t nodes < <(kubectl get pv --no-headers | awk '/Available/ {print $8}' | sort -u)
+
+              if [ "${#nodes[@]}" -ge 2 ]; then
+                  echo "Found Available PVs on nodes: ${nodes[*]}"
+                  exit 0
+              fi
+
+              sleep $interval
+              elapsed=$((elapsed + interval))
+          done
+
+          echo "Timeout reached. Did not find Available PVs on at least two nodes."
+          exit 1
 
       - name: Deploy the  CRD YAMLs
         run: |
