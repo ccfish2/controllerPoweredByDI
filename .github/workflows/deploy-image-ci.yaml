@@ -49,12 +49,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: infra
 
-      - name: Allocate Directory for local storage
+      - name: Deploy local volume provisioner
         run: |
           sudo mkdir -p /mnt/disks/logs
           sudo chmod 777 /mnt/disks/logs
           sudo mount --bind /mnt/disks/logs /mnt/disks/logs
           kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
+          if kubectl -n kube-system rollout status ds/local-volume-provisioner --timeout=2m; then
+            echo "DaemonSet local-volume-provisioner rolled out successfully"
+          else
+            echo "DaemonSet local-volume-provisioner rollout failed or timed out"
+            exit 1
+          fi
 
       - name: Deploy the  CRD YAMLs
         run: |
@@ -68,9 +74,14 @@ jobs:
             sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
 
-      - name: Wait for Deployment to be Ready
+      - name: Wait for statefulset to be Ready
         run: |
-          kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s
+          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
+            echo "statefulset operator-dolphin rolled out successfully"
+          else
+            echo "statefulset operator-dolphin rollout failed or timed out"
+            exit 1
+          fi
 
       - name: Run Operator Tests
         run: |
