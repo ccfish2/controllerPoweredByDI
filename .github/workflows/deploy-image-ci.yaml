@@ -49,6 +49,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: infra
 
+      - name: Allocate Directory for local storage
+        run: |
+          sudo mkdir -p /tmp/dolphin/logs
+          sudo chmod 777 /mnt/disks/logs
+          sudo mount --bind /mnt/disks/logs /mnt/disks/logs
+          kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
+
       - name: Deploy the  CRD YAMLs
         run: |
           kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases

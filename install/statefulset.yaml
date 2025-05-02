@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: operator-dolphin
+  labels:
+    component: dolphin-operator
+spec:
+  serviceName: operator-dolphin
+  replicas: 2
+  selector:
+    matchLabels:
+      component: dolphin-operator
+  template:
+    metadata:
+      labels:
+        component: dolphin-operator
+    spec:
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      hostNetwork: true
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                io.dolphin/app: operator
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: dolphin-operator
+        image: docker.io/jimin1/dolphin-operator-generic:0427
+        imagePullPolicy: IfNotPresent
+        command:
+        - /usr/bin/dolphin-operator
+        env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: DOLPHIN_K8S_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DOLPHIN_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: dolphin-config
+              key: debug
+              optional: true
+        volumeMounts:
+        - name: dolphin-config-path
+          mountPath: /tmp/dolphin/config-map
+          readOnly: true
+        - name: log-volume
+          mountPath: /app/logs
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccountName: dolphin-operator
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: dolphin-config-path
+        configMap:
+          name: dolphin-config
+          defaultMode: 420
+  volumeClaimTemplates:
+  - metadata:
+      name: log-volume
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: local-storage
+      resources:
+        requests:
+          storage: 500Mi  # adjust as needed
