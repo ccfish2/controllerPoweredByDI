@@ -73,19 +73,20 @@ jobs:
 
           while [ $elapsed -lt $timeout ]; do
               # Get count of Available PVs per node
-              mapfile -t nodes < <(kubectl get pv --no-headers | awk '/Available/ {print $8}' | sort -u)
+              current_count=$(kubectl get pv --no-headers | awk '/Available/ {print $0}' | wc -l)
 
-              if [ "${#nodes[@]}" -ge 2 ]; then
-                  echo "Found Available PVs on nodes: ${nodes[*]}"
+              if [ "$current_count" -ge 2 ]; then
+                  echo "Found 2 Available PVs"
                   exit 0
+              else
+                  sleep $interval
+                  elapsed=$((elapsed + interval))
               fi
-
-              sleep $interval
-              elapsed=$((elapsed + interval))
           done
 
-          echo "Timeout reached. Did not find Available PVs on at least two nodes."
+          echo "Timeout reached. Did not find at least 2 Available PVs."
           exit 1
+
 
       - name: Deploy the  CRD YAMLs
         run: |
@@ -95,9 +96,46 @@ jobs:
         run: |
           echo "Deploying image: jimin1/dolphin-operator-generic:${{ needs.build-and-push-prs.outputs.image_tag }}"
           kubectl create namespace dolphin || true
-          for file in install/*.yaml; do
+          for file in install/manifests/*.yaml; do
             sed "s|image: .*|image: jimin1/dolphin-operator-generic:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
+  
+      - name: Wait for pvc to be ready 
+        run: |
+          NAMESPACE="dolphin"
+
+          # Function to check PVC status
+          check_pvc_status() {
+              # Get the PVC status for the given namespace
+              PVC_STATUS=$(kubectl get pvc -n "$NAMESPACE" --no-headers -o custom-columns=":status.phase")
+
+              # Check if all PVCs are in 'Bound' status
+              for status in $PVC_STATUS; do
+                  if [[ "$status" != "Bound" ]]; then
+                      return 1
+                  fi
+              done
+
+              # If all PVCs are in 'Bound' status
+              return 0
+          }
+
+          # Check PVC status
+          if check_pvc_status; then
+              echo "All PVCs are in 'Bound' status."
+              exit 0
+          else
+              echo "Some PVCs are not in 'Bound' status. Waiting for 2 minutes..."
+              sleep 120
+              # Re-check PVC status after 2 minutes
+              if check_pvc_status; then
+                  echo "All PVCs are now in 'Bound' status."
+                  exit 0
+              else
+                  echo "PVCs are still not in 'Bound' status after waiting."
+                  exit 1
+              fi
+          fi
 
       - name: Wait for statefulset to be Ready
         run: |

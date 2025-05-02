@@ -30,7 +30,7 @@ spec:
             topologyKey: kubernetes.io/hostname
       containers:
       - name: dolphin-operator
-        image: docker.io/jimin1/dolphin-operator-generic:0427
+        image: docker.io/jimin1/dolphin-operator-generic:f90d648fdbee29c8efbbb6077b0cd6cdf55213bb
         imagePullPolicy: IfNotPresent
         command:
         - /usr/bin/dolphin-operator
