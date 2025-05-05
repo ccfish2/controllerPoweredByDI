@@ -333,26 +333,6 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 	return dec, err
 }
 
-func (r *ingressReconciler) createOrUpdateEnvoyConfig(ctx context.Context, desiredCEC *dolphinv1.DolphinEnvoyConfig) error {
-	cec := desiredCEC.DeepCopy()
-
-	result, err := controllerutil.CreateOrUpdate(ctx, r.client, cec, func() error {
-		cec.Spec = desiredCEC.Spec
-		cec.OwnerReferences = desiredCEC.OwnerReferences
-		cec.Annotations = mergeMap(cec.Annotations, desiredCEC.Annotations)
-		cec.Labels = mergeMap(cec.Labels, desiredCEC.Labels)
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create or update DolphinEnvoyConfig: %w", err)
-	}
-
-	r.logger.Debugf("DolphinEnvoyConfig %s has been %s", client.ObjectKeyFromObject(cec), result)
-
-	return nil
-}
-
 func (r *ingressReconciler) createOrUpdateService(ctx context.Context, desiredService *corev1.Service) error {
 	svc := desiredService.DeepCopy()
 

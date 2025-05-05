@@ -51,6 +51,7 @@ func NewTranslator(ns, nspace, secretsns string, enforcehttps bool, useproxyprot
 	}
 }
 
+// translate translates the model into a DolphinEnvoyConfig
 func (d *defaultTranslator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
 	dec := &dolphinv1.DolphinEnvoyConfig{
 		ObjectMeta: metav1.ObjectMeta{
@@ -80,6 +81,8 @@ func (d *defaultTranslator) getBackendServices(m *model.Model) []*dolphinv1.Serv
 		}
 	}
 
+	// Make sure the result is sorted by namespace and name to avoid any
+	// nondeterministic behavior.
 	sort.Slice(res, func(i, j int) bool {
 		if res[i].Namespace != res[j].Namespace {
 			return res[i].Namespace < res[j].Namespace
@@ -92,7 +95,7 @@ func (d *defaultTranslator) getBackendServices(m *model.Model) []*dolphinv1.Serv
 	return res
 }
 
-func (i *defaultTranslator) getServices(m *model.Model) []*dolphinv1.ServiceListener {
+func (i *defaultTranslator) getServices(_ *model.Model) []*dolphinv1.ServiceListener {
 	return []*dolphinv1.ServiceListener{
 		{
 			Name:      i.name,

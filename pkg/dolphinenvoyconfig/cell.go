@@ -16,7 +16,7 @@ type l7LoadBalancerConfig struct {
 
 var Cell = cell.Module(
 	"dolphinenvoyconfig",
-	"Manages envoy config controllers",
+	"Manages the DolphinEnvoyConfig controllers",
 
 	cell.Config(l7LoadBalancerConfig{
 		"round_robin",
@@ -43,6 +43,7 @@ func registerl7LoadbalancerController(p l7loadbalancerParams) error {
 	if operatorOption.Config.LoadBalancerL7 != "envoy" {
 		return nil
 	}
+	p.Logger.Infof("Registering Dolphin Envoy load balancer reconciler ")
 
 	reconciler := newenvoyconfigReconciler(
 		p.CtrlRuntimeManager.GetClient(),
