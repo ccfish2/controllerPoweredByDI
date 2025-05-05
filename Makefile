@@ -21,7 +21,7 @@ dolphin-operator-azure: GO_TAGS_FLAGS+=ipam_provider_azure
 
 $(TARGETS):
 	@echo "Running go build -o $@ with GO_TAGS_FLAGS=$(GO_TAGS_FLAGS)"
-	go build -tags "$(GO_TAGS_FLAGS)" -o $@ .
+	go build -race 	-tags "$(GO_TAGS_FLAGS)" -o $@ .
 
 $(TARGET):
 	@$(ECHO_GO)
