@@ -149,8 +149,8 @@ jobs:
       - name: Run Operator Tests
         run: |
           bash .github/actions/tests/operator-tests.sh
-
-      - name: Run Unit Tests
+      
+      - name: Run Network Tests
         run: |
           bash .github/actions/tests/network-tests.sh
 

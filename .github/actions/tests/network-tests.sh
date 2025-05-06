@@ -47,16 +47,19 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     NOT_READY=$(kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
     if [ -z "$NOT_READY" ]; then
         echo "All 'speaker' pods are ready"
-        exit 0
+        break
     else
         echo "Waiting for 'speaker' pods to be ready..."
         sleep $INTERVAL
         ELAPSED=$((ELAPSED + INTERVAL))
     fi
 done
-echo "Timeout waiting for 'speaker' pods to be ready"
-kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker
-exit 1
+
+if [ $ELAPSED -ge $TIMEOUT ]; then
+    echo "Timeout waiting for 'speaker' pods to be ready"
+    kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker
+    exit 1
+fi
 
 # validate metalb works for nginx test case
 kubectl deploy nginx --image=nginx 
