@@ -62,7 +62,7 @@ if [ $ELAPSED -ge $TIMEOUT ]; then
 fi
 
 # validate metalb works for nginx test case
-kubectl deploy nginx --image=nginx 
+kubectl create deployment nginx --image=nginx 
 kubectl expose deployment nginx --port=80 --type=LoadBalancer
 timeout 120 bash -c 'until kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" | grep -E "192\.168\.56\.[2-5][0-9]"; do echo "Waiting for LoadBalancer IP..."; sleep 5; done'
 nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
