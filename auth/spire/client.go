@@ -41,8 +41,6 @@ var defaultSelectors = []*types.Selector{
 	},
 }
 
-var ()
-
 var Cell = cell.Module(
 	"spire-client",
 	"Spire Server API Client",
@@ -51,6 +49,7 @@ var Cell = cell.Module(
 )
 
 type ClientConfig struct {
+	IsSpireClientEnabled         bool          `mapstructure:"is-spire-client-enabled,omitempty"`
 	MutualAuthEnabled            bool          `mapstructure:"mesh-auth-mutual-enabled,omitempty"`
 	SpireAgentSocketPath         string        `mapstructure:"mesh-auth-spire-agent-socket,omitempty"`
 	SpireServerAddress           string        `mapstructure:"mesh-auth-spire-server-address,omitempty"`
@@ -59,6 +58,7 @@ type ClientConfig struct {
 }
 
 func (cfg ClientConfig) Flags(flags *pflag.FlagSet) {
+	flags.BoolVar(&cfg.IsSpireClientEnabled, "is-spire-client-enabled", true, "")
 	flags.BoolVar(&cfg.MutualAuthEnabled, "mesh-auth-mutual-enabled", true, "")
 	flags.StringVar(&cfg.SpireAgentSocketPath, "mesh-auth-spire-agent-socket", "/run/spire/sockets/agent/agent.sock", "")
 	flags.StringVar(&cfg.SpireServerAddress, "mesh-auth-spire-server-address", "spire-server.spire.io:8081", "")
@@ -71,6 +71,7 @@ type params struct {
 	cell.In
 
 	K8sClient k8sclient.Clientset
+	CliCfg    ClientConfig
 }
 
 type Client struct {
@@ -82,6 +83,9 @@ type Client struct {
 }
 
 func NewClient(p params, lc cell.Lifecycle, cfg ClientConfig, log logrus.FieldLogger) identity.Provider {
+	if !p.CliCfg.IsSpireClientEnabled {
+		return nil
+	}
 	if !p.K8sClient.IsEnabled() {
 		return nil
 	}

@@ -24,4 +24,4 @@ FROM scratch AS release
 
 COPY --from=builder /app/dolphin-operator-generic /usr/bin/dolphin-operator
 
-ENTRYPOINT ["/usr/bin/dolphin-operator"]
+ENTRYPOINT ["/usr/bin/dolphin-operator", "--is-spire-client-enabled=false"]
