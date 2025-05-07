@@ -3,20 +3,16 @@
 # deploy metalb
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
 
-# apply metallb-config.yaml with address pool
+# apply metalb ipaddresspool
 kubectl apply -f - <<EOF
-apiVersion: v1
-data:
-  config: |
-    address-pools:
-    - name: default
-      protocol: layer2
-      addresses:
-      - 192.168.56.240-192.168.56.250
-kind: ConfigMap
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
 metadata:
-    name: config
-    namespace: metallb-system
+  name: default-address-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 172.18.0.100-172.18.0.120
 EOF
 
 # apply excludel2.yaml to exclude interfaces
@@ -78,19 +74,34 @@ kubectl create deployment nginx --image=nginx
 kubectl expose deployment nginx --port=80 --type=LoadBalancer
 
 end=$((SECONDS+120))
-until kubectl kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" | grep -E "192\.168\.56\.[2-5][0-9]"
-do 
+while true; do
+    ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+    if [[ -n "$ip" ]]; then
+        echo "LoadBalancer IP acquired: $ip"
+        break
+    fi
+
     echo "Waiting for LoadBalancer IP..."
     sleep 5
+
     if ((SECONDS > end)); then
         echo "Timeout waiting for LoadBalancer IP"
         exit 1
     fi
 done
 
-echo "NGINX got LoadBalancer IP"nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
-output=$(nc -zv $nginx_ip 80 2>&1)
-if echo "$output" | grep -q "succeeded"; then
+
+echo "NGINX got LoadBalancer IP"
+nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+echo "Checking connectivity to $nginx_ip on port 80..."
+
+# Run the nc command from a busybox pod
+output=$(kubectl run tmp-busybox --rm -i --restart=Never --image=busybox:1.28 -- nc -zv "$nginx_ip" 80 2>&1)
+
+echo "$output"
+
+if echo "$output" | grep -q "open"; then
     echo "MetalLB is working correctly. LoadBalancer IP: $nginx_ip"
 else
     echo "MetalLB is not working correctly."
