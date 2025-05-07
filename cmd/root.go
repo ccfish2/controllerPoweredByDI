@@ -178,8 +178,10 @@ var (
 
 			endpointgc.Cell,
 			controllerruntime.Cell,
+
 			gatewayapi.Cell,
 			ingress.Cell,
+
 			secretsync.Cell,
 			dolphinenvoyconfig.Cell,
 		),
