@@ -3,6 +3,22 @@
 # deploy metalb
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
 
+# apply metallb configmap
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.18.0.100-172.18.0.120
+EOF
+
 # apply metalb ipaddresspool
 kubectl apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
@@ -27,7 +43,7 @@ metadata:
   namespace: metallb-system
 EOF
 
-# monitor controller status
+# monitor metallb controller status
 end=$((SECONDS+120))
 
 # monitor controller status
@@ -43,7 +59,7 @@ do
     fi
 done
 
-# monitor speaker status
+# monitor metallb speaker status
 NAMESPACE="metallb-system"
 TIMEOUT=120
 INTERVAL=5
