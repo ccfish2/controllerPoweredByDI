@@ -32,8 +32,20 @@ metadata:
 EOF
 
 # monitor controller status
-timeout 120 bash -c 'until kubectl get pod -n metallb-system $(kubectl get pods -n metallb-system -o name | grep controller | cut -d/ -f2) -o jsonpath="{.status.containerStatuses[0].ready}" | grep true; do echo "Waiting for controller pod..."; sleep 5; done'
-echo "metalb controller up and running"
+end=$((SECONDS+120))
+
+# monitor controller status
+until kubectl get pod -n metallb-system \
+    $(kubectl get pods -n metallb-system -o name | grep controller | cut -d/ -f2) \
+    -o jsonpath="{.status.containerStatuses[0].ready}" | grep true
+do 
+    echo "Waiting for controller pod..."
+    sleep 5
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for controller pod"
+        exit 1
+    fi
+done
 
 # monitor speaker status
 NAMESPACE="metallb-system"
@@ -64,8 +76,19 @@ fi
 # validate metalb works for nginx test case
 kubectl create deployment nginx --image=nginx 
 kubectl expose deployment nginx --port=80 --type=LoadBalancer
-timeout 120 bash -c 'until kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" | grep -E "192\.168\.56\.[2-5][0-9]"; do echo "Waiting for LoadBalancer IP..."; sleep 5; done'
-nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+end=$((SECONDS+120))
+until kubectl kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" | grep -E "192\.168\.56\.[2-5][0-9]"
+do 
+    echo "Waiting for LoadBalancer IP..."
+    sleep 5
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for LoadBalancer IP"
+        exit 1
+    fi
+done
+
+echo "NGINX got LoadBalancer IP"nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
 output=$(nc -zv $nginx_ip 80 2>&1)
 if echo "$output" | grep -q "succeeded"; then
     echo "MetalLB is working correctly. LoadBalancer IP: $nginx_ip"
