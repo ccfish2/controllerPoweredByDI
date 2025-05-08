@@ -58,8 +58,8 @@ type ClientConfig struct {
 }
 
 func (cfg ClientConfig) Flags(flags *pflag.FlagSet) {
-	flags.BoolVar(&cfg.SpireClientEnabled, "mesh-auth-spire-client-enabled", true, "")
-	flags.BoolVar(&cfg.MutualAuthEnabled, "mesh-auth-mutual-enabled", true, "")
+	flags.BoolVar(&cfg.SpireClientEnabled, "mesh-auth-spire-client-enabled", false, "")
+	flags.BoolVar(&cfg.MutualAuthEnabled, "mesh-auth-mutual-enabled", false, "")
 	flags.StringVar(&cfg.SpireAgentSocketPath, "mesh-auth-spire-agent-socket", "/run/spire/sockets/agent/agent.sock", "")
 	flags.StringVar(&cfg.SpireServerAddress, "mesh-auth-spire-server-address", "spire-server.spire.io:8081", "")
 	flags.DurationVar(&cfg.SpireServerConnectionTimeout, "mesh-auth-spire-server-timeout", 10*time.Second, "")
