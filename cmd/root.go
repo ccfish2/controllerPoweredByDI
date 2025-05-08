@@ -21,7 +21,7 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/api"
-	"github.com/ccfish2/controllerPoweredByDI/auth"
+	//"github.com/ccfish2/controllerPoweredByDI/auth"
 	"github.com/ccfish2/controllerPoweredByDI/endpointgc"
 	"github.com/ccfish2/controllerPoweredByDI/identitygc"
 	scalable "github.com/ccfish2/controllerPoweredByDI/scalable/logcontroller/microsvclog"
@@ -169,7 +169,7 @@ var (
 			operatork8s.ResourcesCell,
 
 			libipam.Cell,
-			auth.Cell,
+			//auth.Cell,
 			store.Cell,
 			legacyCell,
 

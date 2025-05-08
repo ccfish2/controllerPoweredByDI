@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	//mysef
-	authIdentity "github.com/ccfish2/controllerPoweredByDI/auth/identity"
+	//authIdentity "github.com/ccfish2/controllerPoweredByDI/auth/identity"
 
 	// dolphin
 	"github.com/ccfish2/infra/pkg/allocator"
@@ -30,10 +30,10 @@ type params struct {
 	Logger    logrus.FieldLogger
 	Lifecycle cell.Lifecycle
 
-	Clientset          k8sclient.Clientset
-	Identity           resource.Resource[*dolphinv1.DolphinIdentity]
-	Endpoints          resource.Resource[*dolphinv1.DolphinEndpoint]
-	AuthIdentityClient authIdentity.Provider
+	Clientset k8sclient.Clientset
+	Identity  resource.Resource[*dolphinv1.DolphinIdentity]
+	Endpoints resource.Resource[*dolphinv1.DolphinEndpoint]
+	//AuthIdentityClient authIdentity.Provider
 
 	Cfg          Config
 	SharedConfig SharedConfig
@@ -46,10 +46,10 @@ type GC struct {
 	logger    logrus.FieldLogger
 	lifecycle cell.Lifecycle
 
-	clientset          dolphinVersion1.DolphinIdentityInterface
-	identity           resource.Resource[*dolphinv1.DolphinIdentity]
-	endpoints          resource.Resource[*dolphinv1.DolphinEndpoint]
-	authIdentityClient authIdentity.Provider
+	clientset dolphinVersion1.DolphinIdentityInterface
+	identity  resource.Resource[*dolphinv1.DolphinIdentity]
+	endpoints resource.Resource[*dolphinv1.DolphinEndpoint]
+	//authIdentityClient authIdentity.Provider
 
 	clusterInfo    cmtypes.ClusterInfo
 	allocationMode string
@@ -79,11 +79,11 @@ func registerGC(p params) {
 	}
 
 	gc := GC{
-		logger:             p.Logger,
-		clientset:          p.Clientset.DolphinV1().DolphinIdentities(),
-		identity:           p.Identity,
-		endpoints:          p.Endpoints,
-		authIdentityClient: p.AuthIdentityClient,
+		logger:    p.Logger,
+		clientset: p.Clientset.DolphinV1().DolphinIdentities(),
+		identity:  p.Identity,
+		endpoints: p.Endpoints,
+		//authIdentityClient: p.AuthIdentityClient,
 
 		clusterInfo:      p.ClusterInfo,
 		allocationMode:   p.SharedConfig.IdentityAllocationMode,
