@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"github.com/ccfish2/controllerPoweredByDI/auth/spire"
+	//"github.com/ccfish2/controllerPoweredByDI/auth/spire"
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	"github.com/spf13/pflag"
 )
@@ -13,7 +13,7 @@ const (
 var Cell = cell.Module(
 	"auth",
 	"Mesh Mutual Auth",
-	spire.Cell,
+	//spire.Cell,
 	cell.Config(Config{}),
 	cell.Invoke(registerIdentityWatcher),
 )
