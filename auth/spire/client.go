@@ -44,8 +44,8 @@ var defaultSelectors = []*types.Selector{
 var Cell = cell.Module(
 	"spire-client",
 	"Spire Server API Client",
-	cell.Config(ClientConfig{}),
-	cell.Provide(NewClient),
+	//cell.Config(ClientConfig{}),
+	//cell.Provide(NewClient),
 )
 
 type ClientConfig struct {

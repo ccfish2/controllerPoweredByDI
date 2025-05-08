@@ -97,7 +97,7 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Service{}, r.enqueSharedDolphinIngress(), r.forSharedLBService()).
 		// Watching shared DolphinEnvoyConfig and reconcile a non-existing pseudo dolphin Ingress.
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
-		// Watching Cilium IngressClass for changes being the default Ingress controller
+		// Watching Dolphin IngressClass for changes being the default Ingress controller
 		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass(), withDefaultIngressClassAnnotation()).
 		Complete(r)
 }
