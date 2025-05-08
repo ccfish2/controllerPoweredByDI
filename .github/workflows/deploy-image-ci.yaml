@@ -87,10 +87,20 @@ jobs:
           echo "Timeout reached. Did not find at least 2 Available PVs."
           exit 1
 
-
       - name: Deploy the  CRD YAMLs
         run: |
           kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
+      
+      - name: Crete imagepull secret 
+        run: |
+          kubectl create ns dolphin
+          kubectl create secret docker-registry quay-secret \
+            --docker-server=quay.io \
+            --docker-username=${{ secrets.QUAY_USER }} \
+            --docker-password=${{ secrets.QUAY_PASSWD }} \
+            --docker-email=dummy@example.com \
+            --namespace=dolphin \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy using install/manifests (override image)
         run: |

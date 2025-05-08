@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
 
+get_node10ips() {
+  # Get the subnet from the docker network named "kind"
+  subnet=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+
+  # Extract the first three octets from the subnet (e.g., 172.18.0)
+  ip_prefix=$(echo "$subnet" | cut -d. -f1-3)
+
+  # Compose start and end IPs
+  start_ip="${ip_prefix}.100"
+  end_ip="${ip_prefix}.110"
+
+  # Return the IP range string
+  echo "$start_ip - $end_ip"
+}
+ips=$(get_node10ips)
+
 # deploy metalb
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
 
@@ -16,11 +32,17 @@ data:
     - name: default
       protocol: layer2
       addresses:
-      - 172.18.0.100-172.18.0.120
+      - "$ips"
 EOF
 
 # apply metalb ipaddresspool
-kubectl apply -f - <<EOF
+timeout=120  # seconds
+interval=5   # seconds between attempts
+start_time=$(date +%s)
+
+# Apply the resource
+while true; do
+    kubectl apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
@@ -28,8 +50,26 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 172.18.0.100-172.18.0.120
+  - "$ips"
 EOF
+
+    # Check if resource exists
+    if kubectl get ipaddresspool -n metallb-system default-address-pool &> /dev/null; then
+        echo "Resource successfully deployed."
+        break
+    fi
+
+    # Check for timeout
+    current_time=$(date +%s)
+    elapsed=$(( current_time - start_time ))
+    if [ "$elapsed" -ge "$timeout" ]; then
+        echo "Timed out after $timeout seconds. Resource not confirmed as deployed."
+        exit 1
+    fi
+
+    echo "Retrying in $interval seconds..."
+    sleep "$interval"
+done
 
 # apply excludel2.yaml to exclude interfaces
 kubectl apply -f - <<EOF

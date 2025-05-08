@@ -49,9 +49,9 @@ var Cell = cell.Module(
 )
 
 type ClientConfig struct {
-	SpireClientEnabled           bool          `mapstructure:"mesh-auth-spire-client-enabled,omitempty"`
 	MutualAuthEnabled            bool          `mapstructure:"mesh-auth-mutual-enabled,omitempty"`
 	SpireAgentSocketPath         string        `mapstructure:"mesh-auth-spire-agent-socket,omitempty"`
+	SpireClientEnabled           bool          `mapstructure:"mesh-auth-spire-client-enabled,omitempty"`
 	SpireServerAddress           string        `mapstructure:"mesh-auth-spire-server-address,omitempty"`
 	SpireServerConnectionTimeout time.Duration `mapstructure:"mesh-auth-spire-server-timeout"`
 	SpiffeTrustDomain            string        `mapstructure:"mesh-auth-spiffe-trust-domain"`
