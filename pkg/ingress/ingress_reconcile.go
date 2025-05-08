@@ -400,15 +400,3 @@ func atLeastOnePrefixMatch(s string, prefixes []string) bool {
 	}
 	return false
 }
-
-func (r *ingressReconciler) isEffectiveLoadbalancerModeDedicated(ingress *networkingv1.Ingress) bool {
-	value := annotations.GetAnnotationIngressLoadbalancerMode(ingress)
-	switch value {
-	case annotations.LoadbalancerModeDedicated:
-		return true
-	case annotations.LoadbalancerModeShared:
-		return false
-	default:
-		return r.defaultLoadbalancerMode == annotations.LoadbalancerModeDedicated
-	}
-}

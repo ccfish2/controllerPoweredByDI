@@ -3,6 +3,7 @@ package ingress
 import (
 	"context"
 
+	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress/annotations"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
 	ingressTranslation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/ingress"
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,8 @@ import (
 )
 
 const (
-	dolphinIngressPrefix = "dolphin-ingress"
+	dolphinIngressPrefix    = "dolphin-ingress"
+	dolphinIngressClassName = "dolphin"
 )
 
 type ingressReconciler struct {
@@ -89,21 +91,24 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
 		Watches(&corev1.Service{}, r.enqueSharedDolphinIngress(), r.forSharedLBService()).
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
-		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass()).
+		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass(), withDefaultIngressClassAnnotation()).
 		Complete(r)
 }
 
-func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
-	return builder.WithPredicates()
-}
-
-func isEffectiveLoadbalancerModeDedicated(in *networkingv1.Ingress) bool {
-	return true
+func (r *ingressReconciler) isEffectiveLoadbalancerModeDedicated(ingress *networkingv1.Ingress) bool {
+	value := annotations.GetAnnotationIngressLoadbalancerMode(ingress)
+	switch value {
+	case annotations.LoadbalancerModeDedicated:
+		return true
+	case annotations.LoadbalancerModeShared:
+		return false
+	default:
+		return r.defaultLoadbalancerMode == annotations.LoadbalancerModeDedicated
+	}
 }
 
 func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
-		//panic("unimpl")
 		// use the client list ingress
 		var ingresslist networkingv1.IngressList
 		if err := r.client.List(ctx, &ingresslist, &client.ListOptions{}); err != nil {
@@ -115,7 +120,7 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 			if !isdolphinManagedIngress(ctx, r.client, r.logger, in) {
 				continue
 			}
-			if !isEffectiveLoadbalancerModeDedicated(&in) {
+			if !r.isEffectiveLoadbalancerModeDedicated(&in) {
 				continue
 			}
 			res = append(res, reconcile.Request{
@@ -152,11 +157,90 @@ func (r *ingressReconciler) enqueueIngressesWithoutExplicitClass() handler.Event
 }
 
 func (r *ingressReconciler) forSharedLBService() builder.WatchesOption {
-	return builder.WithPredicates()
+	return builder.WithPredicates(&matchesInstancePredicate{namespace: r.dolphinNamespace, name: r.sharedLBServiceName})
 }
 
 func (r *ingressReconciler) forShaedDolphinEnvoyConfig() builder.WatchesOption {
-	return builder.WithPredicates()
+	return builder.WithPredicates(&matchesInstancePredicate{namespace: r.dolphinNamespace, name: r.sharedLBServiceName})
+}
+
+func (r *ingressReconciler) forDolphinIngressClass() builder.WatchesOption {
+	return builder.WithPredicates(&matchesInstancePredicate{namespace: "", name: dolphinIngressClassName})
+}
+
+func withDefaultIngressClassAnnotation() builder.WatchesOption {
+	return builder.WithPredicates(&defaultIngressClassPredicate{})
+}
+
+func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
+	return builder.WithPredicates(&matchesDolphinRelevantIngressPredicate{client: r.client, logger: r.logger})
+}
+
+var _ predicate.Predicate = &matchesInstancePredicate{}
+
+type matchesInstancePredicate struct {
+	namespace string
+	name      string
+}
+
+// Create implements predicate.TypedPredicate.
+func (r *matchesInstancePredicate) Create(event event.CreateEvent) bool {
+	return event.Object.GetNamespace() == r.namespace && event.Object.GetName() == r.name
+}
+
+func (r *matchesInstancePredicate) Update(event event.UpdateEvent) bool {
+	return event.ObjectNew.GetNamespace() == r.namespace && event.ObjectNew.GetName() == r.name
+}
+
+func (r *matchesInstancePredicate) Delete(event event.DeleteEvent) bool {
+	return event.Object.GetNamespace() == r.namespace && event.Object.GetName() == r.name
+}
+
+func (r *matchesInstancePredicate) Generic(event event.GenericEvent) bool {
+	return event.Object.GetNamespace() == r.namespace && event.Object.GetName() == r.name
+}
+
+var _ predicate.Predicate = &defaultIngressClassPredicate{}
+
+type defaultIngressClassPredicate struct {
+	namespace string
+	name      string
+}
+
+// Create implements predicate.TypedPredicate.
+func (r *defaultIngressClassPredicate) Create(event event.CreateEvent) bool {
+	return r.isIngressClassMarkedAsDefault(event.Object)
+}
+
+func (r *defaultIngressClassPredicate) Update(event event.UpdateEvent) bool {
+	oldIngressClassDefault := r.isIngressClassMarkedAsDefault(event.ObjectOld)
+	newIngressClassDefault := r.isIngressClassMarkedAsDefault(event.ObjectNew)
+
+	return (oldIngressClassDefault || newIngressClassDefault) &&
+		// Only in case of a change
+		oldIngressClassDefault != newIngressClassDefault
+}
+
+func (r *defaultIngressClassPredicate) Delete(event event.DeleteEvent) bool {
+	return r.isIngressClassMarkedAsDefault(event.Object)
+}
+
+func (r *defaultIngressClassPredicate) Generic(event event.GenericEvent) bool {
+	return r.isIngressClassMarkedAsDefault(event.Object)
+}
+
+func (r *defaultIngressClassPredicate) isIngressClassMarkedAsDefault(o client.Object) bool {
+	ingressClass, ok := o.(*networkingv1.IngressClass)
+	if !ok {
+		return false
+	}
+
+	isDefault, err := isIngressClassMarkedAsDefault(*ingressClass)
+	if err != nil {
+		return false
+	}
+
+	return isDefault
 }
 
 func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
@@ -172,116 +256,34 @@ func (r *ingressReconciler) enqPsedoIngress() handler.EventHandler {
 	})
 }
 
-func (r *ingressReconciler) forDolphinIngressClass() builder.WatchesOption {
-	return builder.WithPredicates()
-}
+var _ predicate.Predicate = &matchesDolphinRelevantIngressPredicate{}
 
-var _ predicate.Predicate = &defaultIngressPredicates{}
-
-type defaultIngressPredicates struct{}
-
-// Create implements predicate.TypedPredicate.
-func (d *defaultIngressPredicates) Create(event.CreateEvent) bool {
-	panic("unimplemented")
-}
-
-// Delete implements predicate.TypedPredicate.
-func (d *defaultIngressPredicates) Delete(event.DeleteEvent) bool {
-	panic("unimplemented")
-}
-
-// Generic implements predicate.TypedPredicate.
-func (d *defaultIngressPredicates) Generic(event.GenericEvent) bool {
-	panic("unimplemented")
-}
-
-// Update implements predicate.TypedPredicate.
-func (d *defaultIngressPredicates) Update(event.UpdateEvent) bool {
-	panic("unimplemented")
-}
-
-func (d *defaultIngressPredicates) isIngressClassMarkedAsDefault(o client.Object) bool {
-	panic("")
-}
-
-func withDefaultIngressAnnotationClass() builder.WatchesOption {
-	return builder.WithPredicates(&defaultIngressPredicates{})
-}
-
-var _ predicate.Predicate = &matchesInstancePredicate{}
-
-type matchesInstancePredicate struct {
-	namespace string
-	name      string
-}
-
-// Create implements predicate.TypedPredicate.
-func (m *matchesInstancePredicate) Create(event.CreateEvent) bool {
-	panic("unimplemented")
-}
-
-// Delete implements predicate.TypedPredicate.
-func (m *matchesInstancePredicate) Delete(event.DeleteEvent) bool {
-	panic("unimplemented")
-}
-
-// Generic implements predicate.TypedPredicate.
-func (m *matchesInstancePredicate) Generic(event.GenericEvent) bool {
-	panic("unimplemented")
-}
-
-// Update implements predicate.TypedPredicate.
-func (m *matchesInstancePredicate) Update(event.UpdateEvent) bool {
-	panic("unimplemented")
-}
-
-var _ predicate.Predicate = &defaultIngressClassPredicate{}
-
-type defaultIngressClassPredicate struct{}
-
-// Create implements predicate.TypedPredicate.
-func (d *defaultIngressClassPredicate) Create(event.CreateEvent) bool {
-	panic("unimplemented")
-}
-
-// Delete implements predicate.TypedPredicate.
-func (d *defaultIngressClassPredicate) Delete(event.DeleteEvent) bool {
-	panic("unimplemented")
-}
-
-// Generic implements predicate.TypedPredicate.
-func (d *defaultIngressClassPredicate) Generic(event.GenericEvent) bool {
-	panic("unimplemented")
-}
-
-// Update implements predicate.TypedPredicate.
-func (d *defaultIngressClassPredicate) Update(event.UpdateEvent) bool {
-	panic("unimplemented")
-}
-
-var _ predicate.Predicate = &matchesDolphinRelavantIngressPredicate{}
-
-type matchesDolphinRelavantIngressPredicate struct {
+type matchesDolphinRelevantIngressPredicate struct {
 	client client.Client
 	logger logrus.FieldLogger
 }
 
-// Create implements predicate.TypedPredicate.
-func (m *matchesDolphinRelavantIngressPredicate) Create(event.CreateEvent) bool {
-	panic("unimplemented")
+func (r *matchesDolphinRelevantIngressPredicate) Create(event event.CreateEvent) bool {
+	return r.isCiliumManagedIngress(event.Object)
 }
 
-// Delete implements predicate.TypedPredicate.
-func (m *matchesDolphinRelavantIngressPredicate) Delete(event.DeleteEvent) bool {
-	panic("unimplemented")
+func (r *matchesDolphinRelevantIngressPredicate) Update(event event.UpdateEvent) bool {
+	return r.isCiliumManagedIngress(event.ObjectOld) || r.isCiliumManagedIngress(event.ObjectNew)
 }
 
-// Generic implements predicate.TypedPredicate.
-func (m *matchesDolphinRelavantIngressPredicate) Generic(event.GenericEvent) bool {
-	panic("unimplemented")
+func (r *matchesDolphinRelevantIngressPredicate) Delete(event event.DeleteEvent) bool {
+	return r.isCiliumManagedIngress(event.Object)
 }
 
-// Update implements predicate.TypedPredicate.
-func (m *matchesDolphinRelavantIngressPredicate) Update(event.UpdateEvent) bool {
-	panic("unimplemented")
+func (r *matchesDolphinRelevantIngressPredicate) Generic(event event.GenericEvent) bool {
+	return r.isCiliumManagedIngress(event.Object)
+}
+
+func (r *matchesDolphinRelevantIngressPredicate) isCiliumManagedIngress(o client.Object) bool {
+	ingress, ok := o.(*networkingv1.Ingress)
+	if !ok {
+		return false
+	}
+
+	return isdolphinManagedIngress(context.Background(), r.client, r.logger, *ingress)
 }

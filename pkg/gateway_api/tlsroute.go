@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,9 +88,30 @@ func (r *tlsrouteReconciler) enqueueRequestForGateway() handler.EventHandler {
 
 func (r *tlsrouteReconciler) enqueueAll() handler.MapFunc {
 	return func(ctx context.Context, o client.Object) []reconcile.Request {
-		panic("proto only")
-	}
+		scopedLog := log.WithFields(logrus.Fields{
+			logfields.Controller: "tlsRoute",
+			logfields.Resource:   client.ObjectKeyFromObject(o),
+		})
+		trList := &gatewayv1alpha2.TLSRouteList{}
 
+		if err := r.Client.List(ctx, trList, &client.ListOptions{}); err != nil {
+			scopedLog.WithError(err).Error("Failed to get TLSRoutes")
+			return []reconcile.Request{}
+		}
+
+		requests := make([]reconcile.Request, 0, len(trList.Items))
+		for _, item := range trList.Items {
+			route := client.ObjectKey{
+				Namespace: item.GetNamespace(),
+				Name:      item.GetName(),
+			}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: route,
+			})
+			scopedLog.WithField("tlsRoute", route).Info("Enqueued TLSRoute for resource")
+		}
+		return requests
+	}
 }
 
 func (r *tlsrouteReconciler) enqueueRequestForReferenceGrant() handler.EventHandler {

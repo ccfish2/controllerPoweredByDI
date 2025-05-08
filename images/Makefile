@@ -1,5 +1,5 @@
 
-REGISTRIES ?= docker.io/jimin1
+REGISTRIES ?= quay.io/hjimin/cilium-dev
 
 PUSH ?= false
 

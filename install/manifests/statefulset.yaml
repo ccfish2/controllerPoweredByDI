@@ -6,8 +6,8 @@ metadata:
   labels:
     component: dolphin-operator
 spec:
-  serviceName: operator-dolphin
   replicas: 2
+  serviceName: operator-dolphin
   selector:
     matchLabels:
       component: dolphin-operator
@@ -15,6 +15,7 @@ spec:
     metadata:
       labels:
         component: dolphin-operator
+        io.dolphin/app: operator
     spec:
       tolerations:
       - key: "node-role.kubernetes.io/control-plane"
@@ -28,9 +29,11 @@ spec:
               matchLabels:
                 io.dolphin/app: operator
             topologyKey: kubernetes.io/hostname
+      imagePullSecrets:
+        - name: hjimin-containerrobot-pull-secret
       containers:
       - name: dolphin-operator
-        image: docker.io/jimin1/dolphin-operator-generic:f90d648fdbee29c8efbbb6077b0cd6cdf55213bb
+        image: quay.io/hjimin/cilium-dev:v1
         imagePullPolicy: IfNotPresent
         command:
         - /usr/bin/dolphin-operator
