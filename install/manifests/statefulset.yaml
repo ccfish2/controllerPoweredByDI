@@ -22,7 +22,7 @@ spec:
         operator: "Exists"
         effect: "NoSchedule"
       hostNetwork: true
-      affinity:
+      affinity: 
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
@@ -30,10 +30,10 @@ spec:
                 io.dolphin/app: operator
             topologyKey: kubernetes.io/hostname
       imagePullSecrets:
-        - name: hjimin-containerrobot-pull-secret
+        - name: quay-secret
       containers:
       - name: dolphin-operator
-        image: quay.io/hjimin/cilium-dev:v1
+        image: quay.io/hjimin/cilium-dev:e1b43b1655588156c7db005ebea030fade06ad30
         imagePullPolicy: IfNotPresent
         command:
         - /usr/bin/dolphin-operator
