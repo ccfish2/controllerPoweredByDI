@@ -79,18 +79,25 @@ func newIngressReconciler(
 		defaultSecretNamespace:  defaultSecretNamespace,
 		defaultSecretName:       defaultSecretName,
 		idleTimeoutSeconds:      proxyIdleTimeoutSeconds,
-		dolphinNamespace:        "dolphin",
+		dolphinNamespace:        dolphinNamespace,
 	}
 }
 
 func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkingv1.Ingress{}, r.forDlphinManagedController()).
+		For(&networkingv1.Ingress{}, r.forDlphinManagedIngress()).
+		// (LoadBalancer) Service resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&corev1.Service{}).
+		// Endpoints resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&corev1.Endpoints{}).
+		// DolphinEnvoyConfig resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
+		// Watching shared loadbalancer Service and reconcile all shared dolphin Ingresses.
+		// It's necessary to reconcile all shared dolphin Ingresses as they all have to potentially update their LoadBalancer status.
 		Watches(&corev1.Service{}, r.enqueSharedDolphinIngress(), r.forSharedLBService()).
+		// Watching shared DolphinEnvoyConfig and reconcile a non-existing pseudo dolphin Ingress.
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
+		// Watching Cilium IngressClass for changes being the default Ingress controller
 		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass(), withDefaultIngressClassAnnotation()).
 		Complete(r)
 }
@@ -111,7 +118,8 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
 		// use the client list ingress
 		var ingresslist networkingv1.IngressList
-		if err := r.client.List(ctx, &ingresslist, &client.ListOptions{}); err != nil {
+		if err := r.client.List(ctx, &ingresslist); err != nil {
+			r.logger.WithError(err).Warn("Failed to list Ingresses")
 			return []reconcile.Request{}
 		}
 
@@ -120,7 +128,8 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 			if !isdolphinManagedIngress(ctx, r.client, r.logger, in) {
 				continue
 			}
-			if !r.isEffectiveLoadbalancerModeDedicated(&in) {
+			// skip ingress with dedicated loadbalancer mode
+			if r.isEffectiveLoadbalancerModeDedicated(&in) {
 				continue
 			}
 			res = append(res, reconcile.Request{
@@ -137,7 +146,7 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 func (r *ingressReconciler) enqueueIngressesWithoutExplicitClass() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, _ client.Object) []reconcile.Request {
 		inglist := &networkingv1.IngressList{}
-		if err := r.client.List(ctx, inglist, &client.ListOptions{}); err != nil {
+		if err := r.client.List(ctx, inglist); err != nil {
 			return nil
 		}
 
@@ -172,7 +181,7 @@ func withDefaultIngressClassAnnotation() builder.WatchesOption {
 	return builder.WithPredicates(&defaultIngressClassPredicate{})
 }
 
-func (r *ingressReconciler) forDlphinManagedController() builder.ForOption {
+func (r *ingressReconciler) forDlphinManagedIngress() builder.ForOption {
 	return builder.WithPredicates(&matchesDolphinRelevantIngressPredicate{client: r.client, logger: r.logger})
 }
 
@@ -264,22 +273,22 @@ type matchesDolphinRelevantIngressPredicate struct {
 }
 
 func (r *matchesDolphinRelevantIngressPredicate) Create(event event.CreateEvent) bool {
-	return r.isCiliumManagedIngress(event.Object)
+	return r.isDolphinManagedIngress(event.Object)
 }
 
 func (r *matchesDolphinRelevantIngressPredicate) Update(event event.UpdateEvent) bool {
-	return r.isCiliumManagedIngress(event.ObjectOld) || r.isCiliumManagedIngress(event.ObjectNew)
+	return r.isDolphinManagedIngress(event.ObjectOld) || r.isDolphinManagedIngress(event.ObjectNew)
 }
 
 func (r *matchesDolphinRelevantIngressPredicate) Delete(event event.DeleteEvent) bool {
-	return r.isCiliumManagedIngress(event.Object)
+	return r.isDolphinManagedIngress(event.Object)
 }
 
 func (r *matchesDolphinRelevantIngressPredicate) Generic(event event.GenericEvent) bool {
-	return r.isCiliumManagedIngress(event.Object)
+	return r.isDolphinManagedIngress(event.Object)
 }
 
-func (r *matchesDolphinRelevantIngressPredicate) isCiliumManagedIngress(o client.Object) bool {
+func (r *matchesDolphinRelevantIngressPredicate) isDolphinManagedIngress(o client.Object) bool {
 	ingress, ok := o.(*networkingv1.Ingress)
 	if !ok {
 		return false

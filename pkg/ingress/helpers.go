@@ -13,27 +13,27 @@ import (
 )
 
 func isdolphinManagedIngress(ctx context.Context, c client.Client, log logrus.FieldLogger, ing networkingv1.Ingress) bool {
-	ingressName := ingressClassName(ing)
-	if ingressName != nil && *ingressName == "dolphin" {
+	ingClsName := ingressClassName(ing)
+	if ingClsName != nil && *ingClsName == dolphinIngressClassName {
 		return true
 	}
 
 	// check if dolphin is default ingress class
-	return (ingressName == nil || *ingressName == "") && isDolphinDefaultIngressController(ctx, c, log)
+	return (ingClsName == nil || *ingClsName == "") && isDolphinDefaultIngressController(ctx, c, log)
 }
 
 func isDolphinDefaultIngressController(ctx context.Context, c client.Client, logger logrus.FieldLogger) bool {
 	dolphiningressClass := &networkingv1.IngressClass{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "dolphin"}, dolphiningressClass); err != nil {
+	if err := c.Get(ctx, types.NamespacedName{Name: dolphinIngressClassName}, dolphiningressClass); err != nil {
 		if !errors.IsNotFound(err) {
-			logger.WithError(err).Error("failed to load dolphin ingress class")
+			logger.WithError(err).Error("failed to load dolphin IngressClass")
 		}
 		return false
 	}
 
 	isDefault, err := isIngressClassMarkedAsDefault(*dolphiningressClass)
 	if err != nil {
-		logger.WithError(err).Error("failed to check if ingress class is marked as default")
+		logger.WithError(err).Error("Failed to detect default class on IngressClass dolphin")
 		return false
 	}
 
