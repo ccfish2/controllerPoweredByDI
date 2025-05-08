@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
 
 get_node10ips() {
-  # Get the subnet from the docker network named "kind"
-  subnet=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+  # Extract the IPv4 subnet using jq
+  subnet=$(docker network inspect kind | jq -r '.[0].IPAM.Config[] | select(.Subnet | test("^\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+$")) | .Subnet')
 
-  # Extract the first three octets from the subnet (e.g., 172.18.0)
+  # Get the IP prefix (first three octets)
   ip_prefix=$(echo "$subnet" | cut -d. -f1-3)
 
-  # Compose start and end IPs
-  start_ip="${ip_prefix}.100"
-  end_ip="${ip_prefix}.110"
-
-  # Return the IP range string
-  echo "$start_ip - $end_ip"
+  # Construct and echo the IP range
+  echo "${ip_prefix}.100 - ${ip_prefix}.110"
 }
 ips=$(get_node10ips)
 
@@ -34,6 +30,48 @@ data:
       addresses:
       - "$ips"
 EOF
+
+# monitor metallb controller status
+end=$((SECONDS+120))
+
+# monitor controller status
+until kubectl get pod -n metallb-system \
+    $(kubectl get pods -n metallb-system -o name | grep controller | cut -d/ -f2) \
+    -o jsonpath="{.status.containerStatuses[0].ready}" | grep true
+do 
+    echo "Waiting for controller pod..."
+    sleep 5
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for controller pod"
+        exit 1
+    fi
+done
+
+# monitor metallb speaker status
+NAMESPACE="metallb-system"
+TIMEOUT=120
+INTERVAL=5
+ELAPSED=0
+
+echo "waiting for all 'speaker' pods to be ready... (timeout: $TIMEOUT seconds)"
+
+while [ $ELAPSED -lt $TIMEOUT ]; do
+    NOT_READY=$(kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
+    if [ -z "$NOT_READY" ]; then
+        echo "All 'speaker' pods are ready"
+        break
+    else
+        echo "Waiting for 'speaker' pods to be ready..."
+        sleep $INTERVAL
+        ELAPSED=$((ELAPSED + INTERVAL))
+    fi
+done
+
+if [ $ELAPSED -ge $TIMEOUT ]; then
+    echo "Timeout waiting for 'speaker' pods to be ready"
+    kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker
+    exit 1
+fi
 
 # apply metalb ipaddresspool
 timeout=120  # seconds
@@ -83,47 +121,6 @@ metadata:
   namespace: metallb-system
 EOF
 
-# monitor metallb controller status
-end=$((SECONDS+120))
-
-# monitor controller status
-until kubectl get pod -n metallb-system \
-    $(kubectl get pods -n metallb-system -o name | grep controller | cut -d/ -f2) \
-    -o jsonpath="{.status.containerStatuses[0].ready}" | grep true
-do 
-    echo "Waiting for controller pod..."
-    sleep 5
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for controller pod"
-        exit 1
-    fi
-done
-
-# monitor metallb speaker status
-NAMESPACE="metallb-system"
-TIMEOUT=120
-INTERVAL=5
-ELAPSED=0
-
-echo "waiting for all 'speaker' pods to be ready... (timeout: $TIMEOUT seconds)"
-
-while [ $ELAPSED -lt $TIMEOUT ]; do
-    NOT_READY=$(kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
-    if [ -z "$NOT_READY" ]; then
-        echo "All 'speaker' pods are ready"
-        break
-    else
-        echo "Waiting for 'speaker' pods to be ready..."
-        sleep $INTERVAL
-        ELAPSED=$((ELAPSED + INTERVAL))
-    fi
-done
-
-if [ $ELAPSED -ge $TIMEOUT ]; then
-    echo "Timeout waiting for 'speaker' pods to be ready"
-    kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker
-    exit 1
-fi
 
 # validate metalb works for nginx test case
 kubectl create deployment nginx --image=nginx 
