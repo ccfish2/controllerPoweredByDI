@@ -26,6 +26,7 @@ var Cell = cell.Module(
 			EnableIngressProxyProtocol:  true,
 			EnableIngressSecretsSync:    true,
 			IngressSecretsNamespace:     "dolphin-secrets",
+			IngressSharedLBServiceName:  "dolphin-ingress",
 			IngressLBAnnotationPrefixes: []string{"service.beta.kubernetes.io", "service.kubernets.io", "cloud.google.com"},
 			IngressDefaultLBMode:        "dedicated",
 		},

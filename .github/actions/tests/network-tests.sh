@@ -172,7 +172,65 @@ fi
 #     exit 1
 # fi
 
+# apply ingressClass
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: dolphin
+spec:
+  controller: dolphin.io/ingress-controller
+EOF
+
+# apply book info service 
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+
 # apply basic-ingress
+kubectl apply -f -- <<EOF 
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: basic-ingress
+  namespace: dolphin
+spec:
+  ingressClassName: dolphin
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: details
+            port:
+              number: 9080
+        path: /details
+        pathType: Prefix
+      - backend:
+          service:
+            name: productpage
+            port:
+              number: 9080
+        path: /
+        pathType: Prefix
+EOF
+
 # ensure ingress-controller reconcile
 # loadbalancer service is up, external ip is assigned to the ingress, DolphinEnvoyConfig is created and with correct status
+end=$((SECONDS+120))
+while true; do
+    ip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+    if [[ -n "$ip" ]]; then
+        echo "Ingress Service IP acquired: $ip"
+        break
+    fi
+
+    echo "Waiting for Ingress IP..."
+    sleep 5
+
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for Service IP"
+        exit 1
+    fi
+done
+
 # verify through l7 service connection
