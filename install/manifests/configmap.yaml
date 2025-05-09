@@ -12,7 +12,7 @@ data:
   enable-k8s-terminating-endpoint: "true"
   nodePort.enabled: "true"
   nodeport-addresses: ""
-  operator-api-serve-addr: 127.0.0.1:9234
+  operator-api-serve-addr: 127.0.0.1:9233
   operator-prometheus-serve-addr: :9963
   policy-cidr-match-mode: ""
   policy-secrets-namespace: dolphin-secrets

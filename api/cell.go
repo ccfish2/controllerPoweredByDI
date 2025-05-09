@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	operatorServeAddrDefault = "localhost:9234"
+	operatorServeAddrDefault = "localhost:9233"
 )
 
 type Config struct {
