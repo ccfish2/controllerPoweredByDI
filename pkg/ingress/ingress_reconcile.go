@@ -32,7 +32,7 @@ func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		logfields.Resource:   req.NamespacedName,
 	})
 
-	scopedLog.Info("Reconciling Ingress")
+	scopedLog.Infof("Reconciling ingress %s/%s", req.Namespace, req.Name)
 	ingress := &networkingv1.Ingress{}
 	if err := r.client.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if !k8serrors.IsNotFound(err) {

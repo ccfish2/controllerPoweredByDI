@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	networkingv1 "k8s.io/api/networking/v1"
 
+	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -20,7 +21,7 @@ var Cell = cell.Module(
 
 	cell.Config(
 		ingressConfig{
-			EnableIngressController:     false,
+			EnableIngressController:     true,
 			EnforceIngressHTTPS:         true,
 			EnableIngressProxyProtocol:  true,
 			EnableIngressSecretsSync:    true,
@@ -47,7 +48,7 @@ type ingressConfig struct {
 }
 
 func (r ingressConfig) Flags(flags *pflag.FlagSet) {
-	flags.Bool("enable-ingress-controller", r.EnableIngressController, "Enables dolphin ingress controller. This must be enabled along with enable-envoy-config in dolphin agent.")
+	flags.Bool("enable-ingress-controller", r.EnableIngressController, "Enables cilium ingress controller. This must be enabled along with enable-envoy-config in cilium agent.")
 	flags.Bool("enforce-ingress-https", r.EnforceIngressHTTPS, "Enforces https for host having matching TLS host in Ingress. Incoming traffic to http listener will return 308 http error code with respective location in header.")
 	flags.Bool("enable-ingress-proxy-protocol", r.EnableIngressProxyProtocol, "Enable proxy protocol for all Ingress listeners. Note that _only_ Proxy protocol traffic will be accepted once this is enabled.")
 	flags.Bool("enable-ingress-secrets-sync", r.EnableIngressSecretsSync, "Enables fan-in TLS secrets from multiple namespaces to singular namespace (specified by ingress-secrets-namespace flag)")
@@ -68,10 +69,23 @@ type ingressParams struct {
 }
 
 func registerReconciler(params ingressParams) error {
+	if !params.IngCfg.EnableIngressController {
+		return nil
+	}
 	// new one reconcciler
-	reconciler := newIngressReconciler(params.Logger, params.Mgr.GetClient(), params.IngCfg.IngressSecretsNamespace, params.IngCfg.EnforceIngressHTTPS, params.IngCfg.EnableIngressProxyProtocol, params.IngCfg.IngressSecretsNamespace,
-		params.IngCfg.IngressLBAnnotationPrefixes, params.IngCfg.IngressSecretsNamespace, params.IngCfg.IngressDefaultLBMode,
-		params.IngCfg.IngressSecretsNamespace, params.IngCfg.IngressSecretsNamespace, 3)
+	reconciler := newIngressReconciler(
+		params.Logger,
+		params.Mgr.GetClient(),
+		operatorOption.Config.DolphinK8sNamespace,
+		params.IngCfg.EnforceIngressHTTPS,
+		params.IngCfg.EnableIngressProxyProtocol,
+		params.IngCfg.IngressSecretsNamespace,
+		params.IngCfg.IngressLBAnnotationPrefixes,
+		params.IngCfg.IngressSharedLBServiceName,
+		params.IngCfg.IngressDefaultLBMode,
+		params.IngCfg.IngressSecretsNamespace,
+		params.IngCfg.IngressDefaultSecretName,
+		operatorOption.Config.ProxyIdleTimeoutSeconds)
 	// setup the reconciler with manager
 	if err := reconciler.SetupWithManager(params.Mgr); err != nil {
 		return fmt.Errorf("failed to setup with manager %v", err)
@@ -82,7 +96,7 @@ func registerReconciler(params ingressParams) error {
 
 // register the ingress controller for secret synchronization for tls referenced by ingress resources
 func registerSecretSync(params ingressParams) secretsync.SecretSyncRegistrationOut {
-	if !params.IngCfg.EnableIngressController || params.IngCfg.EnableIngressSecretsSync {
+	if !params.IngCfg.EnableIngressController || !params.IngCfg.EnableIngressSecretsSync {
 		return secretsync.SecretSyncRegistrationOut{}
 	}
 
@@ -104,6 +118,12 @@ func registerSecretSync(params ingressParams) secretsync.SecretSyncRegistrationO
 		},
 	}
 
-	// check secret name and namespace
+	if params.IngCfg.IngressDefaultSecretName != "" && params.IngCfg.IngressDefaultSecretNamespace != "" {
+		registration.SecretSyncRegistration.DefaultSecret = &secretsync.DefaultSecret{
+			Namespace: params.IngCfg.IngressDefaultSecretNamespace,
+			Name:      params.IngCfg.IngressDefaultSecretName,
+		}
+	}
+
 	return registration
 }

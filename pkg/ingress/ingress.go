@@ -69,7 +69,7 @@ func newIngressReconciler(
 		sharedTranslator:    ingressTranslation.NewSharedIngressTranslator(sharedLBServiceName, dolphinNamespace, secretsNamespace, enforceHTTPS, useProxyProtocol, proxyIdleTimeoutSeconds),
 		dedicatedTranslator: ingressTranslation.NewDedicatedIngressTranslator(secretsNamespace, enforceHTTPS, useProxyProtocol, proxyIdleTimeoutSeconds),
 
-		maxRetries:              3,
+		maxRetries:              10,
 		enforcedHTTPS:           enforceHTTPS,
 		useProxyProtocol:        useProxyProtocol,
 		secretsNamespace:        secretsNamespace,
@@ -84,8 +84,9 @@ func newIngressReconciler(
 }
 
 func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.logger.Infof("Dolphin Ingress class name configured as: %s", dolphinIngressClassName)
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkingv1.Ingress{}, r.forDlphinManagedIngress()).
+		For(&networkingv1.Ingress{}, r.forDolphinManagedIngress()).
 		// (LoadBalancer) Service resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&corev1.Service{}).
 		// Endpoints resource with OwnerReference to the Ingress with dedicated loadbalancing mode
@@ -181,7 +182,7 @@ func withDefaultIngressClassAnnotation() builder.WatchesOption {
 	return builder.WithPredicates(&defaultIngressClassPredicate{})
 }
 
-func (r *ingressReconciler) forDlphinManagedIngress() builder.ForOption {
+func (r *ingressReconciler) forDolphinManagedIngress() builder.ForOption {
 	return builder.WithPredicates(&matchesDolphinRelevantIngressPredicate{client: r.client, logger: r.logger})
 }
 
@@ -291,8 +292,16 @@ func (r *matchesDolphinRelevantIngressPredicate) Generic(event event.GenericEven
 func (r *matchesDolphinRelevantIngressPredicate) isDolphinManagedIngress(o client.Object) bool {
 	ingress, ok := o.(*networkingv1.Ingress)
 	if !ok {
+		r.logger.Warn("Object is not an Ingress")
 		return false
 	}
 
-	return isdolphinManagedIngress(context.Background(), r.client, r.logger, *ingress)
+	result := isdolphinManagedIngress(context.Background(), r.client, r.logger, *ingress)
+	r.logger.WithFields(logrus.Fields{
+		"name":             ingress.Name,
+		"namespace":        ingress.Namespace,
+		"ingressClassName": ingress.Spec.IngressClassName,
+		"matches":          result,
+	}).Info("Evaluated ingress for Dolphin management")
+	return result
 }
