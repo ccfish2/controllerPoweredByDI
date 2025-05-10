@@ -183,10 +183,10 @@ spec:
 EOF
 
 # apply book info service 
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+#kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 
 # apply basic-ingress
-kubectl apply -f -- <<EOF 
+kubectl apply -f - <<EOF 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

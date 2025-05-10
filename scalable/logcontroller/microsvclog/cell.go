@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
+	"golang.org/x/sys/unix"
 )
 
 var Cell = cell.Module(
@@ -40,8 +43,10 @@ type logControllerParams struct {
 }
 
 func generateS3Client(cfg logctl.LogConfig) (context.Context, logctl.S3Client, error) {
-	ctx := context.Background()
-	s3cli, err := logctl.NewS3Client(context.Background(), cfg.AWSRegion)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, unix.SIGTERM, unix.SIGQUIT, unix.SIGINT, unix.SIGHUP)
+	defer cancel()
+
+	s3cli, err := logctl.NewS3Client(ctx, cfg.AWSRegion)
 	if err != nil {
 		return ctx, nil, fmt.Errorf("failed to create S3 client: %w", err)
 	}
@@ -59,27 +64,33 @@ func loadCfg(params logControllerParams) (logctl.LogConfig, error) {
 	if err := json.Unmarshal([]byte(raw), &cfg.AppNames); err != nil {
 		return cfg, fmt.Errorf("failed to unmarshal Apps list: %w", err)
 	}
-
+	params.Logger.WithField("apps", cfg.AppNames).Info("Apps list")
 	cfg.LogRootPath = cm.Data["LogRootPath"]
 	cfg.S3Bucket = cm.Data["S3Bucket"]
 	cfg.AWSRegion = cm.Data["AWSRegion"]
-
+	params.Logger.WithField("logRootPath", cfg.LogRootPath).Info("Log root path")
+	params.Logger.WithField("s3Bucket", cfg.S3Bucket).Info("S3 bucket")
+	params.Logger.WithField("awsRegion", cfg.AWSRegion).Info("AWS region")
 	return cfg, nil
 }
 
 func registerLogController(ctx context.Context, params logControllerParams) {
-	ticker := time.NewTicker(12 * time.Hour)
+	ticker := time.NewTicker(params.Config.UploadInMinutesInterval)
 	defer ticker.Stop()
+	scopedLog := params.Logger.WithFields(logrus.Fields{
+		logfields.Controller: "log-controller",
+		logfields.Resource:   "logs",
+	})
 
 	go func() {
-
 		sem := make(chan struct{}, 10) // limit concurrent uploads
 		for {
 			select {
 			case <-ctx.Done():
-				fmt.Printf("log controller shutting down")
+				scopedLog.Infof("log controller shutting down")
 				return
 			case <-ticker.C:
+				scopedLog.Infof("Uploading logs every %v", params.Config.UploadInMinutesInterval)
 				uploadLogs(ctx, params, sem)
 			}
 		}
@@ -95,7 +106,7 @@ func uploadLogs(ctx context.Context, params logControllerParams, sem chan struct
 		logfile := filepath.Join(params.Config.LogRootPath, app, targetAppLogName)
 
 		if _, err := os.Stat(logfile); os.IsNotExist(err) {
-			fmt.Printf("log file does not exist")
+			params.Logger.WithError(err).WithField("file", logfile).Warn("does not exist")
 			continue
 		}
 
@@ -129,9 +140,9 @@ func uploadToS3(ctx context.Context, filePath string, params logControllerParams
 		}
 		if !exist {
 			params.S3Client.MakeBucket(params.Config.S3Bucket)
-			fmt.Printf("Creating bucket %s successfully", params.Config.S3Bucket)
+			params.Logger.Info("Creating bucket %s successfully", params.Config.S3Bucket)
 		}
-		fmt.Printf("Uploading %s to S3 successfuly", filePath)
+		params.Logger.Info("Uploading %s to S3 successfuly", filePath)
 	}
 	return nil
 }

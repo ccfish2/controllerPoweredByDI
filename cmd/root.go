@@ -163,6 +163,9 @@ var (
 		api.ServerCell,
 		job.Cell,
 
+		// show case: scalable application
+		scalable.Cell,
+
 		// following cells only init when operator is elected leader
 		WithLeaderLifecycle(
 			apis.RegisterCRDsCell,
@@ -185,9 +188,6 @@ var (
 			secretsync.Cell,
 			dolphinenvoyconfig.Cell,
 		),
-
-		// show case: extensible controller
-		scalable.Cell,
 	)
 
 	binaryName                     = filepath.Base(os.Args[0])
