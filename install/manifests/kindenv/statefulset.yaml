@@ -33,7 +33,7 @@ spec:
         - name: quay-secret
       containers:
       - name: dolphin-operator
-        image: quay.io/hjimin/cilium-dev:051020250501
+        image: quay.io/hjimin/cilium-dev:051020250625
         imagePullPolicy: IfNotPresent
         command:
         - /usr/bin/dolphin-operator
@@ -71,12 +71,7 @@ spec:
         configMap:
           name: dolphin-config
           defaultMode: 420
-  volumeClaimTemplates:
-  - metadata:
-      name: log-volume
-    spec:
-      accessModes: [ReadWriteOnce]
-      storageClassName: local-storage
-      resources:
-        requests:
-          storage: 500Mi  # adjust as needed
+      - name: log-volume
+        hostPath:
+          path: /mnt/disks/logs/pv
+          type: Directory

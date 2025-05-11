@@ -90,6 +90,12 @@ jobs:
       - name: Deploy the  CRD YAMLs
         run: |
           kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
+
       
       - name: Crete imagepull secret 
         run: |
@@ -106,7 +112,7 @@ jobs:
         run: |
           echo "Deploying image: quay.io/hjimin/cilium-dev:${{ needs.build-and-push-prs.outputs.image_tag }}"
           kubectl create namespace dolphin || true
-          for file in install/manifests/*.yaml; do
+          for file in install/manifests/kindenv/*.yaml; do
             sed "s|image: .*|image: quay.io/hjimin/cilium-dev:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
   
@@ -158,11 +164,11 @@ jobs:
 
       - name: Run Operator Tests
         run: |
-          bash .github/actions/tests/operator-tests.sh
+          bash .github/actions/tests/kindenv/operator-tests.sh
       
       - name: Run Network Tests
         run: |
-          bash .github/actions/tests/network-tests.sh
+          bash .github/actions/tests/kindenv/network-tests.sh
 
       - name: Delete KinD cluster
         if: always()

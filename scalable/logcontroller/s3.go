@@ -120,7 +120,8 @@ func (s *s3client) PutFile(bucket string, key string, path string) error {
 	panic("unimplemented")
 }
 
-func NewS3Client(ctx context.Context, AWSRegion string) (S3Client, error) {
+func NewS3Client(AWSRegion string) (S3Client, error) {
+	ctx := context.Background()
 	s3cli := &s3client{
 		ctx: ctx,
 	}
