@@ -34,18 +34,20 @@ type logControllerParams struct {
 	K8sClient k8sClient.Clientset
 }
 
-func loadCfg(params logControllerParams) (logctl.LogConfig, error) {
-	cfg := logctl.LogConfig{
+func loadCfg(params logControllerParams) *logctl.LogConfig {
+	cfg := &logctl.LogConfig{
 		UploadInMinutesInterval: time.Minute,
 	}
 	cm, err := params.K8sClient.CoreV1().ConfigMaps("dolphin").Get(context.Background(), "dolphin-config", metav1.GetOptions{})
 	if err != nil {
-		return cfg, fmt.Errorf("failed to get configmap: %w", err)
+		params.Logger.WithError(err).Error("failed to get configmap")
+		return nil
 	}
 
 	raw := cm.Data["Apps"]
 	if err := json.Unmarshal([]byte(raw), &cfg.AppNames); err != nil {
-		return cfg, fmt.Errorf("failed to unmarshal Apps list: %w", err)
+		params.Logger.WithError(err).WithField("raw", raw).Error("failed to unmarshal Apps list")
+		return nil
 	}
 	params.Logger.WithField("apps", cfg.AppNames).Info("Apps list")
 	cfg.LogRootPath = cm.Data["LogRootPath"]
@@ -54,26 +56,24 @@ func loadCfg(params logControllerParams) (logctl.LogConfig, error) {
 	params.Logger.WithField("logRootPath", cfg.LogRootPath).Info("Log root path")
 	params.Logger.WithField("s3Bucket", cfg.S3Bucket).Info("S3 bucket")
 	params.Logger.WithField("awsRegion", cfg.AWSRegion).Info("AWS region")
-	return cfg, nil
+	return cfg
 }
 
-func generateS3Client(cfg logctl.LogConfig) (context.Context, logctl.S3Client, error) {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, unix.SIGTERM, unix.SIGQUIT, unix.SIGINT, unix.SIGHUP)
-	defer cancel()
-
+func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logctl.S3Client {
 	s3cli, err := logctl.NewS3Client(cfg.AWSRegion)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("failed to create S3 client: %w", err)
+		params.Logger.WithError(err).Error("failed to create S3 client")
+		return nil
 	}
-	return ctx, s3cli, nil
+	return s3cli
 }
 
-func registerLogController(params logControllerParams, cfg logctl.LogConfig, s3cli logctl.S3Client) {
+func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3cli logctl.S3Client) {
 	scopedLog := params.Logger.WithFields(logrus.Fields{
 		logfields.Controller: "log-controller",
 		logfields.Resource:   "logs",
 	})
-
+	scopedLog.Info("Registering log controller", cfg.AppNames, "::", cfg.LogRootPath, "::", cfg.S3Bucket, "::", cfg.AWSRegion)
 	if cfg.UploadInMinutesInterval != 0 {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, unix.SIGTERM, unix.SIGQUIT, unix.SIGINT, unix.SIGHUP)
 		ticker := time.NewTicker(cfg.UploadInMinutesInterval)
@@ -150,7 +150,7 @@ func registerLogController(params logControllerParams, cfg logctl.LogConfig, s3c
 	}
 }
 
-func uploadToS3(ctx context.Context, filePath string, params logControllerParams, cfg logctl.LogConfig, s3cli logctl.S3Client) error {
+func uploadToS3(ctx context.Context, filePath string, params logControllerParams, cfg *logctl.LogConfig, s3cli logctl.S3Client) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
