@@ -30,9 +30,9 @@ jobs:
 
     steps:
       - name: Checkout V1 code (trusted)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
         with:
-          ref: V1
+          ref: v2
 
       - name: Set up Docker Buildx (for caching)
         uses: docker/setup-buildx-action@v3
