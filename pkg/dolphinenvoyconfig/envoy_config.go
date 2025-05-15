@@ -128,7 +128,7 @@ func (r *envoyconfigReconciler) getClustersResource(svc *corev1.Service) ([]dolp
 func (r *envoyconfigReconciler) toAny(msg proto.Message) *anypb.Any {
 	a, err := anypb.New(msg)
 	if err != nil {
-		r.logger.WithError(err).Error("Failed to convert message %s to Any", msg)
+		r.logger.WithError(err).Error("Failed to convert message ", msg, " to Any")
 		return nil
 	}
 	return a

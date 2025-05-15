@@ -108,7 +108,7 @@ func registerGC(p params) {
 			case option.IdentityAllocationModeKVstore:
 				return gc.startKVStoreModeGC(ctx)
 			default:
-				return fmt.Errorf("unknown identity allocation mode", gc.allocationMode)
+				return fmt.Errorf("unknown identity allocation mode %s", gc.allocationMode)
 			}
 		},
 		OnStop: func(hc cell.HookContext) error {

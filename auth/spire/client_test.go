@@ -54,6 +54,10 @@ func (m mockEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.G
 	panic("implement me")
 }
 
+func (m mockEntryClient) SyncAuthorizedEntries(ctx context.Context, opts ...grpc.CallOption) (entryv1.Entry_SyncAuthorizedEntriesClient, error) {
+	panic("implement me")
+}
+
 func TestClient_Upsert(t *testing.T) {
 	cfg := ClientConfig{
 		SpiffeTrustDomain: "dummy.trusted.domain",
@@ -174,9 +178,25 @@ func TestClient_Delete(t *testing.T) {
 						})
 						return nil, fmt.Errorf("something is wrong")
 					},
+					BatchCreateEntryFunc: func(ctx context.Context, in *entryv1.BatchCreateEntryRequest, opts ...grpc.CallOption) (*entryv1.BatchCreateEntryResponse, error) {
+						require.ElementsMatch(t, in.Entries, []*types.Entry{
+							{
+								SpiffeId: &types.SPIFFEID{
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/identity/dummy-id",
+								},
+								ParentId: &types.SPIFFEID{
+									TrustDomain: "dummy.trusted.domain",
+									Path:        "/dolphin-operator",
+								},
+								Selectors: defaultSelectors,
+							},
+						})
+						return &entryv1.BatchCreateEntryResponse{}, nil
+					},
 				},
 			},
-			wantedErr: true,
+			wantErr: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -185,8 +205,8 @@ func TestClient_Delete(t *testing.T) {
 				cfg:   cfg,
 				entry: tt.fields.entry,
 			}
-			if err := c.Delete(context.Background(), tt.args.id); (err != nil) != tt.wantedErr {
-				t.Errorf("delete error %w wantErr %w", err, tt.wantErr)
+			if err := c.Delete(context.Background(), tt.args.id); tt.wantErr != nil {
+				t.Errorf("delete error %v wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -194,7 +214,7 @@ func TestClient_Delete(t *testing.T) {
 
 func Test_resolvedK8sService(t *testing.T) {
 	_, c := client.NewFakeClientset()
-	_, _ = c.CoreV1().Services("dummy-namespace").Create(context.Background(), corev1.Service{
+	_, _ = c.CoreV1().Services("dummy-namespace").Create(context.Background(), &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "valid-service",
 		},
@@ -249,7 +269,7 @@ func Test_resolvedK8sService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := resolvedK8sService(context.Background(), tt.args.client, tt.args.address)
 			if tt.wantedErr != nil && (err == nil || !reflect.DeepEqual(err.Error(), tt.wantedErr.Error())) {
-				t.Errorf("resolved k8s service err = %v wantErr %w", err, tt.wantedErr)
+				t.Errorf("resolved k8s service err = %v wantErr %v", err, tt.wantedErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
