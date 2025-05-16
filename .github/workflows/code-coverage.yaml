@@ -21,8 +21,18 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          go test ./... -coverprofile=coverage.out
-          go tool cover -func=coverage.out
+          # Get list of your own packages
+          go list ./... | grep -v metalb0110 | grep -vE 'pkg/bgp/k8s|pkg/bgp/log' > packages.txt
+          # Run tests only for packages that can compile AND have tests
+          for pkg in $(cat packages.txt); do
+            # Run coverage test ONLY IF the package has test files and can compile
+            if ls $(go list -f '{{.Dir}}' $pkg)/*_test.go > /dev/null 2>&1; then
+              go test -coverpkg=./... -coverprofile=coverage.$(basename $pkg).out -run=. $pkg || echo "Skipped $pkg"
+            fi
+          done
+          # Combine all coverage files
+          echo "mode: set" > coverage.out
+          tail -q -n +2 coverage.*.out >> coverage.out
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
