@@ -121,7 +121,7 @@ func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3
 								select {
 								case sem <- struct{}{}:
 									go func(file, app string) {
-										defer func() { <-sem }()
+										defer func() { <-sem }() // release the semaphore
 										if err := uploadToS3(ctx, file, params, cfg, s3cli); err != nil {
 											params.Logger.WithError(err).WithField("file", file).Error("upload failed")
 										} else {
@@ -156,6 +156,15 @@ func uploadToS3(ctx context.Context, filePath string, params logControllerParams
 		return ctx.Err()
 	default:
 		params.Logger.WithField("file", filePath).Info("Uploading to S3")
+		fp, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			return err
+		}
+		defer fp.Close()
+		n, err := fp.WriteString(fmt.Sprintf("Mocking Uploading to S3 on %s", time.Now().String(), " \n"))
+		if err != nil || n == 0 {
+			fmt.Println("Error writing to file:", err, " but it is ok since it is log file")
+		}
 		exist, err := s3cli.BucketExists(cfg.S3Bucket)
 		if err != nil {
 			return err
