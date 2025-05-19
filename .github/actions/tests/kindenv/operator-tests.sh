@@ -54,11 +54,13 @@ check_log_file() {
 
         local last_line
         last_line=$(tail -n 1 "$LOG_FILE")
-
+        echo "$last_line"
+        
         if [[ "$last_line" == *"Mocking Uploading to S3"* ]]; then
             echo "$last_line"
         else
             echo "Log file does not contain the expected content."
+            
         fi
     else
         echo "Log file does not exist."
