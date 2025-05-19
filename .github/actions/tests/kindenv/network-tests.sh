@@ -145,16 +145,25 @@ while true; do
 done
 
 
-echo "Checking internal connectivity to nginx service..."
-output=$(kubectl run busybox --rm -i --restart=Never --image=busybox:1.28 -- \
-        wget -qO- http://nginx.default.svc.cluster.local)
+end=$((SECONDS+120))
+while true; do
+  echo "Checking internal connectivity to nginx service..."
+  output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
+        curl -s http://nginx.default.svc.cluster.local)
 
-if echo "$output" | grep -q "Welcome to nginx"; then
+  if echo "$output" | grep -q "Welcome to nginx"; then
     echo "Service is reachable. Skipping LoadBalancer IP check in CI."
-else
-    echo "Service not reachable."
+    break
+  fi 
+
+  echo "Service not reachable yet. wait for 5 seconds..."
+  sleep 5
+  
+  if ((SECONDS > end)); then
+    echo "Timeout waiting for service to be reachable"
     exit 1
-fi
+  fi
+done
 
 # echo "NGINX got LoadBalancer IP"
 # nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
