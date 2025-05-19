@@ -36,38 +36,37 @@ sudo touch  "$LOG_FILE"
 sudo chmod 666 "$LOG_FILE"
 echo "node2 app2 test daily log" | sudo tee -a "$LOG_FILE" > /dev/null
 
-time.sleep 3
+sleep 3m
 
-echo "mock log uploading periodically every 1 minute, expecting `Mocking Uploading to S3 on` file "
+echo "mock log uploading periodically every 1 minute, checking file content"
 
-LOG_DIR="/tmp/kind-node1-logs/App1"
-LOG_FILE="$LOG_DIR/App1-$TIMESTAMP.log"
-echo "checking content within $LOG_FILE"
-if [[ -f $LOG_FILE ]]; then
-    last_line=$(tail -n 1 "$LOG_FILE")
+check_log_file() {
+    local LOG_DIR="$1"
+    local LOG_FILE="$LOG_DIR/App1-$TIMESTAMP.log"
+    
+    echo "Checking content within $LOG_FILE"
 
-    if [[ "$last_line" == *"Mocking Uploading to S3 on"* ]]; then
-        echo "$last_line"
+    if [[ -f "$LOG_FILE" ]]; then
+        if [[ ! -s "$LOG_FILE" ]]; then
+            echo "Log file $LOG_FILE is empty."
+            exit 1
+        fi
+
+        local last_line
+        last_line=$(tail -n 1 "$LOG_FILE")
+
+        if [[ "$last_line" == *"Mocking Uploading to S3"* ]]; then
+            echo "$last_line"
+        else
+            echo "Log file does not contain the expected content."
+        fi
     else
-        echo "Log file does not contain the expected content."
+        echo "Log file does not exist."
+        exit 1
     fi
-else 
-    echo "Log file does not exist."
-    exit 1
-fi
+}
 
-LOG_DIR="/tmp/kind-node2-logs/App1"
-LOG_FILE="$LOG_DIR/App1-$TIMESTAMP.log"
-echo "checking content within $LOG_FILE"
-if [[ -f $LOG_FILE ]]; then
-    last_line=$(tail -n 1 "$LOG_FILE")
-
-    if [[ "$last_line" == *"Mocking Uploading to S3 on"* ]]; then
-        echo "$last_line"
-    else
-        echo "Log file does not contain the expected content."
-    fi
-else 
-    echo "Log file does not exist."
-    exit 1
-fi
+# Replace this with the actual timestamp value if not already set
+# export TIMESTAMP="2025-05-18-12-00"  # example value
+check_log_file "/tmp/kind-node1-logs/App1"
+check_log_file "/tmp/kind-node2-logs/App1"
