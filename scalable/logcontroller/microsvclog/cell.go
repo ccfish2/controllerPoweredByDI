@@ -153,15 +153,16 @@ func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3
 func uploadToS3(ctx context.Context, filePath string, params logControllerParams, cfg *logctl.LogConfig, s3cli logctl.S3Client) error {
 	select {
 	case <-ctx.Done():
+		params.Logger.Info("Upload s3 cancelled")
 		return ctx.Err()
 	default:
 		params.Logger.WithField("file", filePath).Info("Uploading to S3")
-		fp, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE, 0644)
+		fp, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return err
 		}
 		defer fp.Close()
-		n, err := fp.WriteString(fmt.Sprintf("Mocking Uploading to S3 on %s", time.Now().String(), " \n"))
+		n, err := fp.WriteString(fmt.Sprintf("Mocking Uploading to S3 on %s\n", time.Now().String()))
 		if err != nil || n == 0 {
 			fmt.Println("Error writing to file:", err, " but it is ok since it is log file")
 		}
@@ -173,7 +174,7 @@ func uploadToS3(ctx context.Context, filePath string, params logControllerParams
 			s3cli.MakeBucket(cfg.S3Bucket)
 			params.Logger.Info("Creating bucket %s successfully", cfg.S3Bucket)
 		}
-		params.Logger.Info("Uploading %s to S3 successfuly", filePath)
+		params.Logger.Info("Uploading ", filePath, " to S3 successfuly")
 	}
 	return nil
 }
