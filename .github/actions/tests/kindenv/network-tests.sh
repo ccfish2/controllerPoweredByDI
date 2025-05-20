@@ -165,22 +165,6 @@ while true; do
   fi
 done
 
-# echo "NGINX got LoadBalancer IP"
-# nginx_ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
-# echo "Checking connectivity to $nginx_ip on port 80..."
-
-# # Run the nc command from a busybox pod
-# output=$(kubectl run tmp-busybox --rm -i --restart=Never --image=busybox:1.28 -- nc -zv "$nginx_ip" 80 2>&1)
-
-# echo "$output"
-
-# if echo "$output" | grep -q "open"; then
-#     echo "MetalLB is working correctly. LoadBalancer IP: $nginx_ip"
-# else
-#     echo "MetalLB is not working correctly."
-#     exit 1
-# fi
-
 # apply ingressClass
 kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
@@ -192,7 +176,7 @@ spec:
 EOF
 
 # apply book info service 
-#kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 
 # apply basic-ingress
 kubectl apply -f - <<EOF 
