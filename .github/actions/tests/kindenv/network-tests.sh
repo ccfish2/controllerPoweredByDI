@@ -306,7 +306,7 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/cus
 # ensure envoy is running and ready
 
 # deploy the customzed envoy that points to the ingressIP 
-kubectl apply -f ./ingressintegrationtests_setup/custom-cec.yaml
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
 
 
 NAMESPACE="kube-system"
