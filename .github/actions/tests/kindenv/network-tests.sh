@@ -226,10 +226,10 @@ EOF
 # loadbalancer service is up, external ip is assigned to the ingress, DolphinEnvoyConfig is created and with correct status
 end=$((SECONDS+120))
 while true; do
-    ip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+    ingressip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
 
-    if [[ -n "$ip" ]]; then
-        echo "Ingress Service IP acquired: $ip"
+    if [[ -n "$ingressip" ]]; then
+        echo "Ingress Service IP acquired: $ingressip"
         break
     fi
 
@@ -242,4 +242,99 @@ while true; do
     fi
 done
 
+# verify DolphinEnvoyConfig populated as expected
+check_dolphin_envoy_config() {
+  local namespace="dolphin"
+  local resource_name="dolphin-ingress-dolphin-basic-ingress"
+  local expected_service_name="dolphin-ingress-basic-ingress"
+  local expected_service_namespace="dolphin"
+
+  echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
+
+  # Check if the DolphinEnvoyConfig exists
+  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
+    echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
+    return 1
+  fi
+
+  local actual_service_name actual_service_namespace
+  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].name}')
+  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].namespace}')
+
+  if [[ "$actual_service_name" == "$expected_service_name" && \
+        "$actual_service_namespace" == "$expected_service_namespace" ]]; then
+    echo "✅ Resource and expected services entry found."
+    return 0
+  else
+    echo "❌ Resource exists but expected services entry is missing or incorrect."
+    echo "    Expected: name=$expected_service_name, namespace=$expected_service_namespace"
+    echo "    Actual:   name=$actual_service_name, namespace=$actual_service_namespace"
+    return 2
+  fi
+}
+check_dolphin_envoy_config
+
+
+# setup end2end with customized agent, envoy, EnvoyConfig
+kubectl apply -f ./ingressintegrationtests_setup/crds/ --recursive
+
+kubectl apply -f ./ingressintegrationtests_setup/custom-agent.yaml 
+# ensure aget is running and ready
+kubectl apply -f ./ingressintegrationtests_setup/custom-envoy.yaml 
+# ensure envoy is running and ready
+
+# deploy the customzed envoy that points to the ingressIP 
+kubectl apply -f ./ingressintegrationtests_setup/custom-cec.yaml
+
+
+NAMESPACE="kube-system"
+TIMEOUT=120
+INTERVAL=5
+
+wait_for_pods() {
+    local LABEL=$1
+    local DESCRIPTION=$2
+    local elapsed=0
+
+    echo "Waiting for all '${DESCRIPTION}' pods to be ready... (timeout: ${TIMEOUT} seconds)"
+    while [ $elapsed -lt $TIMEOUT ]; do
+        NOT_READY=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL" -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
+        if [ -z "$NOT_READY" ]; then
+            echo "All '${DESCRIPTION}' pods are ready"
+            return 0
+        else
+            echo "Waiting for '${DESCRIPTION}' pods to be ready..."
+            sleep $INTERVAL
+            elapsed=$((elapsed + INTERVAL))
+        fi
+    done
+
+    echo "Timeout waiting for '${DESCRIPTION}' pods to be ready"
+    kubectl get pods -n "$NAMESPACE" -l "$LABEL"
+    return 1
+}
+
+# Check both agent and envoy pods
+wait_for_pods "k8s-app=cilium" "agent" || exit 1
+wait_for_pods "k8s-app=cilium-envoy" "envoy" || exit 1
+
 # verify through l7 service connection
+end=$((SECONDS+120))
+while true; do
+  echo "Checking internal connectivity to basic-ingress service..."
+  output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
+        curl -s --fail -v http://$ingressip/details/1)
+  
+  if echo "$output" | grep -q "William Shakespeare"; then
+    echo "Ingress LoadBalancer Service is reachable."
+    break
+  fi 
+
+  echo "Ingress LoadBalancer Service not reachable yet. wait for 5 seconds..."
+  sleep 5
+  
+  if ((SECONDS > end)); then
+    echo "Timeout waiting for Ingress LoadBalancer Service to be reachable"
+    exit 1
+  fi
+done
