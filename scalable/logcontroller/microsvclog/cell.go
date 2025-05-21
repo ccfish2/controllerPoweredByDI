@@ -10,6 +10,7 @@ import (
 	"time"
 
 	logctl "github.com/ccfish2/controllerPoweredByDI/scalable/logcontroller"
+	logs3 "github.com/ccfish2/controllerPoweredByDI/scalable/logcontroller/awss3"
 	"github.com/ccfish2/infra/pkg/hive/cell"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,8 +60,8 @@ func loadCfg(params logControllerParams) *logctl.LogConfig {
 	return cfg
 }
 
-func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logctl.S3Client {
-	s3cli, err := logctl.NewS3Client(cfg.AWSRegion)
+func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logs3.S3Client {
+	s3cli, err := logs3.NewS3Client(cfg.AWSRegion, logs3.S3ClientOpts{})
 	if err != nil {
 		params.Logger.WithError(err).Error("failed to create S3 client")
 		return nil
@@ -68,7 +69,7 @@ func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logctl.
 	return s3cli
 }
 
-func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3cli logctl.S3Client) {
+func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3cli logs3.S3Client) {
 	scopedLog := params.Logger.WithFields(logrus.Fields{
 		logfields.Controller: "log-controller",
 		logfields.Resource:   "logs",
@@ -150,7 +151,7 @@ func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3
 	}
 }
 
-func uploadToS3(ctx context.Context, filePath string, params logControllerParams, cfg *logctl.LogConfig, s3cli logctl.S3Client) error {
+func uploadToS3(ctx context.Context, filePath string, params logControllerParams, cfg *logctl.LogConfig, s3cli logs3.S3Client) error {
 	select {
 	case <-ctx.Done():
 		params.Logger.Info("Upload s3 cancelled")

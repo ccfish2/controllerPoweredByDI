@@ -1,7 +1,11 @@
-package logcontroller
+package awss3
 
 import (
 	"context"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -62,9 +66,24 @@ type S3Client interface {
 type S3ClientOpts struct {
 	AccessKey string
 	SecretKey string
+
+	Endpoint        string
+	Region          string
+	Secure          bool
+	Transport       http.RoundTripper
+	Trace           bool
+	RoleARN         string
+	RoleSessionName string
+	UseSDKCreds     bool
+	EncryptOpts     EncryptOpts
+}
+
+type EncryptOpts struct {
+	// some options to ensure policy
 }
 
 type s3client struct {
+	S3ClientOpts
 	ctx      context.Context
 	s3Client *s3.Client
 }
@@ -110,9 +129,46 @@ func (s *s3client) MakeBucket(bucketName string) error {
 	return nil
 }
 
-// PutDirectory implements S3Client.
+type uploadTask struct {
+	key  string
+	path string
+}
+
+func getnerateUploadTask(keyPrefix, rootPath string) chan uploadTask {
+	rootPath = filepath.Clean(rootPath) + string(os.PathSeparator)
+	ret := make(chan uploadTask)
+	go func() {
+		defer close(ret)
+		_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+			relPath := strings.TrimPrefix(path, rootPath)
+			if info.IsDir() {
+				return nil
+			}
+			// check if it is softlink
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil
+			}
+			t := uploadTask{
+				key:  filepath.Join(keyPrefix, relPath),
+				path: path,
+			}
+			ret <- t
+			return nil
+		})
+	}()
+	return ret
+}
+
+// PutDirectory puts a complete directlry into a bucket key prefix, with each file in
+// the directory being uploaded as a separate object in the bucket.
 func (s *s3client) PutDirectory(bucket string, key string, path string) error {
-	panic("unimplemented")
+	for t := range getnerateUploadTask(key, path) {
+		err := s.PutFile(bucket, t.key, t.path)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PutFile implements S3Client.
@@ -120,7 +176,7 @@ func (s *s3client) PutFile(bucket string, key string, path string) error {
 	panic("unimplemented")
 }
 
-func NewS3Client(AWSRegion string) (S3Client, error) {
+func NewS3Client(AWSRegion string, opts S3ClientOpts) (S3Client, error) {
 	ctx := context.Background()
 	s3cli := &s3client{
 		ctx: ctx,
