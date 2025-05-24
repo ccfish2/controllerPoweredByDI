@@ -54,6 +54,8 @@ github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3 h1:1dd0CmP468v9Hok
 github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/infra v0.0.0-20250427233746-4dbd1c8ec00b h1:PcwjUCv0YVb4qmYJUA0rwe6FXo2ETxG7Gtsyo4qAXzs=
 github.com/ccfish2/infra v0.0.0-20250427233746-4dbd1c8ec00b/go.mod h1:RRdQmojlLBXA9Q69hie49s/wDMx4R9OpZ9bAzr9j1Yk=
+github.com/ccfish2/infra v1.0.0 h1:Y2Vtbs2MmqyJprxMN+11odEZBUYQR3lbDcpPZDVSVxk=
+github.com/ccfish2/infra v1.0.0/go.mod h1:RRdQmojlLBXA9Q69hie49s/wDMx4R9OpZ9bAzr9j1Yk=
 github.com/ccfish2/infra v1.0.1-0.20250515201820-dd86e3f20557 h1:Uz6DkAMF6WXnE18hcOpp1YwO9kVOxW/cpW0fBl15YVY=
 github.com/ccfish2/infra v1.0.1-0.20250515201820-dd86e3f20557/go.mod h1:RRdQmojlLBXA9Q69hie49s/wDMx4R9OpZ9bAzr9j1Yk=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=

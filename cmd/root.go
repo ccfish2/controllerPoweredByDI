@@ -235,7 +235,7 @@ func initEnv(vp *viper.Viper) {
 	}
 
 	option.LogRegisteredOptions(vp, log)
-	fmt.Println("Dolphin Operator", "v2.0.0")
+	log.Infof("Dolphin Operator", "v2.0.0")
 }
 
 func Execute(cmd *cobra.Command) {
