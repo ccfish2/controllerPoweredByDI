@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=scratch
-ARG GOLANG_IMAGE=golang:1.23.5
+ARG GOLANG_IMAGE=golang:1.24.0
 
 # Stage 1: Build the Go binary
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
