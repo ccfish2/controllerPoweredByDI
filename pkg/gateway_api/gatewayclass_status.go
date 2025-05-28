@@ -1,10 +1,15 @@
-package gatewayapi
+package gateway_api
 
 import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+)
+
+const (
+	gatewayClassAcceptedMessage    = "Valid GatewayClass"
+	gatewayClassNotAcceptedMessage = "Invalid GatewayClass"
 )
 
 func setGatewayClassAccepted(gwc *gatewayv1.GatewayClass, accepted bool) *gatewayv1.GatewayClass {

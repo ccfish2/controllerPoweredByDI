@@ -121,6 +121,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 			return fmt.Errorf("failed to setup reconciler %#v: %w", r, err)
 		}
 	}
+	log.Info("Gateway API controllers registered successfully")
 	return nil
 }
 

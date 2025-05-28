@@ -34,21 +34,10 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// List of features supported by Dolphn.
 	gwc.Status.SupportedFeatures = []gatewayv1.SupportedFeature{
-		"Gateway",
-		"HTTPRoute",
-		"HTTPRouteDestinationPortMatching",
-		"HTTPRouteHostRewrite",
-		"HTTPRouteMethodMatching",
-		"HTTPRoutePathRedirect",
-		"HTTPRoutePathRewrite",
-		"HTTPRoutePortRedirect",
-		"HTTPRouteQueryParamMatching",
-		"HTTPRouteRequestMirror",
-		"HTTPRouteRequestMultipleMirrors",
-		"HTTPRouteResponseHeaderModification",
-		"HTTPRouteSchemeRedirect",
-		"ReferenceGrant",
-		"TLSRoute",
+		gatewayv1.SupportedFeature{Name: "Gateway"},
+		gatewayv1.SupportedFeature{Name: "TLSRoute"},
+		gatewayv1.SupportedFeature{Name: "HTTPRoute"},
+		gatewayv1.SupportedFeature{Name: "ReferenceGrant"},
 	}
 
 	if err := r.Client.Status().Update(ctx, gwc); err != nil {

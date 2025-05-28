@@ -481,5 +481,5 @@ func (r *gatewayReconciler) handleReconcileErrorWithStatus(ctx context.Context, 
 	if err != nil {
 		return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status while handling the reconcile error: %w: %w", reconcileErr, err))
 	}
-	return ctrl.Result{}, reconcileRR
+	return ctrl.Result{}, reconcileErr
 }

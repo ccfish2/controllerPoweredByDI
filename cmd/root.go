@@ -191,7 +191,7 @@ var (
 	)
 
 	binaryName                     = filepath.Base(os.Args[0])
-	log                            = logging.DefaultLogger.WithField(logfields.LogSubsys, binaryName)
+	log                            = logging.DefaultLoggerNoFile.WithField(logfields.LogSubsys, binaryName)
 	leaderElectionResourceLockName = "dolphin-operator-resource-lock"
 	// we want to step donw
 	leaderElectionCtx       context.Context

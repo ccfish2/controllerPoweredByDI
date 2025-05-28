@@ -31,9 +31,11 @@ func (r *gatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func matchesControllerName(controllerName string) func(object client.Object) bool {
 	return func(object client.Object) bool {
 		gwc, ok := object.(*gatewayv1.GatewayClass)
+		log.Info("this gateway class is being processed", "name", gwc.Name, "controllerName", controllerName)
 		if !ok {
 			return false
 		}
+
 		return string(gwc.Spec.ControllerName) == controllerName
 	}
 }

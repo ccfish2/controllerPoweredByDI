@@ -14,4 +14,4 @@ const (
 	grpcRoute    = "grpcRoute"
 )
 
-var log = logging.DefaultLogger.WithField(logfields.LogSubsys, Subsys)
+var log = logging.DefaultLoggerNoFile.WithField(logfields.LogSubsys, Subsys)

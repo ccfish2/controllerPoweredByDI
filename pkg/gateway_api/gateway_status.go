@@ -7,11 +7,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-const (
-	gatewayClassAcceptedMessage    = "Valid GatewayClass"
-	gatewayClassNotAcceptedMessage = "Invalid Gateway Class"
-)
-
 func setGatewayAccepted(gw *gatewayv1.Gateway, accepted bool, msg string) *gatewayv1.Gateway {
 	gw.Status.Conditions = merge(gw.Status.Conditions, gwStsAcpCondition(gw, accepted, msg))
 	return gw
