@@ -18,6 +18,7 @@ import (
 	gatewaybeta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
+	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/ingestion"
@@ -474,10 +475,11 @@ func (r *gatewayReconciler) updateStatus(ctx context.Context, original, modified
 	}
 	return r.Client.Status().Update(ctx, modified)
 }
-func (r *gatewayReconciler) handleReconcileErrorWithStatus(ctx context.Context, reconcileRR error, original, modified *gatewayv1.Gateway) (ctrl.Result, error) {
+
+func (r *gatewayReconciler) handleReconcileErrorWithStatus(ctx context.Context, reconcileErr error, original, modified *gatewayv1.Gateway) (ctrl.Result, error) {
 	err := r.updateStatus(ctx, original, modified)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("FAILED TO UPATE")
+		return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status while handling the reconcile error: %w: %w", reconcileErr, err))
 	}
 	return ctrl.Result{}, reconcileRR
 }

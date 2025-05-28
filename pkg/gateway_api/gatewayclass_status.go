@@ -1,0 +1,36 @@
+package gatewayapi
+
+import (
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+)
+
+func setGatewayClassAccepted(gwc *gatewayv1.GatewayClass, accepted bool) *gatewayv1.GatewayClass {
+	gwc.Status.Conditions = merge(gwc.Status.Conditions, gatewayClassAcceptedCondition(gwc, accepted))
+	return gwc
+}
+
+func gatewayClassAcceptedCondition(gwc *gatewayv1.GatewayClass, accepted bool) metav1.Condition {
+	switch accepted {
+	case true:
+		return metav1.Condition{
+			Type:               string(gatewayv1.GatewayClassConditionStatusAccepted),
+			Status:             metav1.ConditionTrue,
+			Reason:             string(gatewayv1.GatewayClassReasonAccepted),
+			Message:            gatewayClassAcceptedMessage,
+			ObservedGeneration: gwc.Generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+	default:
+		return metav1.Condition{
+			Type:               string(gatewayv1.GatewayClassConditionStatusAccepted),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(gatewayv1.GatewayClassReasonInvalidParameters),
+			Message:            gatewayClassNotAcceptedMessage,
+			ObservedGeneration: gwc.Generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+	}
+}

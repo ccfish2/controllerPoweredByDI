@@ -3,6 +3,7 @@ package gateway_api
 import (
 	"context"
 
+	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,26 +16,45 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logfields.Controller: "gatewayclass",
 		logfields.Resource:   req.NamespacedName,
 	})
-	scopedLog.Info("Reconciling gateway class")
-	gwc := gatewayv1.GatewayClass{}
-	if err := r.Client.Get(ctx, req.NamespacedName, &gwc); err != nil {
-		if k8serrors.IsNotFound(err) {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, err
-	}
-	if gwc.GetDeletionTimestamp() != nil {
-		return ctrl.Result{}, nil
-	}
-	setGatewayClassAccepted(&gwc, true)
 
+	scopedLog.Info("Reconciling GatewayClass")
+	gwc := &gatewayv1.GatewayClass{}
+	if err := r.Client.Get(ctx, req.NamespacedName, gwc); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return controllerruntime.Success()
+		}
+		return controllerruntime.Fail(err)
+	}
+
+	if gwc.GetDeletionTimestamp() != nil {
+		return controllerruntime.Success()
+	}
+
+	setGatewayClassAccepted(gwc, true)
+
+	// List of features supported by Dolphn.
 	gwc.Status.SupportedFeatures = []gatewayv1.SupportedFeature{
-		{Name: "HTTPRoute"},
-		{Name: "HTTPRouteDestinationPortMatching"},
-		{Name: "TLSRoute"},
+		"Gateway",
+		"HTTPRoute",
+		"HTTPRouteDestinationPortMatching",
+		"HTTPRouteHostRewrite",
+		"HTTPRouteMethodMatching",
+		"HTTPRoutePathRedirect",
+		"HTTPRoutePathRewrite",
+		"HTTPRoutePortRedirect",
+		"HTTPRouteQueryParamMatching",
+		"HTTPRouteRequestMirror",
+		"HTTPRouteRequestMultipleMirrors",
+		"HTTPRouteResponseHeaderModification",
+		"HTTPRouteSchemeRedirect",
+		"ReferenceGrant",
+		"TLSRoute",
 	}
-	if err := r.Client.Update(ctx, &gwc); err != nil {
-		return ctrl.Result{}, err
+
+	if err := r.Client.Status().Update(ctx, gwc); err != nil {
+		scopedLog.WithError(err).Error("Failed to update GatewayClass status")
+		return controllerruntime.Fail(err)
 	}
-	return ctrl.Result{}, nil
+	scopedLog.Info("Successfully reconciled GatewayClass")
+	return controllerruntime.Success()
 }
