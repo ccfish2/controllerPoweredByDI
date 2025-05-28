@@ -229,7 +229,7 @@ done
 
 check_service_external_ip() {
   local namespace="dolphin"
-  local service_name="dolphin-ingress-basic-ingress"
+  local service_name=$1
   local retries=10
   local sleep_seconds=5
 
@@ -261,7 +261,7 @@ check_service_external_ip() {
 }
 
 # Call the function
-check_service_external_ip
+check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
 
 
 # verify DolphinEnvoyConfig populated as expected
@@ -340,23 +340,94 @@ wait_for_pods() {
 wait_for_pods "k8s-app=cilium" "agent" || exit 1
 wait_for_pods "k8s-app=cilium-envoy" "envoy" || exit 1
 
-# verify through l7 service connection
+
+verify_connectivity() {
+  local ingress_ip="$1"
+  local timeout=120
+  local end=$((SECONDS + timeout))
+
+  while true; do
+    echo "Checking internal connectivity to basic-ingress service at $ingress_ip..."
+    
+    output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
+      curl -s --fail -v http://$ingress_ip/details/1)
+
+    if echo "$output" | grep -q "William Shakespeare"; then
+      echo "Ingress LoadBalancer Service is reachable."
+      return 0
+    fi
+
+    echo "Ingress LoadBalancer Service not reachable yet. Waiting 5 seconds..."
+    sleep 5
+
+    if (( SECONDS > end )); then
+      echo "Timeout waiting for Ingress LoadBalancer Service to be reachable"
+      return 1
+    fi
+  done
+}
+
+verify_connectivity "$ingressip" || exit 1
+
+echo "Verify Gateway API end2end"
+
+echo "Verify Gateway API end2end"
+# This script sets up a Gateway API environment in a Kind cluster.
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: dolphin
+spec:
+  controllerName: io.dolphin/gateway-controller
+  description: The default Dolphin GatewayClass
+EOF
+
+# deploy gateway and httproute
+echo "deploy gateway and httproute"
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
+
+check_service_external_ip "dolphin-gateway-my-gateway" || exit 1
+
+# deploy customized envoyconfig yaml
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/envoyconfig.yaml
+
+
+check_dolphin_envoy_config() {
+  local namespace="dolphin"
+  local resource_name="dolphin-gateway-my-gateway"
+
+  echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
+
+  # Check if the DolphinEnvoyConfig exists
+  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
+    echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
+    return 1
+  fi
+}
+check_dolphin_envoy_config
+
+source "$(dirname "$0")/gatewayapi_setup.sh"
+
+wait_for_gateway_ready "dolphin" "my-gateway" || exit 1
+
+# verify gatewayapi through l7 service connection
 end=$((SECONDS+120))
 while true; do
-  echo "Checking internal connectivity to basic-ingress service..."
-  output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
-        curl -s --fail -v http://$ingressip/details/1)
-  
-  if echo "$output" | grep -q "William Shakespeare"; then
-    echo "Ingress LoadBalancer Service is reachable."
-    break
-  fi 
+    gatewayip=$(kubectl -n dolphin get gateway my-gateway -o jsonpath="{.status.addresses[?(@.type=='IPAddress')].value}")
 
-  echo "Ingress LoadBalancer Service not reachable yet. wait for 5 seconds..."
-  sleep 5
-  
-  if ((SECONDS > end)); then
-    echo "Timeout waiting for Ingress LoadBalancer Service to be reachable"
-    exit 1
-  fi
+    if [[ -n "$ingressip" ]]; then
+        echo "Gateway Service IP acquired: $gatewayip"
+        break
+    fi
+
+    echo "Waiting for Gateway IP..."
+    sleep 5
+
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for Gateway Service IP"
+        exit 1
+    fi
 done
+
+verify_connectivity "$gatewayip" || exit 1
