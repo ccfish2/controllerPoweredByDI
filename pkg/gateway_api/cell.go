@@ -52,7 +52,7 @@ type gatewayApiConfig struct {
 func (r gatewayApiConfig) Flags(flags *pflag.FlagSet) {
 	flags.BoolVar(&r.EnableGatewayAPISecretsSync, "enable-gateway-api-secrets-sync", false, "")
 	flags.StringVar(&r.GatewayAPISecretsNamespace, "gateway-api-secrets-namespace", "dolphin", "")
-	flags.BoolVar(&r.EnableGatewayAPI, "enable-gateway-api", false, "")
+	flags.BoolVar(&r.EnableGatewayAPI, "enable-gateway-api", true, "")
 }
 
 var requiredGVK = []schema.GroupVersionKind{
