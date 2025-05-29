@@ -106,7 +106,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	setGatewayAccepted(copy, true, "Gateway successfully scheduled")
 
 	// step 3: translate the listeners into dolphin model
-	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds)
+	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
 	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners})
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to translate resources")
