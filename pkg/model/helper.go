@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	allhost = "*"
+	allHosts = "*"
 )
 
 func AddressOf[T any](v T) *T {
