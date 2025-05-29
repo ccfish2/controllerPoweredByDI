@@ -8,8 +8,10 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-type HTTPRouteInput struct {
-}
+const (
+	// controllerName is the gateway controller name used in dolphin
+	controllerName = "io.dolphin/gateway-controller"
+)
 
 type Input interface {
 	GetGateway() (*gatewayv1.Gateway, error)
@@ -20,4 +22,8 @@ type Input interface {
 
 	SetParentCondition(parentRef gatewayv1.ParentReference, cond metav1.Condition)
 	SetParentAllCondition(cond metav1.Condition)
+}
+
+type GenericRule interface {
+	GetBackendRefs() []gatewayv1.BackendRef
 }
