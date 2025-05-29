@@ -77,10 +77,12 @@ func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *
 
 var _ translation.Translator = (*translator)(nil)
 
-func NewTranslator(ns string, idle int) translator {
+func NewTranslator(ns string, idle int, enableIpv4 bool, enableIpv6 bool) translation.Translator {
 	return translator{
 		ns,
 		idle,
+		enableIpv4,
+		enableIpv6,
 	}
 }
 
