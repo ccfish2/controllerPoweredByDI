@@ -35,6 +35,9 @@ type defaultTranslator struct {
 	useProxyProtocol    bool
 	hostNameSuffixMatch bool
 	idleTimeoutSeconds  int
+
+	ipv4Enabled bool
+	ipv6Enabled bool
 }
 
 var _ Translator = (*defaultTranslator)(nil)
