@@ -3,6 +3,7 @@ package gateway_api
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	routechecks "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/routechecker"
@@ -109,11 +110,15 @@ func (r *httpRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	if err := r.updateStatus(ctx, original, hr); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update HTTPRoute status: %w", err)
+	if !reflect.DeepEqual(original.Staus, hr.Status) {
+		if err := r.updateStatus(ctx, original, hr); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update HTTPRoute status: %w", err)
+		}
+		scopedLog.Info("Successfully reconciled HTTPRoute")
+	} else {
+		scopedLog.Info("No status change, skipping update")
 	}
 
-	scopedLog.Info("Successfully reconciled HTTPRoute")
 	return controllerruntime.Success()
 }
 

@@ -364,10 +364,10 @@ func isRouteMatchGateway(gw *gatewayv1.Gateway, route metav1.Object, parents []g
 func (r *gatewayReconciler) filterHTTPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
 	var filtered []gatewayv1.HTTPRoute
 	for _, route := range routes {
-		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+		if isAttachable(ctx, gw, &route, route.Status.Parents) &&
 			isAllowed(ctx, r.Client, gw, &route) &&
 			len(computeHostsForListener(listener, route.Spec.Hostnames)) > 0 &&
-			parRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			parentRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
 			filtered = append(filtered, route)
 		}
 	}
@@ -378,25 +378,25 @@ func (r *gatewayReconciler) filterHTTPRoutesByListener(ctx context.Context, gw *
 func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1alpha2.TLSRoute) []gatewayv1alpha2.TLSRoute {
 	var filtered []gatewayv1alpha2.TLSRoute
 	for _, route := range routes {
-		if isRouteMatchGateway(gw, &route, route.Status.Parents) &&
+		if isAttachable(ctx, gw, &route, route.Status.Parents) &&
 			isAllowed(ctx, r.Client, gw, &route) &&
 			len(computeHostsForListener(listener, route.Spec.Hostnames)) > 0 &&
-			parRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			parentRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
 			filtered = append(filtered, route)
 		}
 	}
 	return filtered
 }
 
-func parRefMatched(gw *gatewayv1.Gateway, lis *gatewayv1.Listener, namespace string, parefs []gatewayv1.ParentReference) bool {
-	for _, paref := range parefs {
-		if string(paref.Name) == gw.GetName() || gw.GetNamespace() == helpers.NamespaceDerefOr(paref.Namespace, namespace) {
-			if paref.SectionName == nil || paref.Port == nil {
+func parentRefMatched(gw *gatewayv1.Gateway, lis *gatewayv1.Listener, namespace string, parefs []gatewayv1.ParentReference) bool {
+	for _, ref := range refs {
+		if string(ref.Name) == gw.GetName() && gw.GetNamespace() == helpers.NamespaceDerefOr(ref.Namespace, routeNamespace) {
+			if ref.SectionName == nil && ref.Port == nil {
 				return true
 			}
-			sectionCheck := paref.SectionName == nil || *paref.SectionName == lis.Name
-			portCheck := paref.Port == nil || paref.Port == &lis.Port
-			if sectionCheck && portCheck {
+			sectionNameCheck := ref.SectionName == nil || *ref.SectionName == listener.Name
+			portCheck := ref.Port == nil || *ref.Port == listener.Port
+			if sectionNameCheck && portCheck {
 				return true
 			}
 		}
