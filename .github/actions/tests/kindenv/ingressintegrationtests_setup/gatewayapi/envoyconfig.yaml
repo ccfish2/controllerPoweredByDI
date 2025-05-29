@@ -6,11 +6,11 @@ metadata:
 spec:
   backendServices:
   - name: details
-    namespace: default
+    namespace: dolphin
     number:
     - "9080"
   - name: productpage
-    namespace: default
+    namespace: dolphin
     number:
     - "9080"
   resources:
@@ -84,7 +84,7 @@ spec:
       - match:
           pathSeparatedPrefix: /details
         route:
-          cluster: default:details:9080
+          cluster: dolphin:details:9080
           maxStreamDuration:
             maxStreamDuration: 0s
       - match:
@@ -101,14 +101,14 @@ spec:
             stringMatch:
               exact: example
         route:
-          cluster: default:productpage:9080
+          cluster: dolphin:productpage:9080
           maxStreamDuration:
             maxStreamDuration: 0s
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     edsClusterConfig:
-      serviceName: default/details:9080
-    name: default:details:9080
+      serviceName: dolphin/details:9080
+    name: dolphin:details:9080
     outlierDetection:
       splitExternalLocalOriginErrors: true
     type: EDS
@@ -122,8 +122,8 @@ spec:
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     edsClusterConfig:
-      serviceName: default/productpage:9080
-    name: default:productpage:9080
+      serviceName: dolphin/productpage:9080
+    name: dolphin:productpage:9080
     outlierDetection:
       splitExternalLocalOriginErrors: true
     type: EDS

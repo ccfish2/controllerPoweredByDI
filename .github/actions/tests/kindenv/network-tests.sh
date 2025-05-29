@@ -265,7 +265,7 @@ check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
 
 
 # verify DolphinEnvoyConfig populated as expected
-check_dolphin_envoy_config() {
+check_ing_dolphin_envoy_config() {
   local namespace="dolphin"
   local resource_name="dolphin-ingress-dolphin-basic-ingress"
   local expected_service_name="dolphin-ingress-basic-ingress"
@@ -294,7 +294,7 @@ check_dolphin_envoy_config() {
     return 2
   fi
 }
-check_dolphin_envoy_config
+check_ing_dolphin_envoy_config
 
 
 # setup end2end with customized agent, envoy, EnvoyConfig
@@ -370,9 +370,15 @@ verify_connectivity() {
 verify_connectivity "$ingressip" || exit 1
 
 echo "Verify Gateway API end2end"
-
-echo "Verify Gateway API end2end"
+source "$(dirname "$0")/gatewayapi_setup.sh"
 # This script sets up a Gateway API environment in a Kind cluster.
+echo "deply services in the same namespace"
+kubectl -n dolphin -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+echo "reducing resources, remove services in default namespace"
+kubectl delete -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+
+
+echo "deploy gateway class"
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -382,17 +388,31 @@ spec:
   controllerName: io.dolphin/gateway-controller
   description: The default Dolphin GatewayClass
 EOF
+echo "verify gateway class is accepted"
+wait_for_gatewayclass_accepted "dolphin" 120 5 || exit 1
 
 # deploy gateway and httproute
 echo "deploy gateway and httproute"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
 
-check_service_external_ip "dolphin-gateway-my-gateway" || exit 1
-
 # deploy customized envoyconfig yaml
+echo "deploy customized envoyconfig yaml"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/envoyconfig.yaml
 
+# verify gateway status and httproute status 
+echo "verify httproute status"
+wait_for_httproute_ready "dolphin" "http-app-1" 120 5 || exit 1
 
+echo "verify gateway status"
+verify_gateway_ready "dolphin" "my-gateway" 120 5 || exit 1
+
+echo "checking gateway svc"
+check_service_external_ip "dolphin-gateway-my-gateway" || exit 1
+
+echo "check dummy endpoints listening on 9999"
+verify_gateway_endpoints "dolphin" "dolphin-gateway-my-gateway" || exit 1
+
+echo "checking dolphin envoy config"
 check_dolphin_envoy_config() {
   local namespace="dolphin"
   local resource_name="dolphin-gateway-my-gateway"
@@ -405,11 +425,7 @@ check_dolphin_envoy_config() {
     return 1
   fi
 }
-check_dolphin_envoy_config
-
-source "$(dirname "$0")/gatewayapi_setup.sh"
-
-wait_for_gateway_ready "dolphin" "my-gateway" || exit 1
+check_dolphin_envoy_config || exit 1
 
 # verify gatewayapi through l7 service connection
 end=$((SECONDS+120))

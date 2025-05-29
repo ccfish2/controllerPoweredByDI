@@ -161,7 +161,10 @@ jobs:
             echo "statefulset operator-dolphin rollout failed or timed out"
             exit 1
           fi
-
+      
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+  
       - name: Run Operator Tests
         run: |
           bash .github/actions/tests/kindenv/operator-tests.sh
