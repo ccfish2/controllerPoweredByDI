@@ -29,24 +29,30 @@ type translator struct {
 
 // Translate implements Translator.
 func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
-	listenrs := m.GetListerners()
-	if len(listenrs) == 0 || len(listenrs[0].GetSources()) == 0 {
-		return nil, nil, nil, fmt.Errorf("no listeners")
+	listeners := m.GetListeners()
+	if len(listeners) == 0 || len(listeners[0].GetSources()) == 0 {
+		return nil, nil, nil, fmt.Errorf("model source can't be empty")
 	}
+
 	var source *model.FullyQualifiedResource
 	var ports []uint32
-	for _, l := range listenrs {
+	for _, l := range listeners {
 		source = &l.GetSources()[0]
+
 		ports = append(ports, l.GetPort())
 	}
+
 	if source == nil || source.Name == "" {
-		return nil, nil, nil, fmt.Errorf("MODEL source name could not be empty")
+		return nil, nil, nil, fmt.Errorf("model source name can't be empty")
 	}
-	trans := translation.NewTranslator(dolphinGatewayPrefix+source.Name, source.Namespace, t.SecretNameSpace, false, false, true, t.idleTimeoutSeconds)
+
+	trans := translation.NewTranslator(dolphinGatewayPrefix+source.Name, source.Namespace, t.secretsNamespace, false, false, true, t.idleTimeoutSeconds, t.enableIpv4, t.enableIpv6)
 	dec, _, _, err := trans.Translate(m)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	// Set the owner reference to the DEC object.
 	dec.OwnerReferences = []metav1.OwnerReference{
 		{
 			APIVersion: gatewayv1beta1.GroupVersion.String(),
@@ -58,7 +64,9 @@ func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *
 	}
 
 	allLabels, allAnnotations := map[string]string{}, map[string]string{}
-	for _, l := range listenrs {
+	// Merge all the labels and annotations from the listeners.
+	// Normally, the labels and annotations are the same for all the listeners having same gateway.
+	for _, l := range listeners {
 		allAnnotations = mergeMap(allAnnotations, l.GetAnnotations())
 		allLabels = mergeMap(allLabels, l.GetLabels())
 	}
@@ -86,13 +94,13 @@ func mergeMap(left, right map[string]string) map[string]string {
 
 // compse gateway api laodbalance servce type
 func getService(resource *model.FullyQualifiedResource, allPorts []uint32, labels, annotations map[string]string) *corev1.Service {
-	uniqPorts := map[uint32]struct{}{}
+	uniquePorts := map[uint32]struct{}{}
 	for _, p := range allPorts {
-		uniqPorts[p] = struct{}{}
+		uniquePorts[p] = struct{}{}
 	}
 
-	ports := make([]corev1.ServicePort, 0, len(uniqPorts))
-	for p := range uniqPorts {
+	ports := make([]corev1.ServicePort, 0, len(uniquePorts))
+	for p := range uniquePorts {
 		ports = append(ports, corev1.ServicePort{
 			Name:     fmt.Sprintf("port-%d", p),
 			Port:     int32(p),
@@ -102,10 +110,10 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        model.Shorten(dolphinGatewayPrefix + resource.Name),
+			Name:        model.Shorten(ciliumGatewayPrefix + resource.Name),
 			Namespace:   resource.Namespace,
-			Annotations: annotations,
 			Labels:      mergeMap(map[string]string{owningGatewayLabel: model.Shorten(resource.Name)}, labels),
+			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: gatewayv1beta1.GroupVersion.String(),
@@ -126,7 +134,7 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 func getEndpoints(resource model.FullyQualifiedResource) *corev1.Endpoints {
 	return &corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      resource.Name,
+			Name:      model.Shorten(ciliumGatewayPrefix + resource.Name),
 			Namespace: resource.Namespace,
 			Labels:    map[string]string{owningGatewayLabel: model.Shorten(resource.Name)},
 			OwnerReferences: []metav1.OwnerReference{
@@ -141,8 +149,8 @@ func getEndpoints(resource model.FullyQualifiedResource) *corev1.Endpoints {
 		},
 		Subsets: []corev1.EndpointSubset{
 			{
-				Addresses: []corev1.EndpointAddress{{IP: "192.192.192.192"}},
-				Ports:     []corev1.EndpointPort{{Port: 9999}},
+				Addresses: []corev1.EndpointAddress{{IP: "192.192.192.192"}}, // dummy
+				Ports:     []corev1.EndpointPort{{Port: 9999}},               // dummy
 			},
 		},
 	}

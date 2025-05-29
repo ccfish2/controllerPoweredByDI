@@ -445,37 +445,39 @@ func isAllowed(ctx context.Context, c client.Client, gw *gatewayv1.Gateway, rout
 
 // this enables running locally: either ingress or hostip would work on gateway-api
 func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.Gateway) error {
-	svcList := corev1.ServiceList{}
-	if err := r.Client.List(ctx, &svcList, client.MatchingLabels{}, client.InNamespace(gw.Namespace)); err != nil {
-		return fmt.Errorf("not found")
+	svcList := &corev1.ServiceList{}
+	if err := r.Client.List(ctx, svcList, client.MatchingLabels{
+		owningGatewayLabel: model.Shorten(gw.GetName()),
+	}, client.InNamespace(gw.GetNamespace())); err != nil {
+		return err
 	}
+
 	if len(svcList.Items) == 0 {
-		return fmt.Errorf("")
+		return fmt.Errorf("no service found")
 	}
 
-	addr := []gatewayv1.GatewayStatusAddress{}
-	for _, svc := range svcList.Items {
-		if len(svc.Status.LoadBalancer.Ingress) == 0 {
-			continue
-		}
+	svc := svcList.Items[0]
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		return fmt.Errorf("load balancer status is not ready")
+	}
 
-		for _, ingr := range svc.Status.LoadBalancer.Ingress {
-			addr = append(addr, gatewayv1.GatewayStatusAddress{
-				// polymophism
+	var addresses []gatewayv1.GatewayStatusAddress
+	for _, s := range svc.Status.LoadBalancer.Ingress {
+		if len(s.IP) != 0 {
+			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
 				Type:  GatewayAddressTypePtr(gatewayv1.IPAddressType),
-				Value: ingr.IP,
+				Value: s.IP,
 			})
-
-			if ingr.Hostname != "" {
-				addr = append(addr, gatewayv1.GatewayStatusAddress{
-					Type:  GatewayAddressTypePtr(gatewayv1.HostnameAddressType),
-					Value: ingr.IP,
-				})
-			}
 		}
-
+		if len(s.Hostname) != 0 {
+			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
+				Type:  GatewayAddressTypePtr(gatewayv1.HostnameAddressType),
+				Value: s.Hostname,
+			})
+		}
 	}
-	gw.Status.Addresses = addr
+
+	gw.Status.Addresses = addresses
 	return nil
 }
 
