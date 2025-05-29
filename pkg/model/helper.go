@@ -106,10 +106,10 @@ func hostnameMatchesWildcardHostname(hostname, wildcardHostname string) bool {
 }
 
 func hostnameMatchesWildcardHostName(hostname, wildcardHostname string) bool {
-	if !strings.HasSuffix(hostname, strings.TrimSuffix(wildcardHostname, allhost)) {
+	if !strings.HasSuffix(hostname, strings.TrimSuffix(wildcardHostname, allHosts)) {
 		return false
 	}
-	wildMatch := strings.TrimSuffix(hostname, strings.TrimPrefix(wildcardHostname, allhost))
+	wildMatch := strings.TrimSuffix(hostname, strings.TrimPrefix(wildcardHostname, allHosts))
 	return len(wildMatch) > 0
 }
 
