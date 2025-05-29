@@ -3,9 +3,12 @@ package routechecker
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
@@ -14,14 +17,18 @@ const (
 )
 
 type Input interface {
-	GetGateway() (*gatewayv1.Gateway, error)
-	GetHostName() []gatewayv1.Hostname
+	GetRules() []GenericRule
+	GetNamespace() string
 	GetClient() client.Client
 	GetContext() context.Context
-	GetNamespace() string
+	GetGVK() schema.GroupVersionKind
+	GetGrants() []gatewayv1beta1.ReferenceGrant
+	GetGateway(parent gatewayv1.ParentReference) (*gatewayv1.Gateway, error)
+	GetHostnames() []gatewayv1.Hostname
 
-	SetParentCondition(parentRef gatewayv1.ParentReference, cond metav1.Condition)
-	SetParentAllCondition(cond metav1.Condition)
+	SetParentCondition(ref gatewayv1.ParentReference, condition metav1.Condition)
+	SetAllParentCondition(condition metav1.Condition)
+	Log() *logrus.Entry
 }
 
 type GenericRule interface {

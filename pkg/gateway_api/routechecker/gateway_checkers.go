@@ -155,7 +155,7 @@ func CheckGWMatchingSection(in Input, parentRef gatewayv1.ParentReference) (bool
 }
 
 func CheckGatewayRouteKindAllowed(input Input, parentRef gatewayv1.ParentReference) (bool, error) {
-	gw, err := input.GetGateway(parentRef)
+	gw, err := input.GetGateway()
 	if err != nil {
 		input.SetParentCondition(parentRef, metav1.Condition{
 			Type:    "Accepted",
