@@ -46,7 +46,7 @@ func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *
 		return nil, nil, nil, fmt.Errorf("model source name can't be empty")
 	}
 
-	trans := translation.NewTranslator(dolphinGatewayPrefix+source.Name, source.Namespace, t.secretsNamespace, false, false, true, t.idleTimeoutSeconds, t.enableIpv4, t.enableIpv6)
+	trans := translation.NewTranslator(dolphinGatewayPrefix+source.Name, source.Namespace, t.SecretNameSpace, false, false, true, t.idleTimeoutSeconds, t.enableIpv4, t.enableIpv6)
 	dec, _, _, err := trans.Translate(m)
 	if err != nil {
 		return nil, nil, nil, err
@@ -110,7 +110,7 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        model.Shorten(ciliumGatewayPrefix + resource.Name),
+			Name:        model.Shorten(dolphinGatewayPrefix + resource.Name),
 			Namespace:   resource.Namespace,
 			Labels:      mergeMap(map[string]string{owningGatewayLabel: model.Shorten(resource.Name)}, labels),
 			Annotations: annotations,
@@ -134,7 +134,7 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 func getEndpoints(resource model.FullyQualifiedResource) *corev1.Endpoints {
 	return &corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      model.Shorten(ciliumGatewayPrefix + resource.Name),
+			Name:      model.Shorten(dolphinGatewayPrefix + resource.Name),
 			Namespace: resource.Namespace,
 			Labels:    map[string]string{owningGatewayLabel: model.Shorten(resource.Name)},
 			OwnerReferences: []metav1.OwnerReference{

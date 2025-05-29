@@ -39,15 +39,19 @@ type defaultTranslator struct {
 
 var _ Translator = (*defaultTranslator)(nil)
 
-func NewTranslator(ns, nspace, secretsns string, enforcehttps bool, useproxyprotocl bool, hostNamesSuffixMatch bool, idleTimeoutSeconds int) Translator {
+func NewTranslator(name, namespace, secretsNamespace string, enforceHTTPs bool, useProxyProtocol bool,
+	hostNameSuffixMatch bool, idleTimeoutSeconds int,
+	ipv4Enabled bool, ipv6Enabled bool) Translator {
 	return &defaultTranslator{
-		name:                ns,
-		namespace:           nspace,
-		secretsNamespace:    secretsns,
-		enforceHTTPs:        enforcehttps,
-		useProxyProtocol:    useproxyprotocl,
-		hostNameSuffixMatch: hostNamesSuffixMatch,
+		name:                name,
+		namespace:           namespace,
+		secretsNamespace:    secretsNamespace,
+		enforceHTTPs:        enforceHTTPs,
+		useProxyProtocol:    useProxyProtocol,
+		hostNameSuffixMatch: hostNameSuffixMatch,
 		idleTimeoutSeconds:  idleTimeoutSeconds,
+		ipv4Enabled:         ipv4Enabled,
+		ipv6Enabled:         ipv6Enabled,
 	}
 }
 

@@ -12,7 +12,7 @@ type Model struct {
 	TLS  []TLSListener  `json:"tls,omitempty"`
 }
 
-func (m *Model) GetListerners() []Listener {
+func (m *Model) GetListeners() []Listener {
 	var listeners []Listener
 	for _, lis := range m.HTTP {
 		listeners = append(listeners, &lis)
