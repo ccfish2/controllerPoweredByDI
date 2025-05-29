@@ -388,8 +388,8 @@ func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *g
 	return filtered
 }
 
-func parentRefMatched(gw *gatewayv1.Gateway, lis *gatewayv1.Listener, namespace string, parefs []gatewayv1.ParentReference) bool {
-	for _, ref := range refs {
+func parentRefMatched(gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routeNamespace string, parefs []gatewayv1.ParentReference) bool {
+	for _, ref := range parefs {
 		if string(ref.Name) == gw.GetName() && gw.GetNamespace() == helpers.NamespaceDerefOr(ref.Namespace, routeNamespace) {
 			if ref.SectionName == nil && ref.Port == nil {
 				return true
