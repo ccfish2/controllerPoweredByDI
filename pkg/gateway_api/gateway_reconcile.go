@@ -66,20 +66,14 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// handle HTTPRouteList, TLSRouteList, ServiceList
-	httpRouteList := &gatewayv1.HTTPRouteList{}
-	err = r.Client.List(ctx, httpRouteList)
-	if err != nil {
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
-	}
-
 	if string(gwc.Spec.ControllerName) != controllerName {
 		scopedLog.Debug("GatewayClass does not have matching controller name, doing nothing")
 		return controllerruntime.Success()
 	}
 
 	httpRouteList := &gatewayv1.HTTPRouteList{}
-	if err := r.Client.List(ctx, httpRouteList); err != nil {
-		scopedLog.WithError(err).Error("Unable to list HTTPRoutes")
+	err = r.Client.List(ctx, httpRouteList)
+	if err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
