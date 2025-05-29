@@ -30,7 +30,7 @@ func CheckGWAllowedFromNamespace(in Input, parentRef gatewayv1.ParentReference) 
 		if listener.Name != *parentRef.SectionName {
 			continue
 		}
-		if listener.Hostname != nil && len(computeHostsForListener(&listener, in.GetHostName())) > 0 {
+		if listener.Hostname != nil && len(computeHostsForListener(&listener, in.GetHostnames())) > 0 {
 			continue
 		}
 
@@ -42,7 +42,7 @@ func CheckGWAllowedFromNamespace(in Input, parentRef gatewayv1.ParentReference) 
 			nsList := corev1.NamespaceList{}
 			selector, _ := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
 			if err := in.GetClient().List(in.GetContext(), &nsList, client.MatchingLabelsSelector{Selector: selector}); err != nil {
-				in.SetParentAllCondition(metav1.Condition{
+				in.SetParentCondition(metav1.Condition{
 					Type:    "Accepted",
 					Status:  metav1.ConditionFalse,
 					Reason:  "could not retreive any namespace using the selector",
@@ -57,7 +57,7 @@ func CheckGWAllowedFromNamespace(in Input, parentRef gatewayv1.ParentReference) 
 				}
 			}
 			if !allowed {
-				in.SetParentAllCondition(metav1.Condition{
+				in.SetParentCondition(metav1.Condition{
 					Type:    "Accepted",
 					Status:  metav1.ConditionFalse,
 					Reason:  "no anmespaces selected is allowed by the gateway ",
@@ -74,7 +74,7 @@ func CheckGWAllowedFromNamespace(in Input, parentRef gatewayv1.ParentReference) 
 		hasNamespaceRestriction = true
 	}
 	if hasNamespaceRestriction {
-		in.SetParentAllCondition(metav1.Condition{
+		in.SetParentCondition(metav1.Condition{
 			Type:    "Acccepted",
 			Status:  metav1.ConditionFalse,
 			Reason:  "Listeners namespaces are not allowed by the gateway",
@@ -90,7 +90,7 @@ func computeHostsForListener(list *gatewayv1.Listener, hostnames []gatewayv1.Hos
 
 func CheckGWMatchingPort(in Input, parentRef gatewayv1.ParentReference) (bool, error) {
 	// get the gateway
-	gw, err := in.GetGateway()
+	gw, err := in.GetGateway(parentRef)
 	if err != nil {
 		in.SetParentCondition(parentRef, metav1.Condition{
 			Type:    "Accepted",
@@ -123,7 +123,7 @@ func CheckGWMatchingPort(in Input, parentRef gatewayv1.ParentReference) (bool, e
 }
 
 func CheckGWMatchingSection(in Input, parentRef gatewayv1.ParentReference) (bool, error) {
-	gw, err := in.GetGateway()
+	gw, err := in.GetGateway(parentRef)
 	if err != nil {
 		in.SetParentCondition(parentRef, metav1.Condition{
 			Type:    "Accepted",
@@ -155,7 +155,7 @@ func CheckGWMatchingSection(in Input, parentRef gatewayv1.ParentReference) (bool
 }
 
 func CheckGatewayRouteKindAllowed(input Input, parentRef gatewayv1.ParentReference) (bool, error) {
-	gw, err := input.GetGateway()
+	gw, err := input.GetGateway(parentRef)
 	if err != nil {
 		input.SetParentCondition(parentRef, metav1.Condition{
 			Type:    "Accepted",

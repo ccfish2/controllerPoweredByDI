@@ -5,6 +5,8 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 func CheckAgainstCrossNamespaceBackendReferences(input Input) (bool, error) {
