@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
-	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway-api/routechecks"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
