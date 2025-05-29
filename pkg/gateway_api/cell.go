@@ -112,7 +112,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 	}{
 		newGatewayClassReconciler(mgr),
 		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds, true, false),
-		newhttpRouteReonciler(mgr),
+		newhttpRouteReconciler(mgr),
 		newtlsrouteReconciler(mgr),
 	}
 
