@@ -15,8 +15,10 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const (
@@ -28,18 +30,21 @@ const (
 func hasMatchingController(ctx context.Context, c client.Client, controllerName string) func(object client.Object) bool {
 	return func(obj client.Object) bool {
 		scopedLog := log.WithFields(logrus.Fields{
-			"controller": "gateway",
-			"resource":   obj.GetName(),
+			logfields.Controller: gateway,
+			logfields.Resource:   obj.GetName(),
 		})
 		gw, ok := obj.(*gatewayv1.Gateway)
 		if !ok {
 			return false
 		}
+
 		gwc := &gatewayv1.GatewayClass{}
 		key := types.NamespacedName{Name: string(gw.Spec.GatewayClassName)}
 		if err := c.Get(ctx, key, gwc); err != nil {
-			scopedLog.WithError(err).Error("unable to get gatewayClass")
+			scopedLog.WithError(err).Error("Unable to get GatewayClass")
+			return false
 		}
+
 		return string(gwc.Spec.ControllerName) == controllerName
 	}
 }
@@ -74,10 +79,17 @@ func getGatewaysForSecret(ctx context.Context, c client.Client, obj client.Objec
 
 // filter events that only status changed objects enqueue
 func onlyStatusChanged() predicate.Predicate {
-	option := cmpopts.IgnoreFields(metav1.Condition{}, "LastTrnasitionTime")
+	option := cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			switch e.ObjectOld.(type) {
+			case *gatewayv1.GatewayClass:
+				o, _ := e.ObjectOld.(*gatewayv1.GatewayClass)
+				n, ok := e.ObjectNew.(*gatewayv1.GatewayClass)
+				if !ok {
+					return false
+				}
+				return !cmp.Equal(o.Status, n.Status, option)
 			case *gatewayv1.Gateway:
 				o, _ := e.ObjectOld.(*gatewayv1.Gateway)
 				n, ok := e.ObjectNew.(*gatewayv1.Gateway)
@@ -85,9 +97,23 @@ func onlyStatusChanged() predicate.Predicate {
 					return false
 				}
 				return !cmp.Equal(o.Status, n.Status, option)
-			case *gatewayv1.GatewayClass:
-				o, _ := e.ObjectOld.(*gatewayv1.GatewayClass)
-				n, ok := e.ObjectNew.(*gatewayv1.GatewayClass)
+			case *gatewayv1.HTTPRoute:
+				o, _ := e.ObjectOld.(*gatewayv1.HTTPRoute)
+				n, ok := e.ObjectNew.(*gatewayv1.HTTPRoute)
+				if !ok {
+					return false
+				}
+				return !cmp.Equal(o.Status, n.Status, option)
+			case *gatewayv1alpha2.TLSRoute:
+				o, _ := e.ObjectOld.(*gatewayv1alpha2.TLSRoute)
+				n, ok := e.ObjectNew.(*gatewayv1alpha2.TLSRoute)
+				if !ok {
+					return false
+				}
+				return !cmp.Equal(o.Status, n.Status, option)
+			case *gatewayv1alpha2.GRPCRoute:
+				o, _ := e.ObjectOld.(*gatewayv1alpha2.GRPCRoute)
+				n, ok := e.ObjectNew.(*gatewayv1alpha2.GRPCRoute)
 				if !ok {
 					return false
 				}

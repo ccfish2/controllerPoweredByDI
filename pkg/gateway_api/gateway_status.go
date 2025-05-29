@@ -8,7 +8,7 @@ import (
 )
 
 func setGatewayAccepted(gw *gatewayv1.Gateway, accepted bool, msg string) *gatewayv1.Gateway {
-	gw.Status.Conditions = merge(gw.Status.Conditions, gwStsAcpCondition(gw, accepted, msg))
+	gw.Status.Conditions = merge(gw.Status.Conditions, gatewayStatusAcceptedCondition(gw, accepted, msg))
 	return gw
 }
 

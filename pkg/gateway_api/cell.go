@@ -111,7 +111,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 		SetupWithManager(mgr ctrlRuntime.Manager) error
 	}{
 		newGatewayClassReconciler(mgr),
-		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds),
+		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds, true, false),
 		newhttpRouteReonciler(mgr),
 		newtlsrouteReconciler(mgr),
 	}

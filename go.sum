@@ -54,6 +54,8 @@ github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3 h1:1dd0CmP468v9Hok
 github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/infra v0.0.0-20250528214036-9ec04fa29160 h1:krLF3qoxKHRVcsuBZlceDaYBd+FcBe8GDVd0oGdn6ak=
 github.com/ccfish2/infra v0.0.0-20250528214036-9ec04fa29160/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
+github.com/ccfish2/infra v0.0.0-20250528234348-25978f5e8659 h1:xewI+f3LhF1GnyoHvIdrEGeBBge43GodWgUnPfxMTBg=
+github.com/ccfish2/infra v0.0.0-20250528234348-25978f5e8659/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889/go.mod h1:tjRfsxyC0TvfKTP7XLCjNpGhGk00OHvelQn9SoTVMOs=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
