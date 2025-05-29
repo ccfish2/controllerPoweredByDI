@@ -50,30 +50,59 @@ func hash(hex string) string {
 // return a lit of hosts intersecton between listener and routes
 func ComputeHosts(routeHostnames []string, listenerHostname *string) []string {
 	var listenerHostnameVal string
-	if listenerHostname != nil && *listenerHostname != "" {
+	if listenerHostname != nil {
 		listenerHostnameVal = *listenerHostname
 	}
+
+	// No route hostnames specified: use the listener hostname if specified,
+	// or else match all hostnames.
 	if len(routeHostnames) == 0 {
-		if listenerHostnameVal == "" {
-			return []string{}
-		} else {
+		if len(listenerHostnameVal) > 0 {
 			return []string{listenerHostnameVal}
 		}
+
+		return []string{allHosts}
 	}
+
 	var hostnames []string
-	for _, routehstnm := range routeHostnames {
-		if listenerHostname == nil || routehstnm == listenerHostnameVal {
-			hostnames = append(hostnames, routehstnm)
-		}
-		if strings.HasPrefix(routehstnm, allhost) {
-			hostnames = append(hostnames, routehstnm)
-		}
-		if hostnameMatchesWildcardHostName(routehstnm, allhost) {
-			hostnames = append(hostnames, routehstnm)
+
+	for i := range routeHostnames {
+		routeHostname := routeHostnames[i]
+
+		switch {
+		// No listener hostname: use the route hostname.
+		case len(listenerHostnameVal) == 0:
+			hostnames = append(hostnames, routeHostname)
+
+		// Listener hostname matches the route hostname: use it.
+		case listenerHostnameVal == routeHostname:
+			hostnames = append(hostnames, routeHostname)
+
+		// Listener has a wildcard hostname: check if the route hostname matches.
+		case strings.HasPrefix(listenerHostnameVal, allHosts):
+			if hostnameMatchesWildcardHostname(routeHostname, listenerHostnameVal) {
+				hostnames = append(hostnames, routeHostname)
+			}
+
+		// Route has a wildcard hostname: check if the listener hostname matches.
+		case strings.HasPrefix(routeHostname, allHosts):
+			if hostnameMatchesWildcardHostname(listenerHostnameVal, routeHostname) {
+				hostnames = append(hostnames, listenerHostnameVal)
+			}
 		}
 	}
+
 	sort.Strings(hostnames)
 	return hostnames
+}
+
+func hostnameMatchesWildcardHostname(hostname, wildcardHostname string) bool {
+	if !strings.HasSuffix(hostname, strings.TrimPrefix(wildcardHostname, allHosts)) {
+		return false
+	}
+
+	wildcardMatch := strings.TrimSuffix(hostname, strings.TrimPrefix(wildcardHostname, allHosts))
+	return len(wildcardMatch) > 0
 }
 
 func hostnameMatchesWildcardHostName(hostname, wildcardHostname string) bool {

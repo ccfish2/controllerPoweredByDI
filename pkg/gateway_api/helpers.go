@@ -117,13 +117,13 @@ func toStringSlice[T ~string](s []T) []string {
 }
 
 func computeHosts[T ~string](gw *gatewayv1.Gateway, hostnames []T) []string {
-	hosts := []string{}
+	hosts := make([]string, 0, len(hostnames))
 	for _, listener := range gw.Spec.Listeners {
 		hosts = append(hosts, computeHostsForListener(&listener, hostnames)...)
 	}
+
 	return hosts
 }
-
 func getGatewayKindForObject(obj metav1.Object) gatewayv1.Kind {
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:
