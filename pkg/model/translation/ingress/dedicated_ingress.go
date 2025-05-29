@@ -63,7 +63,7 @@ func (d *DedicatedIngressTranslator) Translate(m *model.Model) (*dolphinv1.Dolph
 
 	// The logic is same as what we have with default translator, but with a different model
 	// (i.e. the HTTP listeners are just belonged to one Ingress resource).
-	translator := translation.NewTranslator(name, namespace, d.secretsNamespace, d.enforceHTTPs, d.useProxyProtocol, false, d.idleTimeoutSeconds)
+	translator := translation.NewTranslator(name, namespace, d.secretsNamespace, d.enforceHTTPs, d.useProxyProtocol, false, d.idleTimeoutSeconds, true, false)
 	cec, _, _, err := translator.Translate(m)
 	if err != nil {
 		return nil, nil, nil, err

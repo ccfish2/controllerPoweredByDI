@@ -25,6 +25,8 @@ const (
 type translator struct {
 	SecretNameSpace    string
 	idleTimeoutSeconds int
+	enableIpv4         bool
+	enableIpv6         bool
 }
 
 // Translate implements Translator.
