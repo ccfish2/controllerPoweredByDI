@@ -27,3 +27,6 @@ type Input interface {
 type GenericRule interface {
 	GetBackendRefs() []gatewayv1.BackendRef
 }
+
+type CheckRuleFunc func(input Input) (bool, error)
+type CheckGatewayFunc func(input Input, ref gatewayv1.ParentReference) (bool, error)
