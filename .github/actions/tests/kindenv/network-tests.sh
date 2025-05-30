@@ -165,6 +165,17 @@ while true; do
   fi
 done
 
+# setup end2end with customized agent, envoy, EnvoyConfig
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive
+
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml 
+# ensure aget is running and ready
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
+# ensure envoy is running and ready
+
+# deploy the customzed envoy that points to the ingressIP 
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
+
 # apply ingressClass
 kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
@@ -295,19 +306,6 @@ check_ing_dolphin_envoy_config() {
   fi
 }
 check_ing_dolphin_envoy_config
-
-
-# setup end2end with customized agent, envoy, EnvoyConfig
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive
-
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml 
-# ensure aget is running and ready
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
-# ensure envoy is running and ready
-
-# deploy the customzed envoy that points to the ingressIP 
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
-
 
 NAMESPACE="kube-system"
 TIMEOUT=120

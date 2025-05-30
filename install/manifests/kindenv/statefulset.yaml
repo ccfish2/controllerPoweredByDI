@@ -33,7 +33,7 @@ spec:
         - name: quay-secret
       containers:
       - name: dolphin-operator
-        image: quay.io/hjimin/cilium-dev:051020250625
+        image: quay.io/hjimin/cilium-dev:120f0b29a0b75efe2e3440e886da76c13fd96686
         imagePullPolicy: IfNotPresent
         command:
         - /usr/bin/dolphin-operator

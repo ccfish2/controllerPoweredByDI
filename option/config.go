@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "option")
+var log = logging.DefaultLoggerNoFile.WithField(logfields.LogSubsys, "option")
 
 var IngressLBAnnotationsDefault = []string{"service.beta.kubernetes.io", "service.kubernetes.io", "cloud.google.com"}
 

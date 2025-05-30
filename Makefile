@@ -8,7 +8,7 @@ build: $(TARGETS)
 
 docker-operator-image-generic: dolphin-operator-generic
 	@echo "Building Docker image for dolphin-operator-generic"
-	make -C images docker-image-generic
+	docker build -t dolphin-operator-generic:latest -f ./images/Dockerfile .
 
 dolphin-operator-generic:
 	@echo "Running go build -o dolphin-operator-generic with GO_TAGS_FLAGS=ipam_provider_operator"
