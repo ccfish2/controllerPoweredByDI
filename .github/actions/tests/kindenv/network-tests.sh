@@ -373,7 +373,7 @@ echo "Verify Gateway API end2end"
 source "$(dirname "$0")/gatewayapi_setup.sh"
 # This script sets up a Gateway API environment in a Kind cluster.
 echo "deply services in the same namespace"
-kubectl -n dolphin -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 echo "reducing resources, remove services in default namespace"
 kubectl delete -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 
