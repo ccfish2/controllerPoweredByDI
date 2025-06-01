@@ -75,7 +75,7 @@ func registerReconciler(params ingressParams) error {
 	}
 	// new one reconcciler
 	reconciler := newIngressReconciler(
-		params.Logger,
+		log,
 		params.Mgr.GetClient(),
 		operatorOption.Config.DolphinK8sNamespace,
 		params.IngCfg.EnforceIngressHTTPS,
