@@ -56,8 +56,8 @@ type server struct {
 
 // Start implements cell.HookInterface.
 func (s *server) Start(ctx cell.HookContext) error {
-	// create spec document for root json
 
+	// create spec document for root json
 	spec, err := loads.Analyzed(operatorApi.SwaggerJSON, "")
 	if err != nil {
 		return err
@@ -74,8 +74,10 @@ func (s *server) Start(ctx cell.HookContext) error {
 	s.Server = srv
 
 	mux := http.NewServeMux()
+	// Index handler is the handler for API router
 	mux.Handle("/", srv.GetHandler())
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	// Create a custom handler for /healthz as alias of /v1/healthz
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		resp := s.HealthHandler.Handle(operator.GetHealthzParams{})
 		resp.WriteResponse(w, runtime.TextProducer())
 	})
@@ -94,32 +96,39 @@ func (s *server) Start(ctx cell.HookContext) error {
 		lc := net.ListenConfig{Control: setsockoptReuseAddrAndPort}
 		ln, err := lc.Listen(ctx, "tcp", s.httpSrvs[i].address)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("unable to listen on %s: %w", s.httpSrvs[i].address, err))
 			continue
 		}
+		s.logger.WithFields(logrus.Fields{
+			fmt.Sprintf("server-%d", i): ln.Addr().String(),
+		})
 		s.httpSrvs[i].listener = ln
 		s.httpSrvs[i].server = &http.Server{
 			Addr:    s.httpSrvs[i].address,
 			Handler: mux}
 	}
 
+	// if no server to listen
 	if len(s.httpSrvs) == 1 && s.httpSrvs[0].server == nil ||
 		len(s.httpSrvs) == 2 && s.httpSrvs[0].server == nil && s.httpSrvs[1].server == nil {
 		s.shutdowner.Shutdown()
 		return errors.Join(errs...)
 	}
 
+	// just log all errors
 	for _, err := range errs {
 		s.logger.Warnf("failed to start server: %v", err)
 	}
 
+	// ensure all server are started and listening
 	for _, srv := range s.httpSrvs {
 		if srv.server == nil {
 			continue
 		}
 		go func(srv httpServer) {
 			if err := srv.server.Serve(srv.listener); !errors.Is(err, http.ErrServerClosed) {
-				s.logger.Warnf("failed to serve: %v", err)
+				s.logger.WithError(err).Error("server stopped unexpectedly")
+				s.shutdowner.Shutdown()
 			}
 		}(srv)
 	}
@@ -163,7 +172,7 @@ func newServer(p params) (Server, error) {
 		HealthHandler:  p.HealthHandler,
 		MetricsHandler: p.MetricsHandler,
 		apiSpec:        p.OperatorAPISpec,
-		address:        p.Cfg.OPeratorAPIServeAddr,
+		address:        p.Cfg.OperatorAPIServeAddr,
 	}
 	p.LC.Append(srv)
 

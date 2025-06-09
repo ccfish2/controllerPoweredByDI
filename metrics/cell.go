@@ -21,7 +21,7 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	OperatorPrometheusServeAddr: ":9963",
+	OperatorPrometheusServeAddr: ":9953",
 }
 
 func (def Config) Flags(flags *pflag.FlagSet) {

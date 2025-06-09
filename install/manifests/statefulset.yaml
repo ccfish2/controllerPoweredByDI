@@ -35,6 +35,32 @@ spec:
       - name: dolphin-operator
         image: quay.io/hjimin/cilium-dev:051020250501
         imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9953
+          hostPort: 9953
+          name: prometheus
+          protocol: TCP
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            host: 127.0.0.1
+            path: /healthz
+            port: 9233
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
+        readinessProbe:
+          failureThreshold: 5
+          httpGet:
+            host: 127.0.0.1
+            path: /healthz
+            port: 9233
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
         command:
         - /usr/bin/dolphin-operator
         env:
