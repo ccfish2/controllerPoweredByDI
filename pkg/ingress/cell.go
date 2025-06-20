@@ -28,7 +28,7 @@ var Cell = cell.Module(
 			IngressSecretsNamespace:     "dolphin-secrets",
 			IngressSharedLBServiceName:  "dolphin-ingress",
 			IngressLBAnnotationPrefixes: []string{"service.beta.kubernetes.io", "service.kubernets.io", "cloud.google.com"},
-			IngressDefaultLBMode:        "dedicated",
+			IngressDefaultLBMode:        "shared",
 		},
 	),
 	cell.Invoke(registerReconciler),
@@ -56,7 +56,7 @@ func (r ingressConfig) Flags(flags *pflag.FlagSet) {
 	flags.String("ingress-secrets-namespace", r.IngressSecretsNamespace, "Namespace having tls secrets used by Ingress and CEC.")
 	flags.StringSlice("ingress-lb-annotation-prefixes", r.IngressLBAnnotationPrefixes, "Annotations and labels which are needed to propagate from Ingress to the Load Balancer.")
 	flags.String("ingress-shared-lb-service-name", r.IngressSharedLBServiceName, "Name of shared LB service name for Ingress.")
-	flags.String("ingress-default-lb-mode", r.IngressDefaultLBMode, "Default loadbalancer mode for Ingress. Applicable values: dedicated, shared")
+	flags.StringVar(&r.IngressDefaultLBMode, "ingress-default-lb-mode", "shared", "Default loadbalancer mode for Ingress. Applicable values: dedicated, shared")
 	flags.String("ingress-default-secret-namespace", r.IngressDefaultSecretNamespace, "Default secret namespace for Ingress.")
 	flags.String("ingress-default-secret-name", r.IngressDefaultSecretName, "Default secret name for Ingress.")
 }
