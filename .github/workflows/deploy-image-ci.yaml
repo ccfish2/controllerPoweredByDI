@@ -110,10 +110,10 @@ jobs:
 
       - name: Deploy using install/manifests (override image)
         run: |
-          echo "Deploying image: quay.io/$${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ needs.build-and-push-prs.outputs.image_tag }}"
+          echo "Deploying image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ needs.build-and-push-prs.outputs.image_tag }}"
           kubectl create namespace dolphin || true
           for file in install/manifests/kindenv/*.yaml; do
-            sed "s|image: .*|image: quay.io/$${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
+            sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
   
       - name: Wait for pvc to be ready 
