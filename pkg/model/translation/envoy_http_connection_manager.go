@@ -85,3 +85,13 @@ func WithXffNumTrustedHops() func(*httpConnectionManagerv3.HttpConnectionManager
 		return connectionManager
 	}
 }
+
+func WithInternalAddressConfig(enableIpv4, enableIpv6 bool) HttpConnectionManagerMutator {
+	return func(hcm *httpConnectionManagerv3.HttpConnectionManager) *httpConnectionManagerv3.HttpConnectionManager {
+		hcm.InternalAddressConfig = &httpConnectionManagerv3.HttpConnectionManager_InternalAddressConfig{
+			UnixSockets: false,
+			CidrRanges:  envoy.GetInternalListenerCIDRs(enableIpv4, enableIpv6),
+		}
+		return hcm
+	}
+}

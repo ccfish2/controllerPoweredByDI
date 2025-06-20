@@ -111,10 +111,49 @@ func (i *defaultTranslator) getServices(_ *model.Model) []*dolphinv1.ServiceList
 	}
 }
 
+func (i *defaultTranslator) getListener(m *model.Model) []dolphinv1.XDSResource {
+	if len(m.HTTP) == 0 && len(m.TLS) == 0 {
+		return nil
+	}
+
+	mutatorFuncs := []ListenerMutator{}
+	if i.useProxyProtocol {
+		mutatorFuncs = append(mutatorFuncs, WithProxyProtocol())
+	}
+
+	l, _ := newListenerWithDefaults("listener", i.secretsNamespace, len(m.HTTP) > 0, tlsSecretsToHostnames(m.HTTP),
+		tlsPassthroughBackendsToHostnames(m.TLS), i.ipv4Enabled, i.ipv6Enabled, mutatorFuncs...)
+	return []dolphinv1.XDSResource{l}
+}
+
+func tlsPassthroughBackendsToHostnames(tlsListeners []model.TLSListener) map[string][]string {
+	tlsPassthroughBackendsToHostnames := make(map[string][]string)
+	for _, h := range tlsListeners {
+		for _, route := range h.Routes {
+			for _, backend := range route.Backends {
+				key := fmt.Sprintf("%s:%s:%s", backend.Namespace, backend.Name, backend.Port.GetPort())
+				tlsPassthroughBackendsToHostnames[key] = append(tlsPassthroughBackendsToHostnames[key], route.Hostnames...)
+			}
+		}
+	}
+
+	return tlsPassthroughBackendsToHostnames
+}
+
+func tlsSecretsToHostnames(httpListeners []model.HTTPListener) map[model.TLSSecret][]string {
+	tlsSecretsToHostnames := make(map[model.TLSSecret][]string)
+	for _, h := range httpListeners {
+		for _, s := range h.TLS {
+			tlsSecretsToHostnames[s] = append(tlsSecretsToHostnames[s], h.Hostname)
+		}
+	}
+
+	return tlsSecretsToHostnames
+}
+
 func (i *defaultTranslator) getResources(m *model.Model) []dolphinv1.XDSResource {
 	var res []dolphinv1.XDSResource
-	res = append(res, i.getHTTPRouteListener(m)...)
-	res = append(res, i.getTLSRouteListener(m)...)
+	res = append(res, i.getListener(m)...)
 	res = append(res, i.getEnvoyHTTPRouteConfiguration(m)...)
 	res = append(res, i.getClusters(m)...)
 	return res

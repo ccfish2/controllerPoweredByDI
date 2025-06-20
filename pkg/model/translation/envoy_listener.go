@@ -315,3 +315,177 @@ func toFilterChainMatch(hostNames []string) *envoy_config_listener.FilterChainMa
 	}
 	return res
 }
+
+// newListenerWithDefaults same as newListener but with default mutators applied.
+func newListenerWithDefaults(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
+	tlsSecretsToHostnames map[model.TLSSecret][]string,
+	ptBackendsToHostnames map[string][]string,
+	enableIpv4 bool, enableIpv6 bool,
+	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+	fns := append(mutatorFunc,
+		WithSocketOption(
+			defaultTCPKeepAlive,
+			defaultTCPKeepAliveIdleTimeInSeconds,
+			defaultTCPKeepAliveProbeIntervalInSeconds,
+			defaultTCPKeepAliveMaxFailures),
+	)
+
+	return newListener(name, dolphinSecretNamespace, includeHTTPFilterchain, tlsSecretsToHostnames, ptBackendsToHostnames, enableIpv4, enableIpv6, fns...)
+}
+
+func newListener(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
+	tlsSecretsToHostnames map[model.TLSSecret][]string,
+	tlsPassthroughBackendsMap map[string][]string,
+	enableIpv4 bool, enableIpv6 bool,
+	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+	filterChains := []*envoy_config_listener.FilterChain{}
+
+	if includeHTTPFilterchain {
+		httpFilterChain, err := httpFilterChain(name, enableIpv4, enableIpv6)
+		if err != nil {
+			return dolphinv1.XDSResource{}, err
+		}
+		filterChains = append(filterChains, httpFilterChain)
+	}
+
+	httpsFilterChains, err := httpsFilterChains(name, dolphinSecretNamespace, tlsSecretsToHostnames, enableIpv4, enableIpv6)
+	if err != nil {
+		return dolphinv1.XDSResource{}, fmt.Errorf("failed to create https filterchains: %w", err)
+	}
+	filterChains = append(filterChains, httpsFilterChains...)
+
+	tlsPassthroughFilterChains, err := tlsPassthroughFilterChains(tlsPassthroughBackendsMap)
+	if err != nil {
+		return dolphinv1.XDSResource{}, fmt.Errorf("failed to create tls passthrough filterchains: %w", err)
+	}
+	filterChains = append(filterChains, tlsPassthroughFilterChains...)
+
+	listener := &envoy_config_listener.Listener{
+		Name:         name,
+		FilterChains: filterChains,
+		ListenerFilters: []*envoy_config_listener.ListenerFilter{
+			{
+				Name: tlsInspectorType,
+				ConfigType: &envoy_config_listener.ListenerFilter_TypedConfig{
+					TypedConfig: toAny(&envoy_extensions_listener_tls_inspector_v3.TlsInspector{}),
+				},
+			},
+		},
+	}
+
+	for _, fn := range mutatorFunc {
+		listener = fn(listener)
+	}
+
+	listenerBytes, err := proto.Marshal(listener)
+	if err != nil {
+		return dolphinv1.XDSResource{}, err
+	}
+	return dolphinv1.XDSResource{
+		Any: &anypb.Any{
+			TypeUrl: envoy.ListenerTypeURL,
+			Value:   listenerBytes,
+		},
+	}, nil
+}
+
+func httpFilterChain(name string, enableIpv4 bool, enableIpv6 bool) (*envoy_config_listener.FilterChain, error) {
+	insecureHttpConnectionManagerName := fmt.Sprintf("%s-insecure", name)
+	insecureHttpConnectionManager, err := NewHTTPConnectionManager(
+		insecureHttpConnectionManagerName,
+		insecureHttpConnectionManagerName,
+		WithXffNumTrustedHops(),
+		WithInternalAddressConfig(enableIpv4, enableIpv6),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &envoy_config_listener.FilterChain{
+		FilterChainMatch: &envoy_config_listener.FilterChainMatch{TransportProtocol: rawBufferTransportProtocol},
+		Filters: []*envoy_config_listener.Filter{
+			{
+				Name: httpConnectionManagerType,
+				ConfigType: &envoy_config_listener.Filter_TypedConfig{
+					TypedConfig: insecureHttpConnectionManager.Any,
+				},
+			},
+		},
+	}, nil
+}
+
+func httpsFilterChains(name string, dolphinSecretNamespace string, tlsSecretsToHostnames map[model.TLSSecret][]string,
+	enableIpv4 bool, enableIpv6 bool) ([]*envoy_config_listener.FilterChain, error) {
+	if len(tlsSecretsToHostnames) == 0 {
+		return nil, nil
+	}
+
+	var filterChains []*envoy_config_listener.FilterChain
+
+	orderedSecrets := maps.Keys(tlsSecretsToHostnames)
+	goslices.SortStableFunc(orderedSecrets, func(a, b model.TLSSecret) int { return cmp.Compare(a.Namespace+"/"+a.Name, b.Namespace+"/"+b.Name) })
+
+	for _, secret := range orderedSecrets {
+		hostNames := tlsSecretsToHostnames[secret]
+
+		secureHttpConnectionManagerName := fmt.Sprintf("%s-secure", name)
+		secureHttpConnectionManager, err := NewHTTPConnectionManager(secureHttpConnectionManagerName, secureHttpConnectionManagerName,
+			WithInternalAddressConfig(enableIpv4, enableIpv6))
+		if err != nil {
+			return nil, err
+		}
+
+		transportSocket, err := newTransportSocket(dolphinSecretNamespace, []model.TLSSecret{secret})
+		if err != nil {
+			return nil, err
+		}
+
+		filterChains = append(filterChains, &envoy_config_listener.FilterChain{
+			FilterChainMatch: toFilterChainMatch(hostNames),
+			Filters: []*envoy_config_listener.Filter{
+				{
+					Name: httpConnectionManagerType,
+					ConfigType: &envoy_config_listener.Filter_TypedConfig{
+						TypedConfig: secureHttpConnectionManager.Any,
+					},
+				},
+			},
+			TransportSocket: transportSocket,
+		})
+	}
+
+	return filterChains, nil
+}
+
+func tlsPassthroughFilterChains(ptBackendsToHostnames map[string][]string) ([]*envoy_config_listener.FilterChain, error) {
+	if len(ptBackendsToHostnames) == 0 {
+		return nil, nil
+	}
+
+	var filterChains []*envoy_config_listener.FilterChain
+
+	orderedBackends := maps.Keys(ptBackendsToHostnames)
+	goslices.Sort(orderedBackends)
+
+	for _, backend := range orderedBackends {
+		hostNames := ptBackendsToHostnames[backend]
+		filterChains = append(filterChains, &envoy_config_listener.FilterChain{
+			FilterChainMatch: toFilterChainMatch(hostNames),
+			Filters: []*envoy_config_listener.Filter{
+				{
+					Name: tcpProxyType,
+					ConfigType: &envoy_config_listener.Filter_TypedConfig{
+						TypedConfig: toAny(&envoy_extensions_filters_network_tcp_v3.TcpProxy{
+							StatPrefix: backend,
+							ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{
+								Cluster: backend,
+							},
+						}),
+					},
+				},
+			},
+		})
+	}
+
+	return filterChains, nil
+}

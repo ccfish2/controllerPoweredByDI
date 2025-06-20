@@ -52,8 +52,8 @@ github.com/bombsimon/logrusr/v4 v4.1.0 h1:uZNPbwusB0eUXlO8hIUwStE6Lr5bLN6IgYgG+7
 github.com/bombsimon/logrusr/v4 v4.1.0/go.mod h1:pjfHC5e59CvjTBIU3V3sGhFWFAnsnhOR03TRc6im0l8=
 github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3 h1:1dd0CmP468v9HokMV9UDdQw8OVC/F6Xa1XwY2LEF96M=
 github.com/ccfish2/dolphin v0.0.0-20250119042231-0ba523d7aaa3/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
-github.com/ccfish2/infra v0.0.0-20250530184942-e1e83d38b516 h1:GJVdwMZLqoZNjdR6KrjbftW30Lxv2w1C77hEVhlARQ0=
-github.com/ccfish2/infra v0.0.0-20250530184942-e1e83d38b516/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
+github.com/ccfish2/infra v0.0.0-20250620015455-0318b7187e53 h1:ypLA2t5P46bISUKF+4TXqxFj9rVLwG2/UHu2jmegBtM=
+github.com/ccfish2/infra v0.0.0-20250620015455-0318b7187e53/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889/go.mod h1:tjRfsxyC0TvfKTP7XLCjNpGhGk00OHvelQn9SoTVMOs=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

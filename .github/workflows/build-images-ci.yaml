@@ -79,11 +79,11 @@ jobs:
 
       - name: Tag the Docker image
         run: |
-          docker tag dolphin-operator-generic:latest quay.io/hjimin/cilium-dev:${{ steps.tag.outputs.tag }}
+          docker tag dolphin-operator-generic:latest quay.io/$${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ steps.tag.outputs.tag }}
 
       - name: Push the Docker image
         run: |
-          docker push quay.io/hjimin/cilium-dev:${{ steps.tag.outputs.tag }}
+          docker push quay.io/$${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ steps.tag.outputs.tag }}
 
       - name: Save Docker Image as Tar
         run: |
