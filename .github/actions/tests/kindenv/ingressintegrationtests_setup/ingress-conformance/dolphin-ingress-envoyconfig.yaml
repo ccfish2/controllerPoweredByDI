@@ -2,7 +2,7 @@ apiVersion: cilium.io/v2
 kind: CiliumEnvoyConfig
 metadata:
   name: dolphin-ingress
-  namespace: kube-system
+  namespace: dolphin
 spec:
   backendServices:
   - name: details
