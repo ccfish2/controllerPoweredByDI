@@ -14,7 +14,7 @@ import (
 
 func isdolphinManagedIngress(ctx context.Context, c client.Client, log logrus.FieldLogger, ing networkingv1.Ingress) bool {
 	ingClsName := ingressClassName(ing)
-	log.Info(ingClsName, ":::", dolphinIngressClassName)
+	log.Info(*ingClsName, ":::", dolphinIngressClassName)
 	if ingClsName != nil && *ingClsName == dolphinIngressClassName {
 		log.Info("ingress class is dolphin ingress class")
 		return true

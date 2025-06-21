@@ -76,7 +76,7 @@ func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Creation / Update of Ingress resources depending on the loadbalancer mode
 	if r.isEffectiveLoadbalancerModeDedicated(ingress) {
-		scopedLog.Debug("Updating dedicated resources")
+		scopedLog.Info("Updating dedicated resources")
 		if err := r.createOrUpdateDedicatedResources(ctx, ingress); err != nil {
 			if k8serrors.IsForbidden(err) && k8serrors.HasStatusCause(err, corev1.NamespaceTerminatingCause) {
 				scopedLog.Info("Aborting reconciliation because namespace is being terminated")
@@ -92,7 +92,7 @@ func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return controllerruntime.Fail(err)
 		}
 	} else {
-		scopedLog.Debug("Updating shared resources")
+		scopedLog.Info("Updating shared resources")
 		if err := r.createOrUpdateSharedResources(ctx); err != nil {
 			return controllerruntime.Fail(err)
 		}

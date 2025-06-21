@@ -8,7 +8,6 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/ccfish2/infra/pkg/option"
 	"github.com/spf13/viper"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var log = logging.DefaultLoggerNoFile.WithField(logfields.LogSubsys, "option")
@@ -209,7 +208,7 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 
 	if c.DolphinK8sNamespace == "" {
 		if option.Config.K8sNamespace == "" {
-			c.DolphinK8sNamespace = metav1.NamespaceDefault
+			c.DolphinK8sNamespace = "dolphin"
 		} else {
 			c.DolphinK8sNamespace = option.Config.K8sNamespace
 		}
