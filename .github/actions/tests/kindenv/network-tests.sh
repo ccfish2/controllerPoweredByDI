@@ -165,15 +165,19 @@ while true; do
   fi
 done
 
+# dedicated lb mode - each ingress will created with LB type service, which will be used in CEC route
+# shared lb mode
+#  deploy one LB service dolphin-ingress with external IP into dolphin name space 
+#  manually create special Endpoints into dolphin namespace
+#  newly added ingress will be redirect to the dolphin-ingress service, which will be used in CEC route
+#  CEC needs manually created for routing
+
 # setup end2end with customized agent, envoy, EnvoyConfig
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive
-
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml 
-# ensure aget is running and ready
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
-# ensure envoy is running and ready
 
-# deploy the customzed envoy that points to the ingressIP 
+# deploy the customzed proxy that points to the ingressIP 
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
 
 # apply ingressClass
@@ -307,6 +311,9 @@ check_ing_dolphin_envoy_config() {
 }
 check_ing_dolphin_envoy_config
 
+
+echo "Checking kube-system cilium agent and envoy pods are ready"
+
 NAMESPACE="kube-system"
 TIMEOUT=120
 INTERVAL=5
@@ -366,6 +373,7 @@ verify_connectivity() {
 }
 
 verify_connectivity "$ingressip" || exit 1
+
 
 echo "Verify Gateway API end2end"
 source "$(dirname "$0")/gatewayapi_setup.sh"
