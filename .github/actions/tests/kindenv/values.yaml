@@ -1,0 +1,2 @@
+ingressController:
+  loadbalancerMode: shared

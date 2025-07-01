@@ -165,155 +165,14 @@ while true; do
   fi
 done
 
-# dedicated lb mode - each ingress will created with LB type service, which will be used in CEC route
-# shared lb mode
-#  deploy one LB service dolphin-ingress with external IP into dolphin name space 
-#  manually create special Endpoints into dolphin namespace
-#  newly added ingress will be redirect to the dolphin-ingress service, which will be used in CEC route
-#  CEC needs manually created for routing
 
 # setup end2end with customized agent, envoy, EnvoyConfig
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive
+
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml 
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
 
-# deploy the customzed proxy that points to the ingressIP 
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
-
-# apply ingressClass
-kubectl apply -f - <<EOF
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: dolphin
-spec:
-  controller: dolphin.io/ingress-controller
-EOF
-
-# apply book info service 
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-
-# apply basic-ingress
-kubectl apply -f - <<EOF 
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: basic-ingress
-  namespace: dolphin
-spec:
-  ingressClassName: dolphin
-  rules:
-  - http:
-      paths:
-      - backend:
-          service:
-            name: details
-            port:
-              number: 9080
-        path: /details
-        pathType: Prefix
-      - backend:
-          service:
-            name: productpage
-            port:
-              number: 9080
-        path: /
-        pathType: Prefix
-EOF
-
-# ensure ingress-controller reconcile
-# loadbalancer service is up, external ip is assigned to the ingress, DolphinEnvoyConfig is created and with correct status
-end=$((SECONDS+120))
-while true; do
-    ingressip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
-
-    if [[ -n "$ingressip" ]]; then
-        echo "Ingress Service IP acquired: $ingressip"
-        break
-    fi
-
-    echo "Waiting for Ingress IP..."
-    sleep 5
-
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for Service IP"
-        exit 1
-    fi
-done
-
-
-check_service_external_ip() {
-  local namespace="dolphin"
-  local service_name=$1
-  local retries=10
-  local sleep_seconds=5
-
-  echo "🔍 Checking if service '$service_name' exists in namespace '$namespace'..."
-
-  # Check if the service exists
-  if ! kubectl get svc "$service_name" -n "$namespace" >/dev/null 2>&1; then
-    echo "❌ Service '$service_name' not found in namespace '$namespace'."
-    return 1
-  fi
-
-  echo "✅ Service exists. Waiting for EXTERNAL-IP to be assigned..."
-
-  # Wait for EXTERNAL-IP
-  for ((i=1; i<=retries; i++)); do
-    external_ip=$(kubectl get svc "$service_name" -n "$namespace" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    
-    if [[ -n "$external_ip" ]]; then
-      echo "✅ Service has external IP: $external_ip"
-      return 0
-    fi
-
-    echo "⏳ Attempt $i/$retries: EXTERNAL-IP not assigned yet. Retrying in $sleep_seconds seconds..."
-    sleep "$sleep_seconds"
-  done
-
-  echo "❌ EXTERNAL-IP was not assigned after $retries attempts."
-  return 1
-}
-
-# Call the function
-check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
-
-
-# verify DolphinEnvoyConfig populated as expected
-check_ing_dolphin_envoy_config() {
-  local namespace="dolphin"
-  local resource_name="dolphin-ingress-dolphin-basic-ingress"
-  local expected_service_name="dolphin-ingress-basic-ingress"
-  local expected_service_namespace="dolphin"
-
-  echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
-
-  # Check if the DolphinEnvoyConfig exists
-  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
-    echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
-    return 1
-  fi
-
-  local actual_service_name actual_service_namespace
-  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].name}')
-  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].namespace}')
-
-  if [[ "$actual_service_name" == "$expected_service_name" && \
-        "$actual_service_namespace" == "$expected_service_namespace" ]]; then
-    echo "✅ Resource and expected services entry found."
-    return 0
-  else
-    echo "❌ Resource exists but expected services entry is missing or incorrect."
-    echo "    Expected: name=$expected_service_name, namespace=$expected_service_namespace"
-    echo "    Actual:   name=$actual_service_name, namespace=$actual_service_namespace"
-    return 2
-  fi
-}
-check_ing_dolphin_envoy_config
-
-
 echo "Checking kube-system cilium agent and envoy pods are ready"
-
 NAMESPACE="kube-system"
 TIMEOUT=120
 INTERVAL=5
@@ -345,44 +204,13 @@ wait_for_pods() {
 wait_for_pods "k8s-app=cilium" "agent" || exit 1
 wait_for_pods "k8s-app=cilium-envoy" "envoy" || exit 1
 
-
-verify_connectivity() {
-  local ingress_ip="$1"
-  local timeout=120
-  local end=$((SECONDS + timeout))
-
-  while true; do
-    echo "Checking internal connectivity to basic-ingress service at $ingress_ip..."
-    
-    output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
-      curl -s --fail -v http://$ingress_ip/details/1)
-
-    if echo "$output" | grep -q "William Shakespeare"; then
-      echo "Ingress LoadBalancer Service is reachable."
-      return 0
-    fi
-
-    echo "Ingress LoadBalancer Service not reachable yet. Waiting 5 seconds..."
-    sleep 5
-
-    if (( SECONDS > end )); then
-      echo "Timeout waiting for Ingress LoadBalancer Service to be reachable"
-      return 1
-    fi
-  done
-}
-
-verify_connectivity "$ingressip" || exit 1
-
-
 echo "Verify Gateway API end2end"
 source "$(dirname "$0")/gatewayapi_setup.sh"
+source "$(dirname "$0")/gatewayapi_setup.sh"
+
 # This script sets up a Gateway API environment in a Kind cluster.
 echo "deply services in the same namespace"
 kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-echo "reducing resources, remove services in default namespace"
-kubectl delete -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-
 
 echo "deploy gateway class"
 kubectl apply -f - <<EOF
