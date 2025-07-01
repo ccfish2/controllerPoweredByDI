@@ -169,9 +169,13 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/operator-tests.sh
       
-      - name: Run Network Tests
+      - name: Run Network Ingress Tests
         run: |
-          bash .github/actions/tests/kindenv/network-tests.sh
+          bash .github/actions/tests/kindenv/network-ingress-tests.sh
+
+      - name: Run Network Gateway API Tests
+        run: |
+          bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
 
       - name: Delete KinD cluster
         if: always()
