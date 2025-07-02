@@ -168,14 +168,16 @@ done
 
 # dedicated lb mode - each ingress is created with its own loadbalancer service
 # deploy multiple ingress and verify each ingress is created with its own loadbalancer service
+source "$(dirname "$0")/helper.sh"
 
 # setup end2end with customized agent, envoy, EnvoyConfig
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # run the agent
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml 
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
 
 # deploy the customzed proxy that points to the ingressIP 
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
+
 
 # apply ingressClass
 kubectl apply -f - <<EOF
@@ -342,25 +344,29 @@ wait_for_pods "k8s-app=cilium" "agent" || exit 1
 wait_for_pods "k8s-app=cilium-envoy" "envoy" || exit 1
 
 verify_connectivity "$ingressip" || exit 1
-kubetl -n dolphin delete ingress basic-ingress
-
-time sleep 30
+echo "clean up dedicated ingress lb mode testing environment"
+kubectl -n dolphin delete ingress basic-ingress
+kubectl -n dolphin delete CiliumEnvoyConfig cilium-ingress-default-basic-ingress || true
+kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
+time sleep 5
 
 # shared lb mode
 #  deploy one LB service dolphin-ingress with external IP into dolphin name space 
 #  manually create special Endpoints into dolphin namespace
-kubernetes apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/ --recursive
-time sleep 30
+kubernetes apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/custom-agent-sharedmode.yaml
+kubectl -n kube-system rollout restart ds/cilium
+wait_for_pods "k8s-app=cilium" "agent" || exit 1
 
 # switch operator lb-mode to shared mode
 helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
 helm repo update
 helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace
-helm upgrade --install dolphin-operator dolphin-operator/dolphin-operator -f values.yaml --namespace dolphin --create-namespace
-kubernetes -n dolphin rollout restart sts/operator-dolphin
+helm upgrade --install dolphin-operator dolphin-operator/dolphin-operator -f .github/actions/tests/kindenv/values.yaml --namespace dolphin --create-namespace
 
+kubectl -n dolphin rollout restart sts/operator-dolphin
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-ingress-svc.yaml
 # ensure all operator pods are up successfully
-time sleep 30
+time sleep 20
 
 # apply basic-ingress
 kubectl apply -f - <<EOF 
@@ -391,4 +397,60 @@ spec:
 EOF
 #  newly added ingress will be redirect to the dolphin-ingress service, which will be used in CEC route
 #  manually create CEC (this CEC will get updated as added ingress) for routing
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-ingress-envoyconfig.yaml
+
+time sleep 10
 verify_connectivity "$ingressip" || exit 1
+
+
+kubectl apply -f - <<EOF 
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: basic-ingress-shared
+  namespace: dolphin
+spec:
+  ingressClassName: dolphin
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: details
+            port:
+              number: 9080
+        path: /details
+        pathType: Prefix
+      - backend:
+          service:
+            name: productpage
+            port:
+              number: 9080
+        path: /
+        pathType: Prefix
+EOF
+
+end=$((SECONDS+120))
+while true; do
+    ingresssharedlbip=$(kubectl -n dolphin get ingress basic-ingress-shared -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+    if [[ -n "$ingresssharedlbip" ]]; then
+        echo "Ingress Service IP acquired: $ingresssharedlbip"
+        break
+    fi
+
+    echo "Waiting for Ingress IP..."
+    sleep 5
+
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for Service IP"
+        exit 1
+    fi
+done
+
+if [ "$ingresssharedlbip" != "$ingressip" ]; then
+  echo "Error: ingresssharedlbip ($ingresssharedlbip) does not match ingressip ($ingressip)"
+  exit 1
+else
+  echo "✅ IPs match: $ingresssharedlbip"
+fi
