@@ -353,11 +353,14 @@ time sleep 5
 # shared lb mode
 #  deploy one LB service dolphin-ingress with external IP into dolphin name space 
 #  manually create special Endpoints into dolphin namespace
-kubernetes apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/custom-agent-sharedmode.yaml
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/custom-agent-sharedmode.yaml
 kubectl -n kube-system rollout restart ds/cilium
 wait_for_pods "k8s-app=cilium" "agent" || exit 1
 
 # switch operator lb-mode to shared mode
+kubectl -n dolphin delete sts/operator-dolphin
+time sleep 3
+
 helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
 helm repo update
 helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace
