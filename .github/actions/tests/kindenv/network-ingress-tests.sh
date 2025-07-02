@@ -399,7 +399,24 @@ EOF
 #  manually create CEC (this CEC will get updated as added ingress) for routing
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-ingress-envoyconfig.yaml
 
-time sleep 10
+end=$((SECONDS+120))
+while true; do
+    ingressip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+    if [[ -n "$ingressip" ]]; then
+        echo "Ingress Service IP acquired: $ingressip"
+        break
+    fi
+
+    echo "Waiting for Ingress IP..."
+    sleep 5
+
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for Service IP"
+        exit 1
+    fi
+done
+
 verify_connectivity "$ingressip" || exit 1
 
 
