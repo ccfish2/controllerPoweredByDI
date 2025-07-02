@@ -63,7 +63,7 @@ end=$((SECONDS+120))
 while true; do
     gatewayip=$(kubectl -n dolphin get gateway my-gateway -o jsonpath="{.status.addresses[?(@.type=='IPAddress')].value}")
 
-    if [[ -n "$ingressip" ]]; then
+    if [[ -n "$gatewayip" ]]; then
         echo "Gateway Service IP acquired: $gatewayip"
         break
     fi
