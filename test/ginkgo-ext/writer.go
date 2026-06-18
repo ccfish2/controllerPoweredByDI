@@ -10,7 +10,7 @@ import (
 type Writer struct {
 	Buffer    *bytes.Buffer
 	outWriter io.Writer
-	lock      lock.Mutex
+	lock      *lock.Mutex
 }
 
 func NewWriter(out io.Writer) *Writer {
