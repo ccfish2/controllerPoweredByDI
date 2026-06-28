@@ -246,6 +246,7 @@ done
 # Call the function
 check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
 
+kubectl -n dolphin get DolphinEnvoyConfig dolphin-ingress-dolphin-basic-ingress -o yaml
 
 # verify DolphinEnvoyConfig populated as expected
 check_ing_dolphin_envoy_config() {
