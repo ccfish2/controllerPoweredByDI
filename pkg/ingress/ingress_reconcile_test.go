@@ -2,7 +2,6 @@ package ingress
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"testing"
 
@@ -171,9 +170,7 @@ func TestReconcile(t *testing.T) {
 			[]string{}, testDefaultLoadbalancingServiceName, "dedicated", testDefaultSecretNamespace, testDefaultSecretName, testDefaultTimeout)
 
 		result, err := ingressReconcile.Reconcile(context.Background(), reconcile.Request{types.NamespacedName{"test", "test"}})
-		if err != nil {
-			fmt.Errorf(err.Error())
-		}
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 
 		// ensure dolphinenvoyconfig, coreservice loadbalancer is created successfully
