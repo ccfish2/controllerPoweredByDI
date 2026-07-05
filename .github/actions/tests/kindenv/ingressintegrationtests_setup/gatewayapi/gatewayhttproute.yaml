@@ -13,6 +13,15 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
+  - protocol: HTTPS
+    port: 443
+    name: web-gw-tls
+    hostname: "*"
+    tls:
+      certificateRefs:
+      - kind: Secret
+        group: core
+        name: test-tls-secret
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

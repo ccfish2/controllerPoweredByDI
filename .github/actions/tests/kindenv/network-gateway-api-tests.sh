@@ -24,7 +24,11 @@ wait_for_gatewayclass_accepted "dolphin" 120 5 || exit 1
 
 # deploy gateway and httproute
 echo "deploy gateway and httproute"
+openssl req -x509 -nodes -newkey rsa:2048 -days 1 -keyout /tmp/gateway-tls.key -out /tmp/gateway-tls.crt -subj "/CN=example.com" >/dev/null 2>&1
+kubectl -n dolphin create secret tls test-tls-secret --cert=/tmp/gateway-tls.crt --key=/tmp/gateway-tls.key --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
+
+rm -f /tmp/gateway-tls.crt /tmp/gateway-tls.key
 
 # deploy customized envoyconfig yaml
 echo "deploy customized envoyconfig yaml"
@@ -36,6 +40,7 @@ wait_for_httproute_ready "dolphin" "http-app-1" 120 5 || exit 1
 
 echo "verify gateway status"
 verify_gateway_ready "dolphin" "my-gateway" 120 5 || exit 1
+verify_gateway_tls_listener_ready "dolphin" "my-gateway" "https" 120 5 || exit 1
 
 echo "checking gateway svc"
 check_service_external_ip "dolphin-gateway-my-gateway" || exit 1

@@ -160,3 +160,47 @@ verify_gateway_endpoints() {
     return 1
   fi
 }
+
+verify_gateway_tls_listener_ready() {
+  local namespace="$1"
+  local gateway_name="$2"
+  local listener_name="${3:-https}"
+  local timeout="${4:-60}"
+  local interval="${5:-2}"
+  local elapsed=0
+
+  echo "⏳ Verifying Gateway listener '$listener_name' on '$gateway_name'..."
+
+  while true; do
+    local output
+    output=$(kubectl get gateway "$gateway_name" -n "$namespace" -o json 2>/dev/null || echo "")
+
+    if [[ -z "$output" ]]; then
+      echo "❌ Gateway '$gateway_name' not found."
+      return 1
+    fi
+
+    local listener
+    listener=$(echo "$output" | jq -r --arg name "$listener_name" '.status.listeners[]? | select(.name == $name)')
+
+    if [[ -n "$listener" ]]; then
+      local accepted programmed resolved
+      accepted=$(echo "$listener" | jq -r '.conditions[] | select(.type=="Accepted") | .status')
+      programmed=$(echo "$listener" | jq -r '.conditions[] | select(.type=="Programmed") | .status')
+      resolved=$(echo "$listener" | jq -r '.conditions[] | select(.type=="ResolvedRefs") | .status')
+
+      if [[ "$accepted" == "True" && "$programmed" == "True" && "$resolved" == "True" ]]; then
+        echo "✅ Gateway listener '$listener_name' is Accepted, Programmed, and ResolvedRefs=True."
+        return 0
+      fi
+    fi
+
+    if (( elapsed >= timeout )); then
+      echo "❌ Timed out waiting for Gateway listener '$listener_name' to be ready."
+      return 1
+    fi
+
+    sleep "$interval"
+    ((elapsed += interval))
+  done
+}

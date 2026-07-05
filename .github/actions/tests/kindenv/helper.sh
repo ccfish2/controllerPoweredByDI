@@ -26,6 +26,32 @@ verify_connectivity() {
   done
 }
 
+verify_https_connectivity() {
+  local ingress_ip="$1"
+  local hostname="${2:-example.com}"
+  local timeout=120
+  local end=$((SECONDS + timeout))
+
+  while true; do
+    echo "Checking HTTPS connectivity to $hostname at $ingress_ip..."
+
+    output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
+      curl -sS -k --resolve "$hostname:443:$ingress_ip" "https://$hostname/details/1")
+
+    if echo "$output" | grep -q "William Shakespeare"; then
+      echo "HTTPS ingress endpoint is reachable."
+      return 0
+    fi
+
+    echo "HTTPS ingress endpoint not reachable yet. Waiting 5 seconds..."
+    sleep 5
+
+    if (( SECONDS > end )); then
+      echo "Timeout waiting for HTTPS ingress endpoint to be reachable"
+      return 1
+    fi
+  done
+}
 
 check_service_external_ip() {
   local namespace="dolphin"

@@ -280,6 +280,65 @@ check_ing_dolphin_envoy_config() {
 }
 check_ing_dolphin_envoy_config
 
+echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
+openssl req -x509 -nodes -newkey rsa:2048 -days 1 -keyout /tmp/tls-ingress.key -out /tmp/tls-ingress.crt -subj "/CN=example.com" >/dev/null 2>&1
+kubectl -n dolphin create secret tls tls-ingress-secret --cert=/tmp/tls-ingress.crt --key=/tmp/tls-ingress.key --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n dolphin apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tls-ingress
+spec:
+  ingressClassName: dolphin
+  tls:
+  - hosts:
+    - example.com
+    secretName: tls-ingress-secret
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: details
+            port:
+              number: 9080
+        path: /details
+        pathType: Prefix
+      - backend:
+          service:
+            name: productpage
+            port:
+              number: 9080
+        path: /
+        pathType: Prefix
+EOF
+
+end=$((SECONDS+120))
+while true; do
+    ingressip=$(kubectl -n dolphin get ingress tls-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+    if [[ -n "$ingressip" ]]; then
+        echo "TLS Ingress Service IP acquired: $ingressip"
+        break
+    fi
+
+    echo "Waiting for TLS Ingress IP..."
+    sleep 5
+
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for TLS Ingress Service IP"
+        exit 1
+    fi
+done
+
+verify_https_connectivity "$ingressip" "example.com" || exit 1
+
+kubectl -n dolphin delete ingress tls-ingress
+kubectl -n dolphin delete secret tls-ingress-secret
+rm -f /tmp/tls-ingress.crt /tmp/tls-ingress.key
+
 echo "Checking kube-system cilium agent and envoy pods are ready"
 
 NAMESPACE="kube-system"
