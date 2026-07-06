@@ -29,6 +29,12 @@ jobs:
       image_tag: ${{ steps.tag.outputs.tag }}
 
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx (for caching)
+        uses: docker/setup-buildx-action@v3
+
       - name: Checkout main code (trusted)
         uses: actions/checkout@v3
         with: 
