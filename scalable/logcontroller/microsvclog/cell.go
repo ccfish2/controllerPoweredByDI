@@ -61,6 +61,11 @@ func loadCfg(params logControllerParams) *logctl.LogConfig {
 }
 
 func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logs3.S3Client {
+	if cfg == nil {
+		params.Logger.Warn("log controller config is not available; skipping S3 client initialization")
+		return nil
+	}
+
 	s3cli, err := logs3.NewS3Client(cfg.AWSRegion, logs3.S3ClientOpts{})
 	if err != nil {
 		params.Logger.WithError(err).Error("failed to create S3 client")
@@ -70,6 +75,15 @@ func generateS3Client(params logControllerParams, cfg *logctl.LogConfig) logs3.S
 }
 
 func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3cli logs3.S3Client) {
+	if cfg == nil {
+		params.Logger.Warn("log controller config is not available; skipping registration")
+		return
+	}
+	if s3cli == nil {
+		params.Logger.Warn("S3 client is not available; skipping registration")
+		return
+	}
+
 	scopedLog := params.Logger.WithFields(logrus.Fields{
 		logfields.Controller: "log-controller",
 		logfields.Resource:   "logs",

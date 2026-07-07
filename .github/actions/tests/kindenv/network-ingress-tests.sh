@@ -264,8 +264,8 @@ check_ing_dolphin_envoy_config() {
   fi
 
   local actual_service_name actual_service_namespace
-  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].name}')
-  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.services[0].namespace}')
+  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].name}')
+  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].namespace}')
 
   if [[ "$actual_service_name" == "$expected_service_name" && \
         "$actual_service_namespace" == "$expected_service_namespace" ]]; then
