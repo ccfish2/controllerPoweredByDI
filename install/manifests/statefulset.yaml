@@ -33,7 +33,7 @@ spec:
         - name: quay-secret
       containers:
       - name: dolphin-operator
-        image: quay.io/hjimin/cilium-dev:051020250501
+        image: docker.io/jimin1/cilium-dev:051020250501
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9953
