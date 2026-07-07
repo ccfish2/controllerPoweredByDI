@@ -231,6 +231,81 @@ func TestReconcile(t *testing.T) {
 			require.True(t, k8sApisErrors.IsNotFound(err), "Service should not be created")
 
 		})
+
+	t.Run("Ingress with TLS should translate TLS secret and create secure listener", func(t *testing.T) {
+		tlsSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test",
+				Name:      "tls-secret",
+			},
+			Type: corev1.SecretTypeTLS,
+			Data: map[string][]byte{
+				corev1.TLSCertKey:       []byte("cert-data"),
+				corev1.TLSPrivateKeyKey: []byte("key-data"),
+			},
+		}
+
+		ingressWithTLS := &networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test",
+				Name:      "ingress-with-tls",
+			},
+			Spec: networkingv1.IngressSpec{
+				IngressClassName: model.AddressOf("dolphin"),
+				TLS: []networkingv1.IngressTLS{
+					{
+						Hosts:      []string{"example.com"},
+						SecretName: "tls-secret",
+					},
+				},
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: "example.com",
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     "/",
+										PathType: model.AddressOf(networkingv1.PathTypePrefix),
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: "backend-svc",
+												Port: networkingv1.ServiceBackendPort{
+													Number: 8080,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(testScheme()).
+			WithObjects(tlsSecret, ingressWithTLS).
+			Build()
+
+		ingr := newIngressReconciler(logger, fakeClient, testDolphinNamespace, testEnforceHTTPS, testUseProxyProtocol, testDolphinSecretsNamespace, []string{}, testDefaultLoadbalancingServiceName, "dedicated", testDefaultSecretNamespace, testDefaultSecretName, testDefaultTimeout)
+		require.NotNil(t, ingr)
+
+		res, err := ingr.Reconcile(context.Background(), reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: "test",
+				Name:      "ingress-with-tls",
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+
+		dec := dolphinv1.DolphinEnvoyConfig{}
+		err = fakeClient.Get(context.Background(), client.ObjectKey{Namespace: "test", Name: "dolphin-ingress-ingress-with-tls"}, &dec)
+		require.NoError(t, err, "DolphinEnvoyConfig should be created for TLS ingress")
+		require.NotEmpty(t, dec.Spec.Resources, "Resources should be present in envoy config")
+	})
 }
 
 func defaultBackend() *networkingv1.IngressBackend {
