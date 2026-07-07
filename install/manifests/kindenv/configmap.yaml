@@ -1,7 +1,7 @@
 apiVersion: v1
 data:
   Apps: '["App1", "App2"]'
-  LogRootPath: "/app/logs"
+  LogRootPath: "/tmp/logs"
   S3Bucket: "dolphin-bucket"
   AWSRegion: "us-west-2"
   enable-ipv4: "true"

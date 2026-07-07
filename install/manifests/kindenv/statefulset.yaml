@@ -83,7 +83,7 @@ spec:
           mountPath: /tmp/dolphin/config-map
           readOnly: true
         - name: log-volume
-          mountPath: /app/logs
+          mountPath: /tmp/logs
       dnsPolicy: ClusterFirst
       nodeSelector:
         kubernetes.io/os: linux
