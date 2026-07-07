@@ -56,12 +56,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker-
 
-      - name: Login to quay.io
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USER }}
-          password: ${{ secrets.QUAY_PASSWD }}
+          registry: docker.io
+          username: ${{ vars.DOCKERUSERNAME }}
+          password: ${{ secrets.DOCKERPASSWD }}
 
       - name: Getting image tag
         id: tag
@@ -85,11 +85,11 @@ jobs:
 
       - name: Tag the Docker image
         run: |
-          docker tag dolphin-operator-generic:latest quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ steps.tag.outputs.tag }}
+          docker tag docker.io/jimin1/dolphin-operator-generic:latest docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
 
       - name: Push the Docker image
         run: |
-          docker push quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ steps.tag.outputs.tag }}
+          docker push docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
 
       - name: Save Docker Image as Tar
         run: |

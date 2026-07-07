@@ -8,7 +8,7 @@ build: $(TARGETS)
 
 docker-operator-image-generic: dolphin-operator-generic
 	@echo "Building Docker image for dolphin-operator-generic"
-	docker buildx build --platform=linux/arm64,linux/amd64 -t dolphin-operator-generic:latest -f ./images/Dockerfile --push .
+	docker buildx build --platform=linux/arm64,linux/amd64 -t docker.io/jimin1/dolphin-operator-generic:latest -f ./images/Dockerfile --push .
 
 dolphin-operator-generic:
 	@echo "Running go build -o dolphin-operator-generic with GO_TAGS_FLAGS=ipam_provider_operator"
