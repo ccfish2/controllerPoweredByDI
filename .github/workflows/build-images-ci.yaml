@@ -81,19 +81,12 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
         run: |
-          make docker-operator-image-generic NOCACHE=1
-
-      - name: Tag the Docker image
-        run: |
-          docker tag docker.io/jimin1/dolphin-operator-generic:latest docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
-
-      - name: Push the Docker image
-        run: |
-          docker push docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
+          make docker-operator-image-generic IMAGE_TAG=${{ steps.tag.outputs.tag }} NOCACHE=1
 
       - name: Save Docker Image as Tar
         run: |
-          docker save -o dolphin-operator-generic.tar dolphin-operator-generic:latest
+          docker pull docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
+          docker save -o dolphin-operator-generic.tar docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
 
       - name: Upload Docker Tar as Artifact
         uses: actions/upload-artifact@v4
