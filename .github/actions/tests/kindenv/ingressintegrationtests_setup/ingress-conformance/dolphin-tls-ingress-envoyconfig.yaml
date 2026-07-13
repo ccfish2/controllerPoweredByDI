@@ -54,8 +54,7 @@ spec:
           useRemoteAddress: true
     - filterChainMatch:
         serverNames:
-        - bookinfo.dolphin.rocks
-        - hipstershop.dolphin.rocks
+        - bookinfo.cilium.rocks
         transportProtocol: tls
       filters:
       - name: envoy.filters.network.http_connection_manager
@@ -97,7 +96,7 @@ spec:
           '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           commonTlsContext:
             tlsCertificateSdsSecretConfigs:
-            - name: dolphin-secrets/default-demo-cert
+            - name: cilium-secrets/tls-ingress-secret
     listenerFilters:
     - name: envoy.filters.listener.tls_inspector
       typedConfig:
@@ -124,9 +123,9 @@ spec:
     name: listener-insecure
     virtualHosts:
     - domains:
-      - bookinfo.dolphin.rocks
-      - bookinfo.dolphin.rocks:*
-      name: bookinfo.dolphin.rocks
+      - bookinfo.cilium.rocks
+      - bookinfo.cilium.rocks:*
+      name: bookinfo.cilium.rocks
       routes:
       - match:
           pathSeparatedPrefix: /details
@@ -134,19 +133,6 @@ spec:
           httpsRedirect: true
       - match:
           prefix: /
-        redirect:
-          httpsRedirect: true
-    - domains:
-      - hipstershop.dolphin.rocks
-      - hipstershop.dolphin.rocks:*
-      name: hipstershop.dolphin.rocks
-      routes:
-      - match:
-          pathSeparatedPrefix: /hipstershop.ProductCatalogService
-        redirect:
-          httpsRedirect: true
-      - match:
-          pathSeparatedPrefix: /hipstershop.CurrencyService
         redirect:
           httpsRedirect: true
 
@@ -187,3 +173,33 @@ spec:
     ports:
     - 80
     - 443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tls-ingress
+  namespace: dolphin
+spec:
+  ingressClassName: dolphin
+  rules:
+  - host: bookinfo.cilium.rocks
+    http:
+      paths:
+      - backend:
+          service:
+            name: details
+            port:
+              number: 9080
+        path: /details
+        pathType: Prefix
+      - backend:
+          service:
+            name: productpage
+            port:
+              number: 9080
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - bookinfo.cilium.rocks
+    secretName: tls-ingress-secret

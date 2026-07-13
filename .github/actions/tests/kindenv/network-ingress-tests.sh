@@ -280,72 +280,6 @@ check_ing_dolphin_envoy_config() {
 }
 check_ing_dolphin_envoy_config
 
-echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
-git clone https://github.com/FiloSottile/mkcert.git
-cd mkcert
-go build -ldflags "-X main.Version=$(git describe --tags)"
-mkcert bookinfo.dolphin.rocks hispter.dolphin.rocks
-# cert is bookinfo.dolphin.rocks+1.pem
-# key is bookinfo.dolphin.rocks+1-key.pem
-cp bookinfo.dolphin.rocks+1-key.pem  nwp-verify-control-plane:/mycerts/bookinfo.dolphin.rocks+1-key.pem
-cp bookinfo.dolphin.rocks+1.pem  nwp-verify-control-plane:/mycerts/bookinfo.dolphin.rocks+1.pem
-echo "Creating tls secret for ingress"
-kubectl create secret tls tls-ingress-secret --key=/mkcerts/bookinfo.dolphin.rocks+1-key.pem --cert=/mkcerts/bookinfo.dolphin.rocks+1.pem
-
-kubectl -n dolphin apply -f - <<EOF
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: tls-ingress
-spec:
-  ingressClassName: dolphin
-  tls:
-  - hosts:
-    - example.com
-    secretName: tls-ingress-secret
-  rules:
-  - host: example.com
-    http:
-      paths:
-      - backend:
-          service:
-            name: details
-            port:
-              number: 9080
-        path: /details
-        pathType: Prefix
-      - backend:
-          service:
-            name: productpage
-            port:
-              number: 9080
-        path: /
-        pathType: Prefix
-EOF
-
-end=$((SECONDS+120))
-while true; do
-    ingressip=$(kubectl -n dolphin get ingress tls-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
-
-    if [[ -n "$ingressip" ]]; then
-        echo "TLS Ingress Service IP acquired: $ingressip"
-        break
-    fi
-
-    echo "Waiting for TLS Ingress IP..."
-    sleep 5
-
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for TLS Ingress Service IP"
-        exit 1
-    fi
-done
-
-verify_https_connectivity "$ingressip" "example.com" || exit 1
-
-kubectl -n dolphin delete ingress tls-ingress
-kubectl -n dolphin delete secret tls-ingress-secret
-rm -f /tmp/tls-ingress.crt /tmp/tls-ingress.key
 
 echo "Checking kube-system cilium agent and envoy pods are ready"
 
@@ -459,7 +393,6 @@ done
 
 verify_connectivity "$ingressip" || exit 1
 
-
 kubectl apply -f - <<EOF 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -511,3 +444,112 @@ if [ "$ingresssharedlbip" != "$ingressip" ]; then
 else
   echo "✅ IPs match: $ingresssharedlbip"
 fi
+
+#!/usr/bin/env bash
+ 
+echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
+ 
+DOMAIN="bookinfo.cilium.rocks"
+CERT_FILE="${DOMAIN}+1.pem"
+KEY_FILE="${DOMAIN}+1-key.pem"
+ 
+# --- Generate cert ---
+if [[ ! -d mkcert ]]; then
+  git clone https://github.com/FiloSottile/mkcert.git
+fi
+cd mkcert
+go build -ldflags "-X main.Version=$(git describe --tags)"
+mkcert "$DOMAIN"
+ 
+# --- Push cert material into cilium-secrets so Cilium's SDS watcher (envoy-secrets-namespace) picks it up ---
+kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
+ 
+kubectl -n cilium-secrets delete secret default-demo-cert --ignore-not-found
+kubectl -n cilium-secrets create secret tls default-demo-cert \
+  --cert="$CERT_FILE" \
+  --key="$KEY_FILE"
+ 
+# --- CA configmap for the in-cluster verification pod ---
+kubectl -n dolphin create configmap mkcert-ca --from-file=ca.pem="$CERT_FILE" \
+  --dry-run=client -o yaml | kubectl apply -f -
+ 
+# --- Apply CEC / ingress config ---
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
+ 
+# --- Wait for the LoadBalancer Service to get an external IP ---
+end=$((SECONDS + 120))
+ingressip=""
+while true; do
+    ingressip=$(kubectl -n dolphin get svc dolphin-ingress-tls-ingress \
+      -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+ 
+    if [[ -n "$ingressip" ]]; then
+        echo "TLS Ingress Service IP acquired: $ingressip"
+        break
+    fi
+ 
+    echo "Waiting for TLS Ingress IP..."
+    sleep 5
+ 
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for TLS Ingress Service IP"
+        exit 1
+    fi
+done
+ 
+# External connectivity check — confirm this helper does SNI/Host to $DOMAIN, not a hardcoded name
+verify_https_connectivity "$ingressip" "$DOMAIN" || exit 1
+ 
+# --- In-cluster cert-validated verification via busybox pod ---
+kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
+ 
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  namespace: dolphin
+spec:
+  restartPolicy: Never
+  containers:
+  - name: curl
+    image: curlimages/curl
+    command: ["curl", "-sv", "--cacert", "/certs/ca.pem", "https://${DOMAIN}/details/1"]
+    volumeMounts:
+    - name: ca-cert
+      mountPath: /certs
+  volumes:
+  - name: ca-cert
+    configMap:
+      name: mkcert-ca
+EOF
+ 
+set +e
+kubectl -n dolphin wait --for=jsonpath='{.status.phase}'=Succeeded pod/busybox --timeout=60s
+WAIT_STATUS=$?
+set -e
+ 
+LOG=$(kubectl -n dolphin logs pod/busybox)
+echo "$LOG"
+ 
+if [[ $WAIT_STATUS -ne 0 ]]; then
+    echo "busybox verification pod did not reach Succeeded phase"
+    kubectl -n dolphin describe pod busybox
+    exit 1
+fi
+ 
+# Adjust this pattern to match the real /details/1 response body
+if ! grep -q '"id":1' <<< "$LOG"; then
+    echo "Unexpected response body from /details/1 — TLS/backend verification failed"
+    exit 1
+fi
+ 
+echo "HTTPS verification succeeded"
+ 
+# --- Cleanup ---
+kubectl -n dolphin delete pod busybox --ignore-not-found
+kubectl -n dolphin delete configmap mkcert-ca --ignore-not-found
+kubectl -n cilium-secrets delete secret default-demo-cert --ignore-not-found
+kubectl delete -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml --ignore-not-found
+cd ..
+rm -rf mkcert
