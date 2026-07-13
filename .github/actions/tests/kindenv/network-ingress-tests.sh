@@ -281,8 +281,16 @@ check_ing_dolphin_envoy_config() {
 check_ing_dolphin_envoy_config
 
 echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
-openssl req -x509 -nodes -newkey rsa:2048 -days 1 -keyout /tmp/tls-ingress.key -out /tmp/tls-ingress.crt -subj "/CN=example.com" >/dev/null 2>&1
-kubectl -n dolphin create secret tls tls-ingress-secret --cert=/tmp/tls-ingress.crt --key=/tmp/tls-ingress.key --dry-run=client -o yaml | kubectl apply -f -
+git clone https://github.com/FiloSottile/mkcert.git
+cd mkcert
+go build -ldflags "-X main.Version=$(git describe --tags)"
+mkcert bookinfo.dolphin.rocks hispter.dolphin.rocks
+# cert is bookinfo.dolphin.rocks+1.pem
+# key is bookinfo.dolphin.rocks+1-key.pem
+cp bookinfo.dolphin.rocks+1-key.pem  nwp-verify-control-plane:/mycerts/bookinfo.dolphin.rocks+1-key.pem
+cp bookinfo.dolphin.rocks+1.pem  nwp-verify-control-plane:/mycerts/bookinfo.dolphin.rocks+1.pem
+echo "Creating tls secret for ingress"
+kubectl create secret tls tls-ingress-secret --key=/mkcerts/bookinfo.dolphin.rocks+1-key.pem --cert=/mkcerts/bookinfo.dolphin.rocks+1.pem
 
 kubectl -n dolphin apply -f - <<EOF
 apiVersion: networking.k8s.io/v1

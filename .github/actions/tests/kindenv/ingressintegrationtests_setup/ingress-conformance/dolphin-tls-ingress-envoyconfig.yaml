@@ -2,29 +2,15 @@ apiVersion: cilium.io/v2
 kind: CiliumEnvoyConfig
 metadata:
   name: dolphin-tls-ingress
-  namespace: default
-  ownerReferences:
-  - apiVersion: networking.k8s.io/v1
-    blockOwnerDeletion: true
-    controller: true
-    kind: Ingress
-    name: tls-ingress
+  namespace: dolphin
 spec:
   backendServices:
-  - name: currencyservice
-    namespace: default
-    number:
-    - "7000"
   - name: details
-    namespace: default
+    namespace: dolphin
     number:
     - "9080"
-  - name: productcatalogservice
-    namespace: default
-    number:
-    - "3550"
   - name: productpage
-    namespace: default
+    namespace: dolphin
     number:
     - "9080"
   resources:
@@ -163,48 +149,12 @@ spec:
           pathSeparatedPrefix: /hipstershop.CurrencyService
         redirect:
           httpsRedirect: true
-  - '@type': type.googleapis.com/envoy.config.route.v3.RouteConfiguration
-    name: listener-secure
-    virtualHosts:
-    - domains:
-      - bookinfo.dolphin.rocks
-      - bookinfo.dolphin.rocks:*
-      name: bookinfo.dolphin.rocks
-      routes:
-      - match:
-          pathSeparatedPrefix: /details
-        route:
-          cluster: default:details:9080
-          maxStreamDuration:
-            maxStreamDuration: 0s
-      - match:
-          prefix: /
-        route:
-          cluster: default:productpage:9080
-          maxStreamDuration:
-            maxStreamDuration: 0s
-    - domains:
-      - hipstershop.dolphin.rocks
-      - hipstershop.dolphin.rocks:*
-      name: hipstershop.dolphin.rocks
-      routes:
-      - match:
-          pathSeparatedPrefix: /hipstershop.ProductCatalogService
-        route:
-          cluster: default:productcatalogservice:3550
-          maxStreamDuration:
-            maxStreamDuration: 0s
-      - match:
-          pathSeparatedPrefix: /hipstershop.CurrencyService
-        route:
-          cluster: default:currencyservice:7000
-          maxStreamDuration:
-            maxStreamDuration: 0s
+
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     edsClusterConfig:
-      serviceName: default/currencyservice:7000
-    name: default:currencyservice:7000
+      serviceName: dolphin/details:9080
+    name: dolphin:details:9080
     outlierDetection:
       splitExternalLocalOriginErrors: true
     type: EDS
@@ -218,38 +168,8 @@ spec:
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     edsClusterConfig:
-      serviceName: default/details:9080
-    name: default:details:9080
-    outlierDetection:
-      splitExternalLocalOriginErrors: true
-    type: EDS
-    typedExtensionProtocolOptions:
-      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
-        '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
-        commonHttpProtocolOptions:
-          idleTimeout: 60s
-        useDownstreamProtocolConfig:
-          http2ProtocolOptions: {}
-  - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
-    connectTimeout: 5s
-    edsClusterConfig:
-      serviceName: default/productcatalogservice:3550
-    name: default:productcatalogservice:3550
-    outlierDetection:
-      splitExternalLocalOriginErrors: true
-    type: EDS
-    typedExtensionProtocolOptions:
-      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
-        '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
-        commonHttpProtocolOptions:
-          idleTimeout: 60s
-        useDownstreamProtocolConfig:
-          http2ProtocolOptions: {}
-  - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
-    connectTimeout: 5s
-    edsClusterConfig:
-      serviceName: default/productpage:9080
-    name: default:productpage:9080
+      serviceName: dolphin/productpage:9080
+    name: dolphin:productpage:9080
     outlierDetection:
       splitExternalLocalOriginErrors: true
     type: EDS
@@ -263,7 +183,7 @@ spec:
   services:
   - listener: ""
     name: dolphin-ingress-tls-ingress
-    namespace: default
+    namespace: dolphin
     ports:
     - 80
     - 443

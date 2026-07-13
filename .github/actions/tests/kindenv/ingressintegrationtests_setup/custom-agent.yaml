@@ -340,7 +340,7 @@ spec:
             resourceFieldRef:
               divisor: "1"
               resource: limits.memory
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         lifecycle:
           postStart:
@@ -482,7 +482,10 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
-        image: docker.io/jimin1/ciliumagent0514
+        #image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266 
+        # amd64
+        image: quay.io/cilium/cilium:v1.16.9@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
+        # arm64
         imagePullPolicy: IfNotPresent
         name: config
         resources: {}
@@ -503,7 +506,7 @@ spec:
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         name: mount-cgroup
         resources: {}
@@ -535,7 +538,7 @@ spec:
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         name: apply-sysctl-overwrites
         resources: {}
@@ -563,7 +566,7 @@ spec:
         - /bin/bash
         - -c
         - --
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         name: mount-bpf-fs
         resources: {}
@@ -596,7 +599,7 @@ spec:
               key: write-cni-conf-when-ready
               name: cilium-config
               optional: true
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources: {}
@@ -624,7 +627,7 @@ spec:
           name: cilium-run
       - command:
         - /install-plugin.sh
-        image: docker.io/jimin1/ciliumagent0514
+        image: quay.io/cilium/cilium@sha256:98f8e547fd0720e042a1eb7bd6f50a521cbe0a8ea8e013f783f1709fc023c266
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources:

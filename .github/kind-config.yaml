@@ -8,8 +8,12 @@ nodes:
     extraMounts:
       - hostPath: /tmp/kind-node1-logs
         containerPath: /mnt/disks/logs/pv
+      - hostPath: /tmp/mkcert
+        containerPath: /mkcerts
   - role: worker
     image: kindest/node:v1.30.0
     extraMounts:
       - hostPath: /tmp/kind-node2-logs
         containerPath: /mnt/disks/logs/pv
+      - hostPath: /tmp/mkcert
+        containerPath: /mkcerts
