@@ -324,6 +324,7 @@ time sleep 5
 # shared lb mode
 #  deploy one LB service dolphin-ingress with external IP into dolphin name space 
 #  manually create special Endpoints into dolphin namespace
+echo "setup ingress shared lb mode testing environment"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/custom-agent-sharedmode.yaml
 kubectl -n kube-system rollout restart ds/cilium
 wait_for_pods "k8s-app=cilium" "agent" || exit 1
@@ -450,8 +451,8 @@ fi
 echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
  
 DOMAIN="bookinfo.cilium.rocks"
-CERT_FILE="${DOMAIN}+1.pem"
-KEY_FILE="${DOMAIN}+1-key.pem"
+CERT_FILE="${DOMAIN}.pem"
+KEY_FILE="${DOMAIN}-key.pem"
  
 # --- Generate cert ---
 if [[ ! -d mkcert ]]; then
@@ -459,18 +460,18 @@ if [[ ! -d mkcert ]]; then
 fi
 cd mkcert
 go build -ldflags "-X main.Version=$(git describe --tags)"
-mkcert "$DOMAIN"
+mkcert $DOMAIN
  
 # --- Push cert material into cilium-secrets so Cilium's SDS watcher (envoy-secrets-namespace) picks it up ---
 kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
  
-kubectl -n cilium-secrets delete secret default-demo-cert --ignore-not-found
-kubectl -n cilium-secrets create secret tls default-demo-cert \
-  --cert="$CERT_FILE" \
-  --key="$KEY_FILE"
+kubectl -n cilium-secrets delete secret tls-ingress-secret --ignore-not-found
+kubectl -n cilium-secrets create secret tls tls-ingress-secret \
+  --cert=$CERT_FILE \
+  --key=$KEY_FILE
  
 # --- CA configmap for the in-cluster verification pod ---
-kubectl -n dolphin create configmap mkcert-ca --from-file=ca.pem="$CERT_FILE" \
+kubectl -n dolphin create configmap mkcert-ca --from-file=ca.pem=$CERT_FILE \
   --dry-run=client -o yaml | kubectl apply -f -
  
 # --- Apply CEC / ingress config ---
