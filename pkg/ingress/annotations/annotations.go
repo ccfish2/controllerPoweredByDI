@@ -1,8 +1,11 @@
 package annotations
 
 import (
+	"fmt"
 	"strconv"
+	"time"
 
+	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/infra/pkg/annotation"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -27,7 +30,12 @@ const (
 	TLSPassthroughAnnotation      = IngressPrefix + "/tls-passthrough"
 	TLSPassthroughAnnotationAlias = Prefix + ".ingress" + "/tls-passthrough"
 
-	enabled = "enabled"
+	RequestTimeoutAnnotation   = IngressPrefix + "/request-timeout"
+	ForceHTTPSAnnotation       = IngressPrefix + "/force-https"
+	HostListenerPortAnnotation = IngressPrefix + "/host-listener-port"
+
+	enabled  = "enabled"
+	disabled = "disabled"
 )
 
 const (
@@ -84,6 +92,61 @@ func GetAnnotationSecureNodePort(ingress *networkingv1.Ingress) (*uint32, error)
 // GetAnnotationInsecureNodePort returns the insecure node port for the ingress if possible.
 func GetAnnotationInsecureNodePort(ingress *networkingv1.Ingress) (*uint32, error) {
 	val, exists := annotation.Get(ingress, InsecureNodePortAnnotation, InsecureNodePortAnnotationAlias)
+	if !exists {
+		return nil, nil
+	}
+	intVal, err := strconv.ParseInt(val, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	res := uint32(intVal)
+	return &res, nil
+}
+
+// GetAnnotationRequestTimeout retrieves the RequestTimeout annotation's value.
+func GetAnnotationRequestTimeout(ingress *networkingv1.Ingress) (*time.Duration, error) {
+	val, exists := annotation.Get(ingress, RequestTimeoutAnnotation)
+	if !exists {
+		return nil, nil
+	}
+
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse duration %q: %w", val, err)
+	}
+
+	return &d, nil
+}
+
+func GetAnnotationForceHTTPSEnabled(ingress *networkingv1.Ingress) *bool {
+	val, exists := annotation.Get(ingress, ForceHTTPSAnnotation)
+	if !exists {
+		return nil
+	}
+
+	if val == enabled {
+		return model.AddressOf(true)
+	}
+
+	if val == disabled {
+		return model.AddressOf(false)
+	}
+
+	boolVal, err := strconv.ParseBool(val)
+	if err != nil {
+		return nil
+	}
+
+	if boolVal {
+		return model.AddressOf(true)
+	}
+
+	return model.AddressOf(false)
+}
+
+// GetAnnotationHostListenerPort returns the host listener port for the ingress if possible.
+func GetAnnotationHostListenerPort(ingress *networkingv1.Ingress) (*uint32, error) {
+	val, exists := annotation.Get(ingress, HostListenerPortAnnotation)
 	if !exists {
 		return nil, nil
 	}

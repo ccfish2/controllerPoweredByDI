@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"sort"
+	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -12,8 +13,15 @@ import (
 )
 
 // translate ingress into TLSListener
-func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName string) []model.HTTPListener {
-
+func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName string, enforcedHTTPS bool, insecureListenerPort, secureListenerPort uint32, defaultRequestTimeout time.Duration) []model.HTTPListener {
+	// First, we make a map of HTTPListeners, with the hostname
+	// as the key, so that we can make sure we match up any
+	// TLS config with rules that match it.
+	// This is to approximate a set, keyed by hostname, so we can
+	// coalesce the config from a single Ingress.
+	// Coalescing the config from multiple Ingress resources is left for
+	// the transform component that takes a model and outputs CiliumEnvoyConfig
+	// or other resources.
 	insecureListenerMap := make(map[string]model.HTTPListener)
 
 	sourceResource := model.FullyQualifiedResource{
@@ -25,7 +33,24 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 		UID:       string(ing.UID),
 	}
 
+	// Setup timeout for use in all routes
+	timeout := model.Timeout{}
+	if defaultRequestTimeout != 0 {
+		timeout.Request = model.AddressOf(defaultRequestTimeout)
+	}
+	if v, err := annotations.GetAnnotationRequestTimeout(&ing); err != nil {
+		// If the annotation is invalid, we log a warning and use the default value
+		log.WithField(logfields.Ingress, ing.Namespace+"/"+ing.Name).
+			Warn("Invalid request timeout annotation, using default value")
+	} else if v != nil {
+		timeout.Request = model.AddressOf(*v)
+	}
+
 	if ing.Spec.DefaultBackend != nil {
+		// There's a default backend set up
+
+		// get the details for the default backend
+
 		backend := model.Backend{}
 		backend.Name = ing.Spec.DefaultBackend.Service.Name
 		backend.Namespace = ing.Namespace
@@ -47,9 +72,10 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 					Backends: []model.Backend{
 						backend,
 					},
+					Timeout: timeout,
 				},
 			},
-			Port:    80,
+			Port:    insecureListenerPort,
 			Service: getService(ing),
 		}
 
@@ -58,14 +84,17 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 		insecureListenerMap["*"] = l
 	}
 
+	// Now, we range across the rules, adding them in as listeners.
 	for _, rule := range ing.Spec.Rules {
+
 		host := "*"
+
 		if rule.Host != "" {
 			host = rule.Host
 		}
 
 		l, ok := insecureListenerMap[host]
-		l.Port = 80
+		l.Port = insecureListenerPort
 		l.Sources = model.AddSource(l.Sources, sourceResource)
 		if !ok {
 			l.Name = "ing-" + ing.Name + "-" + ing.Namespace + "-" + host
@@ -80,7 +109,9 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 
 		for _, path := range rule.HTTP.Paths {
 
-			route := model.HTTPRoute{}
+			route := model.HTTPRoute{
+				Timeout: timeout,
+			}
 
 			switch *path.PathType {
 			case networkingv1.PathTypeExact:
@@ -114,6 +145,17 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 
 	secureListenerMap := make(map[string]model.HTTPListener)
 
+	// Before we check for TLS config, we need to see if the force-https annotation
+	// is set.
+	forceHTTPsannotation := annotations.GetAnnotationForceHTTPSEnabled(&ing)
+	forceHTTPs := false
+
+	// We only care about enforcedHTTPS if the annotation is unset
+	if (forceHTTPsannotation == nil && enforcedHTTPS) || (forceHTTPsannotation != nil && *forceHTTPsannotation) {
+		forceHTTPs = true
+	}
+
+	// First, we check for TLS config, and set them up with Listeners to return.
 	for _, tlsConfig := range ing.Spec.TLS {
 		for _, host := range tlsConfig.Hosts {
 
@@ -131,7 +173,8 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 			if tlsConfig.SecretName != "" {
 				l.TLS = []model.TLSSecret{
 					{
-						Name:      tlsConfig.SecretName,
+						Name: tlsConfig.SecretName,
+						// Secret has to be in the same namespace as the Ingress.
 						Namespace: ing.Namespace,
 					},
 				}
@@ -144,17 +187,21 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 				}
 			}
 
-			l.Port = 443
+			l.Port = secureListenerPort
 			l.Hostname = host
 			l.Service = getService(ing)
+			l.ForceHTTPtoHTTPSRedirect = forceHTTPs
 			secureListenerMap[host] = l
 
 			defaultListener, ok := insecureListenerMap["*"]
 			if ok {
+				// A default listener already exists, each Host in TLSConfig.Hosts
+				// needs to have a Listener configured that's a copy of it.
 				if tlsConfig.SecretName != "" {
 					defaultListener.TLS = []model.TLSSecret{
 						{
-							Name:      tlsConfig.SecretName,
+							Name: tlsConfig.SecretName,
+							// Secret has to be in the same namespace as the Ingress.
 							Namespace: ing.Namespace,
 						},
 					}
@@ -167,15 +214,17 @@ func Ingress(ing networkingv1.Ingress, defaultSecretNamespace, defaultSecretName
 					}
 				}
 				defaultListener.Hostname = host
-				defaultListener.Port = 443
+				defaultListener.Port = secureListenerPort
 				secureListenerMap[host] = defaultListener
 
 			}
 		}
 	}
+
 	listenerSlice := make([]model.HTTPListener, 0, len(insecureListenerMap)+len(secureListenerMap))
 	listenerSlice = appendValuesInKeyOrder(insecureListenerMap, listenerSlice)
 	listenerSlice = appendValuesInKeyOrder(secureListenerMap, listenerSlice)
+
 	return listenerSlice
 }
 

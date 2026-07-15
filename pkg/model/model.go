@@ -159,15 +159,16 @@ type Infrastructure struct {
 }
 
 type HTTPListener struct {
-	Name           string                   `json:"name,omitempty"`
-	Sources        []FullyQualifiedResource `json:"sources,omitempty"`
-	Address        string                   `json:"address,omitempty"`
-	Port           uint32                   `json:"port,omitempty"`
-	Hostname       string                   `json:"hostname,omitempty"`
-	TLS            []TLSSecret              `json:"tls,omitempty"`
-	Routes         []HTTPRoute              `json:"routes,omitempty"`
-	Service        *Service                 `json:"service,omitempty"`
-	Infrastructure *Infrastructure          `json:"infrastructure,omitempty"`
+	Name                     string                   `json:"name,omitempty"`
+	Sources                  []FullyQualifiedResource `json:"sources,omitempty"`
+	Address                  string                   `json:"address,omitempty"`
+	Port                     uint32                   `json:"port,omitempty"`
+	Hostname                 string                   `json:"hostname,omitempty"`
+	TLS                      []TLSSecret              `json:"tls,omitempty"`
+	Routes                   []HTTPRoute              `json:"routes,omitempty"`
+	Service                  *Service                 `json:"service,omitempty"`
+	Infrastructure           *Infrastructure          `json:"infrastructure,omitempty"`
+	ForceHTTPtoHTTPSRedirect bool                     `json:"force_http_to_https_redirect,omitempty"`
 }
 
 // GetAnnotation implements Listener.

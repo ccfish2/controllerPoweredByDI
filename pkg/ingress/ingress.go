@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress/annotations"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
@@ -43,6 +44,10 @@ type ingressReconciler struct {
 	defaultSecretNamespace  string
 	defaultSecretName       string
 	idleTimeoutSeconds      int
+	defaultRequestTimeout   time.Duration
+
+	hostNetworkEnabled    bool
+	hostNetworkSharedPort uint32
 
 	sharedTranslator    translation.Translator
 	dedicatedTranslator translation.Translator

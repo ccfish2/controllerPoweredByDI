@@ -26,6 +26,13 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 )
 
+const (
+	defaultPassthroughPort         = uint32(443)
+	defaultInsecureHTTPPort        = uint32(80)
+	defaultSecureHTTPPort          = uint32(443)
+	defaultHostNetworkListenerPort = uint32(8080)
+)
+
 func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	scopedLog := r.logger.WithFields(logrus.Fields{
 		logfields.Controller: "ingress",
@@ -166,12 +173,13 @@ func (r *ingressReconciler) createOrUpdateDolphinEnvoyConfig(ctx context.Context
 
 // this is the L7 routes part, ingress
 func (r *ingressReconciler) buildDedicatedResources(ctx context.Context, ingress *networkingv1.Ingress) (*dolphinv1.DolphinEnvoyConfig, *corev1.Service, *corev1.Endpoints, error) {
+	_, insecureHTTPPort, secureHTTPPort := r.getDedicatedListenerPorts(ingress)
 	m := &model.Model{}
 
 	if annotations.GetAnnotationTLSPassthroughEnabled(ingress) {
 		m.TLS = append(m.TLS, ingestion.IngressPassthrough(*ingress, r.defaultSecretNamespace, r.defaultSecretName)...)
 	} else {
-		m.HTTP = append(m.HTTP, ingestion.Ingress(*ingress, r.defaultSecretNamespace, r.defaultSecretName)...)
+		m.HTTP = append(m.HTTP, ingestion.Ingress(*ingress, r.defaultSecretNamespace, r.defaultSecretName, r.enforcedHTTPS, insecureHTTPPort, secureHTTPPort, r.defaultRequestTimeout)...)
 	}
 
 	dec, svc, ep, err := r.dedicatedTranslator.Translate(m)
@@ -187,6 +195,23 @@ func (r *ingressReconciler) buildDedicatedResources(ctx context.Context, ingress
 	}
 
 	return dec, svc, ep, err
+}
+
+func (r *ingressReconciler) getDedicatedListenerPorts(ingress *networkingv1.Ingress) (uint32, uint32, uint32) {
+	if !r.hostNetworkEnabled {
+		return defaultPassthroughPort, defaultInsecureHTTPPort, defaultSecureHTTPPort
+	}
+
+	port, err := annotations.GetAnnotationHostListenerPort(ingress)
+	if err != nil {
+		r.logger.WithError(err).Warnf("Failed to parse host port - using default listener port")
+		return defaultHostNetworkListenerPort, defaultHostNetworkListenerPort, defaultHostNetworkListenerPort
+	} else if port == nil || *port == 0 {
+		r.logger.Warnf("No host port defined in annotation - using default listener port")
+		return defaultHostNetworkListenerPort, defaultHostNetworkListenerPort, defaultHostNetworkListenerPort
+	} else {
+		return *port, *port, *port
+	}
 }
 
 func (r *ingressReconciler) updateIngressLoadbalancerStatus(ctx context.Context, ingress *networkingv1.Ingress) error {
@@ -305,6 +330,18 @@ func (r *ingressReconciler) tryDeletingResource(ctx context.Context, object clie
 	return nil
 }
 
+func (r *ingressReconciler) getSharedListenerPorts() (uint32, uint32, uint32) {
+	if !r.hostNetworkEnabled {
+		return defaultPassthroughPort, defaultInsecureHTTPPort, defaultSecureHTTPPort
+	}
+
+	if r.hostNetworkSharedPort > 0 {
+		return r.hostNetworkSharedPort, r.hostNetworkSharedPort, r.hostNetworkSharedPort
+	}
+
+	return defaultHostNetworkListenerPort, defaultHostNetworkListenerPort, defaultHostNetworkListenerPort
+}
+
 func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv1.DolphinEnvoyConfig, error) {
 	ingressList := networkingv1.IngressList{}
 	if err := r.client.List(ctx, &ingressList); err != nil {
@@ -312,6 +349,7 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 	}
 
 	m := &model.Model{}
+	_, insecureHTTPPort, secureHTTPPort := r.getSharedListenerPorts()
 	allSharedIngresses := ingressList.Items
 	slices.SortStableFunc(allSharedIngresses, func(a, b networkingv1.Ingress) int {
 		return cmp.Compare(a.Namespace+"/"+a.Name, b.Namespace+"/"+b.Name)
@@ -324,7 +362,7 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 		if annotations.GetAnnotationTLSPassthroughEnabled(&item) {
 			m.TLS = append(m.TLS, ingestion.IngressPassthrough(item, r.defaultSecretNamespace, r.defaultSecretName)...)
 		} else {
-			m.HTTP = append(m.HTTP, ingestion.Ingress(item, r.defaultSecretNamespace, r.defaultSecretName)...)
+			m.HTTP = append(m.HTTP, ingestion.Ingress(item, r.defaultSecretNamespace, r.defaultSecretName, r.enforcedHTTPS, insecureHTTPPort, secureHTTPPort, r.defaultRequestTimeout)...)
 		}
 	}
 
