@@ -461,7 +461,7 @@ fi
 cd mkcert
 go build -ldflags "-X main.Version=$(git describe --tags)"
 ls -l mkcert
-if [[ ! -x ./mkcert]]; then
+if [[ ! -x ./mkcert ]]; then
   echo "mkcert binary does not exits"
   ls -l
   exit 1
