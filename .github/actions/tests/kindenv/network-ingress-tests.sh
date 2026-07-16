@@ -460,7 +460,16 @@ if [[ ! -d mkcert ]]; then
 fi
 cd mkcert
 go build -ldflags "-X main.Version=$(git describe --tags)"
-mkcert $DOMAIN
+ls -l mkcert
+if [[ ! -x ./mkcert]]; then
+  echo "mkcert binary does not exits"
+  ls -l
+  exit 1
+fi
+
+echo "binary mkcert exist"
+ls -l mkcert
+./mkcert $DOMAIN
  
 # --- Push cert material into cilium-secrets so Cilium's SDS watcher (envoy-secrets-namespace) picks it up ---
 kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
@@ -515,7 +524,7 @@ spec:
   containers:
   - name: curl
     image: curlimages/curl
-    command: ["curl", "-sv", "--cacert", "/certs/ca.pem", "https://${DOMAIN}/details/1"]
+    command: ["curl", "-sv", "--cacert", "/certs/ca.pem", "https://172.19.0.101/details/1"]
     volumeMounts:
     - name: ca-cert
       mountPath: /certs
