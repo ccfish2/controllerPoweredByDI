@@ -544,6 +544,7 @@ done
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # --- In-cluster cert-validated verification via busybox pod ---
+# curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:VIP Of your loadbalancer -v 
 kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
  
 kubectl apply -f - <<EOF

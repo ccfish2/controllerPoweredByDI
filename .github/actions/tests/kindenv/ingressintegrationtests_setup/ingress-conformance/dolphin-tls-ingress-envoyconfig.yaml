@@ -120,7 +120,7 @@ spec:
       level: "6"
       name: "6"
   - '@type': type.googleapis.com/envoy.config.route.v3.RouteConfiguration
-    name: listener-insecure
+    name: listener-secure
     virtualHosts:
     - domains:
       - bookinfo.cilium.rocks
@@ -129,12 +129,12 @@ spec:
       routes:
       - match:
           pathSeparatedPrefix: /details
-        redirect:
-          httpsRedirect: true
+        route:
+          cluster: dolphin:details:9080
       - match:
           prefix: /
-        redirect:
-          httpsRedirect: true
+        route:
+          cluster: dolphin:productpage:9080
 
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
