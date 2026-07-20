@@ -63,11 +63,49 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, gatewayIndex, func(o client.Object) []string {
-		gws := []string{}
-		// list all gateways belonging to dolphin GWC and belongs to io.dolphin/gateway-controller
-		// compose namespacedname
-		return gws
+		func(rawObj client.Object) []string {
+			hr, ok := rawObj.(*gatewayv1alpha2.TLSRoute)
+			if !ok {
+				return nil
+			}
+			var backendServiceImports []string
+			for _, rule := range hr.Spec.Rules {
+				for _, backend := range rule.BackendRefs {
+					if !helpers.IsServiceImport(backend.BackendObjectReference) {
+						continue
+					}
+					backendServiceImports = append(backendServiceImports,
+						types.NamespacedName{
+							Namespace: helpers.NamespaceDerefOr(backend.Namespace, hr.Namespace),
+							Name:      string(backend.Name),
+						}.String(),
+					)
+				}
+			}
+			return backendServiceImports
+		},
 	}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, gatewayIndex,
+		func(rawObj client.Object) []string {
+			hr := rawObj.(*gatewayv1alpha2.TLSRoute)
+			var gateways []string
+			for _, parent := range hr.Spec.ParentRefs {
+				if !helpers.IsGateway(parent) {
+					continue
+				}
+				gateways = append(gateways,
+					types.NamespacedName{
+						Namespace: helpers.NamespaceDerefOr(parent.Namespace, hr.Namespace),
+						Name:      string(parent.Name),
+					}.String(),
+				)
+			}
+			return gateways
+		},
+	); err != nil {
 		return err
 	}
 
