@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-
-
 echo "Verify Gateway API end2end"
 source "$(dirname "$0")/gatewayapi_setup.sh"
 source "$(dirname "$0")/helper.sh"
@@ -21,6 +19,9 @@ spec:
 EOF
 echo "verify gateway class is accepted"
 wait_for_gatewayclass_accepted "dolphin" 120 5 || exit 1
+# deploy gateway and httproute
+echo "deploy gateway http route"
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
 
 # deploy customized envoyconfig yaml
 echo "deploy customized envoyconfig yaml"
@@ -73,9 +74,8 @@ while true; do
         exit 1
     fi
 done
-
 verify_connectivity "$gatewayip" || exit 1
-# deploy gateway and httproute
+
 echo "deploy tls gateway and httproute"
 DOMAIN="bookinfo.cilium.rocks"
 CERT_FILE="${DOMAIN}+1.pem"
@@ -99,4 +99,3 @@ ls -l mkcert
 ./mkcert $DOMAIN
 kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks+1.pem --key=bookinfo.cilium.rocks+1-key.pem --dry-run=client -o yaml | kubectl apply -f -
 cd ..
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
