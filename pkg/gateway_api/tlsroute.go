@@ -58,11 +58,10 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return backendServices
 		},
 	); err != nil {
-
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, gatewayIndex, func(o client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, backendServiceImportIndex,
 		func(rawObj client.Object) []string {
 			hr, ok := rawObj.(*gatewayv1alpha2.TLSRoute)
 			if !ok {
@@ -84,7 +83,7 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			return backendServiceImports
 		},
-	}); err != nil {
+	); err != nil {
 		return err
 	}
 

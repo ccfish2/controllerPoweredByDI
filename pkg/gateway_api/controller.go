@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	controllerName             = "io.dolphin/gateway-controller"
-	backendServiceIndex string = "backendServiceIndex"
-	gatewayIndex        string = "gatewayIndex"
+	controllerName                   = "io.dolphin/gateway-controller"
+	backendServiceIndex       string = "backendServiceIndex"
+	gatewayIndex              string = "gatewayIndex"
+	backendServiceImportIndex        = "backendServiceImportIndex"
 )
 
 func hasMatchingController(ctx context.Context, c client.Client, controllerName string) func(object client.Object) bool {
