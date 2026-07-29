@@ -48,8 +48,6 @@ github.com/bombsimon/logrusr/v4 v4.1.0 h1:uZNPbwusB0eUXlO8hIUwStE6Lr5bLN6IgYgG+7
 github.com/bombsimon/logrusr/v4 v4.1.0/go.mod h1:pjfHC5e59CvjTBIU3V3sGhFWFAnsnhOR03TRc6im0l8=
 github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5 h1:/Gnwj2ozOAKFRWddeRb97hvLIA5lcSIxyFP+7e7JDZw=
 github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
-github.com/ccfish2/infra v0.0.0-20250620015455-0318b7187e53 h1:ypLA2t5P46bISUKF+4TXqxFj9rVLwG2/UHu2jmegBtM=
-github.com/ccfish2/infra v0.0.0-20250620015455-0318b7187e53/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
 github.com/ccfish2/infra v0.0.0-20260707170253-8d602d7bcec1 h1:SQhPVBF31BzLZtMZemBEg5Iis10PYA21CcXMro94pmg=
 github.com/ccfish2/infra v0.0.0-20260707170253-8d602d7bcec1/go.mod h1:PoPt1/e1+JOLibHqJoUyGZv0xH6zP8QYvpYodgIMaIk=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=
