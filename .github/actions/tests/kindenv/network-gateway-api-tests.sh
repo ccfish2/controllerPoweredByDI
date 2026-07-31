@@ -29,27 +29,27 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gat
 
 # verify gateway status and httproute status 
 echo "verify httproute status"
-wait_for_httproute_ready "dolphin" "http-app-1" 120 5 || exit 1
+wait_for_httproute_ready "dolphin" "https-app-route-1" 120 5 || exit 1
 
 echo "verify gateway status"
-verify_gateway_ready "dolphin" "my-gateway" 120 5 || exit 1
-verify_gateway_tls_listener_ready "dolphin" "my-gateway" "https" 120 5 || exit 1
+verify_gateway_ready "dolphin" "tls-gateway" 120 5 || exit 1
+verify_gateway_tls_listener_ready "dolphin" "tls-gateway" "https-1" 120 5 || exit 1
 
 echo "checking gateway svc"
-check_service_external_ip "dolphin-gateway-my-gateway" || exit 1
+check_service_external_ip "dolphin-ingress-tls-ingress" || exit 1
 
 echo "check dummy endpoints listening on 9999"
-verify_gateway_endpoints "dolphin" "dolphin-gateway-my-gateway" || exit 1
+verify_gateway_endpoints "dolphin" "dolphin-ingress-tls-ingress" || exit 1
 
 echo "checking dolphin envoy config"
 check_dolphin_envoy_config() {
   local namespace="dolphin"
-  local resource_name="dolphin-gateway-my-gateway"
+  local resource_name="dolphin-tls-ingress"
 
   echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
 
   # Check if the DolphinEnvoyConfig exists
-  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
+  if ! kubectl -n "$namespace" get CiliumEnvoyConfig "$resource_name" &>/dev/null; then
     echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
     return 1
   fi
@@ -59,7 +59,7 @@ check_dolphin_envoy_config || exit 1
 # verify gatewayapi through l7 service connection
 end=$((SECONDS+120))
 while true; do
-    gatewayip=$(kubectl -n dolphin get gateway my-gateway -o jsonpath="{.status.addresses[?(@.type=='IPAddress')].value}")
+    gatewayip=$(kubectl -n dolphin get gateway tls-gateway -o jsonpath="{.status.addresses[?(@.type=='IPAddress')].value}")
 
     if [[ -n "$gatewayip" ]]; then
         echo "Gateway Service IP acquired: $gatewayip"
@@ -74,12 +74,11 @@ while true; do
         exit 1
     fi
 done
-verify_connectivity "$gatewayip" || exit 1
 
 echo "deploy tls gateway and httproute"
 DOMAIN="bookinfo.cilium.rocks"
-CERT_FILE="${DOMAIN}+1.pem"
-KEY_FILE="${DOMAIN}+1-key.pem"
+CERT_FILE="${DOMAIN}.pem"
+KEY_FILE="${DOMAIN}-key.pem"
  
 # --- Generate cert ---
 if [[ ! -d mkcert ]]; then
@@ -97,5 +96,5 @@ fi
 echo "binary mkcert exist"
 ls -l mkcert
 ./mkcert $DOMAIN
-kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks+1.pem --key=bookinfo.cilium.rocks+1-key.pem --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 cd ..

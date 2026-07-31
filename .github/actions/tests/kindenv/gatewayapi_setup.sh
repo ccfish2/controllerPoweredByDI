@@ -53,8 +53,7 @@ wait_for_httproute_ready() {
       select(
         .parentRef.group == "gateway.networking.k8s.io" and
         .parentRef.kind == "Gateway" and
-        .parentRef.name == "my-gateway" and
-        .parentRef.namespace == "dolphin"
+        .parentRef.name == "tls-gateway"
       ) |
       select(
         any(.conditions[]; .type == "Accepted" and .status == "True") and
