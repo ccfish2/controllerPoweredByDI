@@ -19,6 +19,33 @@ spec:
 EOF
 echo "verify gateway class is accepted"
 wait_for_gatewayclass_accepted "dolphin" 120 5 || exit 1
+
+
+echo "generate tls secret"
+DOMAIN="bookinfo.cilium.rocks"
+CERT_FILE="${DOMAIN}.pem"
+KEY_FILE="${DOMAIN}-key.pem"
+ 
+# --- Generate cert ---
+if [[ ! -d mkcert ]]; then
+  git clone https://github.com/FiloSottile/mkcert.git
+fi
+cd mkcert
+go build -ldflags "-X main.Version=$(git describe --tags)"
+ls -l mkcert
+if [[ ! -x ./mkcert ]]; then
+  echo "mkcert binary does not exits"
+  ls -l
+  exit 1
+fi
+
+echo "binary mkcert exist"
+ls -l mkcert
+./mkcert $DOMAIN
+kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n cilium-secrets create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
+cd ..
+
 # deploy gateway and httproute
 echo "deploy gateway http route"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
@@ -75,26 +102,3 @@ while true; do
     fi
 done
 
-echo "deploy tls gateway and httproute"
-DOMAIN="bookinfo.cilium.rocks"
-CERT_FILE="${DOMAIN}.pem"
-KEY_FILE="${DOMAIN}-key.pem"
- 
-# --- Generate cert ---
-if [[ ! -d mkcert ]]; then
-  git clone https://github.com/FiloSottile/mkcert.git
-fi
-cd mkcert
-go build -ldflags "-X main.Version=$(git describe --tags)"
-ls -l mkcert
-if [[ ! -x ./mkcert ]]; then
-  echo "mkcert binary does not exits"
-  ls -l
-  exit 1
-fi
-
-echo "binary mkcert exist"
-ls -l mkcert
-./mkcert $DOMAIN
-kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
-cd ..
