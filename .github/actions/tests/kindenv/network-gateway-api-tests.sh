@@ -42,8 +42,8 @@ fi
 echo "binary mkcert exist"
 ls -l mkcert
 ./mkcert $DOMAIN
-kubectl -n dolphin create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n cilium-secrets create secret tls tls-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n dolphin create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n cilium-secrets create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 cd ..
 
 # deploy gateway and httproute
@@ -52,7 +52,7 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gat
 
 # deploy customized envoyconfig yaml
 echo "deploy customized envoyconfig yaml"
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/envoyconfig.yaml
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # verify gateway status and httproute status 
 echo "verify httproute status"
