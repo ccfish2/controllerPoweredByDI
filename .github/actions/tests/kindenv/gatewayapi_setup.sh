@@ -129,7 +129,7 @@ verify_gateway_ready() {
 
 verify_gateway_endpoints() {
   local namespace="${1:-dolphin}"
-  local name="${2:-dolphin-gateway-my-gateway}"
+  local name="${2:-dolphin-gateway-tls-gateway}"
   local expected_ip="192.192.192.192"
   local expected_port=9999
   local expected_protocol="TCP"

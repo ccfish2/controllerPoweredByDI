@@ -63,10 +63,10 @@ verify_gateway_ready "dolphin" "tls-gateway" 120 5 || exit 1
 verify_gateway_tls_listener_ready "dolphin" "tls-gateway" "https-1" 120 5 || exit 1
 
 echo "checking gateway svc"
-check_service_external_ip "dolphin-ingress-tls-ingress" || exit 1
+check_service_external_ip "dolphin-gateway-tls-gateway" || exit 1
 
 echo "check dummy endpoints listening on 9999"
-verify_gateway_endpoints "dolphin" "dolphin-ingress-tls-ingress" || exit 1
+verify_gateway_endpoints "dolphin" "dolphin-gateway-tls-gateway" || exit 1
 
 echo "checking dolphin envoy config"
 check_dolphin_envoy_config() {
