@@ -488,67 +488,39 @@ kubectl -n cilium-secrets create secret tls tls-ingress-secret \
   --key=$KEY_FILE
  
 # --- CA configmap for the in-cluster verification pod ---
-kubectl -n dolphin create configmap mkcert-ca --from-file=ca.pem=$CERT_FILE \
-  --dry-run=client -o yaml | kubectl apply -f -
- 
-# --- Apply ingress config ---
+echo "create configmap that persist the cacert for accessing service"
+kubectl -n dolphin create configmap bookinfo-ca --from-file=bookinfo.cilium.rocks.pem=bookinfo.cilium.rocks.pem
+
 cd ..
-kubectl apply -f - <<EOF 
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: tls-ingress
-  namespace: dolphin
-spec:
-  ingressClassName: dolphin
-  rules:
-  - host: bookinfo.cilium.rocks
-    http:
-      paths:
-      - backend:
-          service:
-            name: details
-            port:
-              number: 9080
-        path: /details
-        pathType: Prefix
-      - backend:
-          service:
-            name: productpage
-            port:
-              number: 9080
-        path: /
-        pathType: Prefix
-  tls:
-  - hosts:
-    - bookinfo.cilium.rocks
-    secretName: tls-ingress-secret
-EOF
+
+# --- Apply ingress config ---
+echo "deploy tls-ingress and the 9999 cilium port "
+kubectl apply -f ./github.com/controllerPoweredByDI/.github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress.yaml
  
-# --- Wait for the LoadBalancer IP of TLS ingress ---
-# end=$((SECONDS + 120))
-# tlsingressip=""
-# while true; do
-#     tlsingressip=$(kubectl -n dolphin get ingress tls-ingress \
-#       -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+#--- Wait for TLS ingress LoadBalancer IP VIP  ---
+end=$((SECONDS + 120))
+tlsingressip=""
+while true; do
+    tlsingressip=$(kubectl -n dolphin get ingress tls-ingress \
+      -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
  
-#     if [[ -n "$tlsingressip" ]]; then
-#         echo "TLS Ingress Service IP acquired: $tlsingressip"
-#         break
-#     fi
+    if [[ -n "$tlsingressip" ]]; then
+        echo "TLS Ingress Service IP acquired: $tlsingressip"
+        break
+    fi
  
-#     echo "Waiting for TLS Ingress IP..."
-#     sleep 5
+    echo "Waiting for TLS Ingress IP..."
+    sleep 5
  
-#     if ((SECONDS > end)); then
-#         echo "Timeout waiting for TLS Ingress LB IP"
-#         exit 1
-#     fi
-# done
+    if ((SECONDS > end)); then
+        echo "Timeout waiting for TLS Ingress LB IP"
+        exit 1
+    fi
+done
  
 # External connectivity check — confirm this helper does SNI/Host to $DOMAIN, not a hardcoded name
 #verify_https_connectivity "$ingressip" "$DOMAIN" || exit 1
- 
+echo "apply cilium envoy configure  for tls-ingress routing and TLS termination"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # --- In-cluster cert-validated verification via busybox pod ---
@@ -560,49 +532,129 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
-  name: busybox
+  labels:
+    run: netshoot
+  name: netshoot
   namespace: dolphin
 spec:
-  restartPolicy: Never
   containers:
-  - name: curl
-    image: curlimages/curl
-    command: ["curl", "-sv", "--cacert", "/certs/ca.pem", "https://bookinfo.cilium.rocks/details/1"]
+  - command:
+    - sleep
+    - infinity
+    image: nicolaka/netshoot
+    name: netshoot
     volumeMounts:
     - name: ca-cert
       mountPath: /certs
   volumes:
   - name: ca-cert
     configMap:
-      name: mkcert-ca
+      name: bookinfo-ca
 EOF
- 
-# set +e
-# kubectl -n dolphin wait --for=jsonpath='{.status.phase}'=Succeeded pod/busybox --timeout=60s
-# WAIT_STATUS=$?
-# set -e
- 
-LOG=$(kubectl -n dolphin logs pod/busybox)
-echo "$LOG"
- 
-# if [[ $WAIT_STATUS -ne 0 ]]; then
-#     echo "busybox verification pod did not reach Succeeded phase"
-#     kubectl -n dolphin describe pod busybox
-#     exit 0
-# fi
- 
-# Adjust this pattern to match the real /details/1 response body
-# if ! grep -q '"id":1' <<< "$LOG"; then
-#     echo "Unexpected response body from /details/1 — TLS/backend verification failed"
-#     exit 0
-# fi
 
-echo "HTTPS verification succeeded"
+
+set -uo pipefail
+
+NAMESPACE="${NAMESPACE:-dolphin}"
+POD="${POD:-netshoot}"
+HOST="bookinfo.cilium.rocks"
+CACERT="/certs/${HOST}.pem"
+URL="https://${HOST}/details/1"
+
+echo "Accessing service ${URL} endpoints through TLS ingress..."
+
+if [[ $WAIT_STATUS -ne 0 ]]; then
+    echo "ERROR: netshoot verification pod did not reach Succeeded phase (wait status: ${WAIT_STATUS})"
+    echo "--- pod events/logs for debugging ---"
+    kubectl -n "${NAMESPACE}" describe pod "${POD}" || true
+    kubectl -n "${NAMESPACE}" logs "${POD}" || true
+    exit 1
+fi
+
+if [[ -z "${tlsingressip:-}" ]]; then
+    echo "ERROR: tlsingressip is not set"
+    exit 1
+fi
+
+echo "Resolving ${HOST} -> ${tlsingressip}"
+
+RESPONSE=$(kubectl -n "${NAMESPACE}" exec "${POD}" -- \
+    curl -sS -o /tmp/response.json -w "%{http_code}" \
+    --resolve "${HOST}:443:${tlsingressip}" \
+    --cacert "${CACERT}" \
+    "${URL}")
+CURL_EXIT=$?
+
+if [[ $CURL_EXIT -ne 0 ]]; then
+    echo "ERROR: curl failed with exit code ${CURL_EXIT} (TLS handshake / connection issue)"
+    exit 1
+fi
+
+if [[ "${RESPONSE}" != "200" ]]; then
+    echo "ERROR: unexpected HTTP status ${RESPONSE}"
+    kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json || true
+    exit 1
+fi
+
+echo "TLS ingress verification succeeded (HTTP ${RESPONSE})"
+kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json
+echo
+###
+# * Added bookinfo.cilium.rocks:443:172.19.0.101 to DNS cache
+# * Hostname bookinfo.cilium.rocks was found in DNS cache
+# * Host bookinfo.cilium.rocks:443 was resolved.
+# * IPv6: (none)
+# * IPv4: 172.19.0.101
+# *   Trying 172.19.0.101:443...
+# * ALPN: curl offers h2,http/1.1
+# * TLSv1.3 (OUT), TLS handshake, Client hello (1):
+# * SSL Trust Anchors:
+# *   CAfile: /certs/bookinfo.cilium.rocks.pem
+# *   CApath: /etc/ssl/certs
+# * TLSv1.3 (IN), TLS handshake, Server hello (2):
+# * TLSv1.3 (IN), TLS change cipher, Change cipher spec (1):
+# * TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+# * TLSv1.3 (IN), TLS handshake, Certificate (11):
+# * TLSv1.3 (IN), TLS handshake, CERT verify (15):
+# * TLSv1.3 (IN), TLS handshake, Finished (20):
+# * TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+# * TLSv1.3 (OUT), TLS handshake, Finished (20):
+# * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / x25519 / RSASSA-PSS
+# * ALPN: server did not agree on a protocol. Uses default.
+# * Server certificate:
+# *   subject: O=mkcert development certificate; OU=jiminhu@Jimins-MacBook-Air.local (Jimin Hu)
+# *   start date: Aug  4 18:52:40 2026 GMT
+# *   expire date: Nov  4 18:52:40 2028 GMT
+# *   issuer: O=mkcert development CA; OU=jiminhu@Jimins-MacBook-Air.local (Jimin Hu); CN=mkcert jiminhu@Jimins-MacBook-Air.local (Jimin Hu)
+# *   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+# *   subjectAltName: "bookinfo.cilium.rocks" matches cert's "bookinfo.cilium.rocks"
+# * OpenSSL verify result: 0
+# * SSL certificate verified via OpenSSL.
+# * Established connection to bookinfo.cilium.rocks (172.19.0.101 port 443) from 10.244.1.189 port 39836 
+# * using HTTP/1.x
+# > GET /details/1 HTTP/1.1
+# > Host: bookinfo.cilium.rocks
+# > User-Agent: curl/8.21.0
+# > Accept: */*
+# > 
+# * Request completely sent off
+# * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+# * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+# < HTTP/1.1 200 OK
+# < content-type: application/json
+# < server: envoy
+# < date: Tue, 04 Aug 2026 23:07:14 GMT
+# < content-length: 178
+# < x-envoy-upstream-service-time: 4
+# < 
+# * Connection #0 to host bookinfo.cilium.rocks:443 left intact
+# {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
+echo "TLS ingress verification succeeded"
  
 # --- Cleanup ---
-kubectl -n dolphin delete pod busybox --ignore-not-found
-kubectl -n dolphin delete configmap mkcert-ca --ignore-not-found
-kubectl -n cilium-secrets delete secret default-demo-cert --ignore-not-found
+kubectl -n dolphin delete pod netshoot --ignore-not-found
+kubectl -n dolphin delete configmap bookinfo-ca --ignore-not-found
+kubectl -n cilium-secrets delete secret tls-ingress-secret --ignore-not-found
 kubectl delete -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml --ignore-not-found
 cd ..
 rm -rf mkcert
