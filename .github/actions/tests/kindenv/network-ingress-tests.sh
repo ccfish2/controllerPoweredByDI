@@ -495,7 +495,7 @@ cd ..
 
 # --- Apply ingress config ---
 echo "deploy tls-ingress and the 9999 cilium port "
-kubectl apply -f ./github.com/controllerPoweredByDI/.github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress.yaml
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress.yaml
  
 #--- Wait for TLS ingress LoadBalancer IP VIP  ---
 end=$((SECONDS + 120))
