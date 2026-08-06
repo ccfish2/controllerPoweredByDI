@@ -486,6 +486,10 @@ kubectl -n cilium-secrets delete secret tls-ingress-secret --ignore-not-found
 kubectl -n cilium-secrets create secret tls tls-ingress-secret \
   --cert=$CERT_FILE \
   --key=$KEY_FILE
+
+kubectl -n dolphin create secret tls tls-ingress-secret \
+  --cert=$CERT_FILE \
+  --key=$KEY_FILE
  
 # --- CA configmap for the in-cluster verification pod ---
 echo "create configmap that persist the cacert for accessing service"
