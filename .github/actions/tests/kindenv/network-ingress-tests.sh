@@ -650,7 +650,14 @@ echo
 # * Connection #0 to host bookinfo.cilium.rocks:443 left intact
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
 echo "TLS ingress verification succeeded"
- 
+
+# we could verify migrated tls-ingress to tls-gateway and gateway access works as expected
+# .github/actions/tests/kindenv/ingressintegrationtests_setup/tlsingress-migratetogatewayapi
+# apply gateway and httproute, apply ciliumenvoyconfig for tls-gateway
+# verfiication similar as above TLS-ingress, only need tls-gateway-externalIP
+# curl --resolve bookinfo.cilium.rocks:443:{tls-gateway-externalIP} --cacert bookinfo.cilium.rocks.pem -v https://bookinfo.cilium.rocks/details/1
+# curl --resolve bookinfo.cilium.rocks:443:{tls-gateway-externalIP} --cacert bookinfo.cilium.rocks.pem -v https://bookinfo.cilium.rocks/productpage
+
 # --- Cleanup ---
 kubectl -n dolphin delete pod netshoot --ignore-not-found
 kubectl -n dolphin delete configmap bookinfo-ca --ignore-not-found

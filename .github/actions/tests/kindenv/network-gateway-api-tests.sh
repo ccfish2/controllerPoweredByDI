@@ -50,7 +50,7 @@ cd ..
 echo "deploy gateway http route"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml
 
-# deploy customized envoyconfig yaml
+# deploy customized gateway envoyconfig yaml
 echo "deploy customized envoyconfig yaml"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
