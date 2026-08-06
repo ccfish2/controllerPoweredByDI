@@ -1,0 +1,44 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: tls-gateway
+  namespace: dolphin
+spec:
+  gatewayClassName: dolphin
+  listeners:
+  - name: bookinfo
+    hostname: bookinfo.cilium.rocks
+    protocol: HTTPS
+    port: 443
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: tls-ingress-secret
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bookinfo-route-after-migration
+  namespace: dolphin
+spec:
+  parentRefs:
+  - name: tls-gateway
+    sectionName: bookinfo
+  hostnames:
+  - bookinfo.cilium.rocks
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /details
+    backendRefs:
+    - name: details
+      port: 9080
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: productpage
+      port: 9080
