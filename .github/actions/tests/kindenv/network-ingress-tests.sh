@@ -539,11 +539,17 @@ kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
  
 set -uo pipefail
 
-NAMESPACE="${NAMESPACE:-dolphin}"
-POD="${POD:-netshoot}"
+NAMESPACE="dolphin"
+POD="netshoot"
 HOST="bookinfo.cilium.rocks"
 CACERT="/certs/${HOST}.pem"
 URL="https://${HOST}/details/1"
+
+echo "NAMESPACE=${NAMESPACE}"
+echo "POD=${POD}"
+echo "HOST=${HOST}"
+echo "CACERT=${CACERT}"
+echo "URL=${URL}"
 
 kubectl apply -f - <<EOF
 apiVersion: v1
@@ -552,7 +558,7 @@ metadata:
   labels:
     run: netshoot
   name: netshoot
-  namespace: ${NAMESPACE}
+  namespace: dolphin
 spec:
   containers:
   - command:
