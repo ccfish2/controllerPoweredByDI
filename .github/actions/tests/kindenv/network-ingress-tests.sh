@@ -176,6 +176,7 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/cus
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml 
 
 # deploy the customzed proxy that points to the ingressIP 
+# this should be moved after getting ingress VIP
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-cec.yaml
 
 
@@ -333,6 +334,7 @@ wait_for_pods "k8s-app=cilium" "agent" || exit 1
 kubectl -n dolphin delete sts/operator-dolphin
 time sleep 3
 
+helm -n dolphin uninstall dolphin-operator
 helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
 helm repo update
 helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace
@@ -454,8 +456,15 @@ kubectl -n dolphin delete svc dolphin-ingress || true
 kubectl -n dolphin delete CiliumEnvoyConfig cilium-ingress-default-basic-ingress || true
 kubectl -n dolphin delete CiliumEnvoyConfig dolphin-ingress || true
 kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
-time sleep 10
+helm -n dolphin uninstall dolphin-operator
+time sleep 15
+echo "end of cleanup"
+
 # below works as expected using local Kind cluster 
+echo "helmp upgrade dolphin-operator"
+helm repo update
+helm install dolphin-operator dolphin-operator/dolphin-operator -n dolphin
+sleep 5
 echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
  
 DOMAIN="bookinfo.cilium.rocks"
