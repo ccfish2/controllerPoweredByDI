@@ -537,6 +537,14 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ing
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
 kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
  
+set -uo pipefail
+
+NAMESPACE="${NAMESPACE:-dolphin}"
+POD="${POD:-netshoot}"
+HOST="bookinfo.cilium.rocks"
+CACERT="/certs/${HOST}.pem"
+URL="https://${HOST}/details/1"
+
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
@@ -544,7 +552,7 @@ metadata:
   labels:
     run: netshoot
   name: netshoot
-  namespace: dolphin
+  namespace: ${NAMESPACE}
 spec:
   containers:
   - command:
@@ -561,23 +569,18 @@ spec:
       name: bookinfo-ca
 EOF
 
+kubectl -n "${NAMESPACE}" wait \
+  --for=jsonpath='{.status.phase}'=Succeeded \
+  pod/"${POD}" \
+  --timeout=60s
 
-set -uo pipefail
-
-NAMESPACE="${NAMESPACE:-dolphin}"
-POD="${POD:-netshoot}"
-HOST="bookinfo.cilium.rocks"
-CACERT="/certs/${HOST}.pem"
-URL="https://${HOST}/details/1"
-
-echo "Accessing service ${URL} endpoints through TLS ingress..."
+WAIT_STATUS=$?
 
 if [[ $WAIT_STATUS -ne 0 ]]; then
-    echo "ERROR: netshoot verification pod did not reach Succeeded phase (wait status: ${WAIT_STATUS})"
-    echo "--- pod events/logs for debugging ---"
-    kubectl -n "${NAMESPACE}" describe pod "${POD}" || true
-    kubectl -n "${NAMESPACE}" logs "${POD}" || true
-    exit 1
+  echo "ERROR: netshoot verification pod did not reach Succeeded phase"
+  kubectl -n "${NAMESPACE}" describe pod "${POD}" || true
+  kubectl -n "${NAMESPACE}" logs "${POD}" || true
+  exit 1
 fi
 
 if [[ -z "${tlsingressip:-}" ]]; then
