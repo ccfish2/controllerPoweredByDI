@@ -595,11 +595,25 @@ if [[ -z "${tlsingressip:-}" ]]; then
     exit 1
 fi
 
+set -x
+
+echo "Running:"
+printf 'kubectl -n "%s" exec "%s" -- curl -sSL -o /tmp/response.json -w "%%{http_code}" --resolve "%s:443:%s" --cacert "%s" "%s"\n' \
+    "${NAMESPACE}" \
+    "${POD}" \
+    "${HOST}" \
+    "${tlsingressip}" \
+    "${CACERT}" \
+    "${URL}"
+
 RESPONSE=$(kubectl -n "${NAMESPACE}" exec "${POD}" -- \
-    curl -sS -o /tmp/response.json -w "%{http_code}" \
+    curl -sSL -o /tmp/response.json -w "%{http_code}" \
     --resolve "${HOST}:443:${tlsingressip}" \
     --cacert "${CACERT}" \
     "${URL}")
+
+set +x
+
 CURL_EXIT=$?
 
 if [[ $CURL_EXIT -ne 0 ]]; then
