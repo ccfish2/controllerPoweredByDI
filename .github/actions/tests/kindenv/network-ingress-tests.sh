@@ -450,12 +450,12 @@ fi
 
 #!/usr/bin/env bash
 echo "clean up shared ingress lb mode testing environment"
-kubectl -n dolphin delete ingress basic-ingress-shared || true
-kubectl -n dolphin delete ingress basic-ingress || true
-kubectl -n dolphin delete svc dolphin-ingress || true
-kubectl -n dolphin delete CiliumEnvoyConfig cilium-ingress-default-basic-ingress || true
-kubectl -n dolphin delete CiliumEnvoyConfig dolphin-ingress || true
-kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
+# kubectl -n dolphin delete ingress basic-ingress-shared || true
+# kubectl -n dolphin delete ingress basic-ingress || true
+# kubectl -n dolphin delete svc dolphin-ingress || true
+# kubectl -n dolphin delete CiliumEnvoyConfig cilium-ingress-default-basic-ingress || true
+# kubectl -n dolphin delete CiliumEnvoyConfig dolphin-ingress || true
+# kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
 helm -n dolphin uninstall dolphin-operator
 time sleep 15
 echo "end of cleanup"
