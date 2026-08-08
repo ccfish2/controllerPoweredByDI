@@ -576,7 +576,7 @@ spec:
 EOF
 
 kubectl -n "${NAMESPACE}" wait \
-  --for=jsonpath='{.status.phase}'=Succeeded \
+  --for=condition=Ready \
   pod/"${POD}" \
   --timeout=60s
 
@@ -589,12 +589,11 @@ if [[ $WAIT_STATUS -ne 0 ]]; then
   exit 1
 fi
 
+echo "Resolving ${HOST} -> ${tlsingressip}"
 if [[ -z "${tlsingressip:-}" ]]; then
     echo "ERROR: tlsingressip is not set"
     exit 1
 fi
-
-echo "Resolving ${HOST} -> ${tlsingressip}"
 
 RESPONSE=$(kubectl -n "${NAMESPACE}" exec "${POD}" -- \
     curl -sS -o /tmp/response.json -w "%{http_code}" \
