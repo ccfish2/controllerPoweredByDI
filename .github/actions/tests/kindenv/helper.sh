@@ -109,7 +109,6 @@ curl_with_retry() {
   done
 }
 
-
 wait_for_endpoints() {
   local ns=$1 svc=$2 timeout=${3:-90}
   local end=$((SECONDS + timeout))
@@ -128,6 +127,3 @@ wait_for_endpoints() {
     fi
   done
 }
-
-wait_for_endpoints dolphin details || exit 1
-wait_for_endpoints dolphin productpage || exit 1

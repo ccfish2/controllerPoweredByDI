@@ -168,7 +168,8 @@ done
 
 # dedicated lb mode - each ingress is created with its own loadbalancer service
 # deploy multiple ingress and verify each ingress is created with its own loadbalancer service
-source "$(dirname "$0")/helper.sh"
+echo "DEBUG pwd=$PWD  \$0=$0  BASH_SOURCE=${BASH_SOURCE[0]}  GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+source "${GITHUB_WORKSPACE}/.github/actions/tests/kindenv/helper.sh"
 
 # setup end2end with customized agent, envoy, EnvoyConfig
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # run the agent
@@ -280,7 +281,6 @@ check_ing_dolphin_envoy_config() {
   fi
 }
 check_ing_dolphin_envoy_config
-
 
 echo "Checking kube-system cilium agent and envoy pods are ready"
 
@@ -553,29 +553,6 @@ kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || ex
 
 wait_for_endpoints dolphin details || exit 1
 wait_for_endpoints dolphin productpage || exit 1
-
-wait_for_endpoints() {
-  local ns=$1 svc=$2 timeout=${3:-90}
-  local end=$((SECONDS + timeout))
-  while true; do
-    count=$(kubectl -n "$ns" get endpoints "$svc" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | wc -w)
-    if [[ "$count" -gt 0 ]]; then
-      echo "$svc has $count endpoint(s)"
-      return 0
-    fi
-    echo "Waiting for endpoints on $svc..."
-    sleep 3
-    if ((SECONDS > end)); then
-      echo "Timeout waiting for endpoints on $svc"
-      kubectl -n "$ns" get endpoints "$svc" -o yaml
-      return 1
-    fi
-  done
-}
-
-wait_for_endpoints dolphin details || exit 1
-wait_for_endpoints dolphin productpage || exit 1
-
 
 wait_for_cec_ready() {
   local ns=$1 name=$2 timeout=${3:-90}
