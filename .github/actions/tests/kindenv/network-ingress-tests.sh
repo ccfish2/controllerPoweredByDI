@@ -537,6 +537,23 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ing
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
 kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
 
+echo "taking a look at the pods status on the GH action cluster"
+kubectl -n dolphin get pods -o wide
+kubectl -n dolphin get pods -l app=details -o yaml | grep -A5 -E "phase|reason|message"
+kubectl -n dolphin describe pod -l app=details
+kubectl get events -n dolphin --sort-by='.lastTimestamp' | tail -40
+kubectl top nodes 2>/dev/null || echo "metrics-server not installed"
+kubectl describe nodes | grep -A5 "Conditions:\|Allocated resources"
+
+echo "ensuring bookinfo backends are present and healthy before TLS test"
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+
+kubectl -n dolphin rollout status deployment/details-v1 --timeout=120s || exit 1
+kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || exit 1
+
+wait_for_endpoints dolphin details || exit 1
+wait_for_endpoints dolphin productpage || exit 1
+
 wait_for_endpoints() {
   local ns=$1 svc=$2 timeout=${3:-90}
   local end=$((SECONDS + timeout))
