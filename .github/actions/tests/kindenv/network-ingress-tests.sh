@@ -536,6 +536,50 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ing
 # curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:{TLS INGRESS VIP} -v 
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
 kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
+
+wait_for_endpoints() {
+  local ns=$1 svc=$2 timeout=${3:-90}
+  local end=$((SECONDS + timeout))
+  while true; do
+    count=$(kubectl -n "$ns" get endpoints "$svc" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | wc -w)
+    if [[ "$count" -gt 0 ]]; then
+      echo "$svc has $count endpoint(s)"
+      return 0
+    fi
+    echo "Waiting for endpoints on $svc..."
+    sleep 3
+    if ((SECONDS > end)); then
+      echo "Timeout waiting for endpoints on $svc"
+      kubectl -n "$ns" get endpoints "$svc" -o yaml
+      return 1
+    fi
+  done
+}
+
+wait_for_endpoints dolphin details || exit 1
+wait_for_endpoints dolphin productpage || exit 1
+
+
+wait_for_cec_ready() {
+  local ns=$1 name=$2 timeout=${3:-90}
+  local end=$((SECONDS + timeout))
+  while true; do
+    ready=$(kubectl -n "$ns" get ciliumenvoyconfig "$name" \
+      -o jsonpath='{.status.conditions[?(@.type=="Valid")].status}' 2>/dev/null)
+    if [[ "$ready" == "True" ]]; then
+      echo "CiliumEnvoyConfig/$name is Valid"
+      return 0
+    fi
+    echo "Waiting for CiliumEnvoyConfig/$name to reconcile..."
+    sleep 3
+    if ((SECONDS > end)); then
+      echo "Timeout waiting for CiliumEnvoyConfig/$name"
+      kubectl -n "$ns" get ciliumenvoyconfig "$name" -o yaml
+      return 1
+    fi
+  done
+}
+wait_for_cec_ready "dolphin" "dolphin-tls-ingress" || exit 1
  
 set -uo pipefail
 
@@ -606,11 +650,11 @@ printf 'kubectl -n "%s" exec "%s" -- curl -sSL -o /tmp/response.json -w "%%{http
     "${CACERT}" \
     "${URL}"
 
-RESPONSE=$(kubectl -n "${NAMESPACE}" exec "${POD}" -- \
-    curl -sSL -o /tmp/response.json -w "%{http_code}" \
-    --resolve "${HOST}:443:${tlsingressip}" \
-    --cacert "${CACERT}" \
-    "${URL}")
+curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+  curl -sSL -o /tmp/response.json -w "%{http_code}" \
+  --resolve "${HOST}:443:${tlsingressip}" \
+  --cacert "${CACERT}" \
+  "${URL}" || exit 1
 
 set +x
 

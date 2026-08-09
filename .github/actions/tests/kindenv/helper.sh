@@ -85,3 +85,49 @@ check_service_external_ip() {
   echo "❌ EXTERNAL-IP was not assigned after $retries attempts."
   return 1
 }
+
+# Retries an in-cluster curl until it gets a 200, tolerating transient 503s
+# while Envoy/xDS/Endpoints converge after a fresh Ingress/Gateway apply.
+curl_with_retry() {
+  local namespace=$1 pod=$2 timeout=${3:-90} interval=${4:-5}; shift 4
+  local end=$((SECONDS + timeout))
+  local code
+
+  while true; do
+    code=$(kubectl -n "$namespace" exec "$pod" -- "$@" 2>/dev/null) || code="curl_failed"
+    if [[ "$code" == "200" ]]; then
+      echo "Got 200"
+      return 0
+    fi
+    echo "Got '$code', retrying... ($((end - SECONDS))s left)"
+    sleep "$interval"
+    if ((SECONDS > end)); then
+      echo "ERROR: never got 200 within ${timeout}s (last: $code)"
+      kubectl -n "$namespace" exec "$pod" -- cat /tmp/response.json 2>/dev/null || true
+      return 1
+    fi
+  done
+}
+
+
+wait_for_endpoints() {
+  local ns=$1 svc=$2 timeout=${3:-90}
+  local end=$((SECONDS + timeout))
+  while true; do
+    count=$(kubectl -n "$ns" get endpoints "$svc" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | wc -w)
+    if [[ "$count" -gt 0 ]]; then
+      echo "$svc has $count endpoint(s)"
+      return 0
+    fi
+    echo "Waiting for endpoints on $svc..."
+    sleep 3
+    if ((SECONDS > end)); then
+      echo "Timeout waiting for endpoints on $svc"
+      kubectl -n "$ns" get endpoints "$svc" -o yaml
+      return 1
+    fi
+  done
+}
+
+wait_for_endpoints dolphin details || exit 1
+wait_for_endpoints dolphin productpage || exit 1
