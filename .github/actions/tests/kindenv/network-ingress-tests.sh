@@ -498,7 +498,7 @@ kubectl top nodes 2>/dev/null || echo "metrics-server not installed"
 kubectl describe nodes | grep -A5 "Conditions:\|Allocated resources"
 
 echo "ensuring bookinfo backends are present and healthy before TLS test"
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 
 kubectl -n dolphin rollout status deployment/details-v1 --timeout=120s || exit 1
 kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || exit 1
