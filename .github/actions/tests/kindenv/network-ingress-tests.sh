@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+
 get_node10ips() {
   # Extract the IPv4 subnet using jq
   subnet=$(docker network inspect kind | jq -r '.[0].IPAM.Config[] | select(.Subnet | test("^\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+$")) | .Subnet')
@@ -11,6 +12,8 @@ get_node10ips() {
   echo "${ip_prefix}.100 - ${ip_prefix}.110"
 }
 ips=$(get_node10ips)
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/helper.sh"
 
 # deploy metalb
 kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
@@ -168,8 +171,9 @@ done
 
 # dedicated lb mode - each ingress is created with its own loadbalancer service
 # deploy multiple ingress and verify each ingress is created with its own loadbalancer service
-echo "DEBUG pwd=$PWD  \$0=$0  BASH_SOURCE=${BASH_SOURCE[0]}  GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
-source "${GITHUB_WORKSPACE}/.github/actions/tests/kindenv/helper.sh"
+
+
+
 
 # setup end2end with customized agent, envoy, EnvoyConfig
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # run the agent
@@ -250,36 +254,7 @@ check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
 
 kubectl -n dolphin get DolphinEnvoyConfig dolphin-ingress-dolphin-basic-ingress -o yaml
 
-# verify DolphinEnvoyConfig populated as expected
-check_ing_dolphin_envoy_config() {
-  local namespace="dolphin"
-  local resource_name="dolphin-ingress-dolphin-basic-ingress"
-  local expected_service_name="dolphin-ingress-basic-ingress"
-  local expected_service_namespace="dolphin"
 
-  echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
-
-  # Check if the DolphinEnvoyConfig exists
-  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
-    echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
-    return 1
-  fi
-
-  local actual_service_name actual_service_namespace
-  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].name}')
-  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].namespace}')
-
-  if [[ "$actual_service_name" == "$expected_service_name" && \
-        "$actual_service_namespace" == "$expected_service_namespace" ]]; then
-    echo "✅ Resource and expected services entry found."
-    return 0
-  else
-    echo "❌ Resource exists but expected services entry is missing or incorrect."
-    echo "    Expected: name=$expected_service_name, namespace=$expected_service_namespace"
-    echo "    Actual:   name=$actual_service_name, namespace=$actual_service_namespace"
-    return 2
-  fi
-}
 check_ing_dolphin_envoy_config
 
 echo "Checking kube-system cilium agent and envoy pods are ready"
@@ -287,29 +262,6 @@ echo "Checking kube-system cilium agent and envoy pods are ready"
 NAMESPACE="kube-system"
 TIMEOUT=120
 INTERVAL=5
-
-wait_for_pods() {
-    local LABEL=$1
-    local DESCRIPTION=$2
-    local elapsed=0
-
-    echo "Waiting for all '${DESCRIPTION}' pods to be ready... (timeout: ${TIMEOUT} seconds)"
-    while [ $elapsed -lt $TIMEOUT ]; do
-        NOT_READY=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL" -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
-        if [ -z "$NOT_READY" ]; then
-            echo "All '${DESCRIPTION}' pods are ready"
-            return 0
-        else
-            echo "Waiting for '${DESCRIPTION}' pods to be ready..."
-            sleep $INTERVAL
-            elapsed=$((elapsed + INTERVAL))
-        fi
-    done
-
-    echo "Timeout waiting for '${DESCRIPTION}' pods to be ready"
-    kubectl get pods -n "$NAMESPACE" -l "$LABEL"
-    return 1
-}
 
 # Check both agent and envoy pods
 wait_for_pods "k8s-app=cilium" "agent" || exit 1
@@ -554,27 +506,6 @@ kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || ex
 wait_for_endpoints dolphin details || exit 1
 wait_for_endpoints dolphin productpage || exit 1
 
-wait_for_cec_ready() {
-  local ns=$1 name=$2 timeout=${3:-90}
-  local end=$((SECONDS + timeout))
-  while true; do
-    ready=$(kubectl -n "$ns" get ciliumenvoyconfig "$name" \
-      -o jsonpath='{.status.conditions[?(@.type=="Valid")].status}' 2>/dev/null)
-    if [[ "$ready" == "True" ]]; then
-      echo "CiliumEnvoyConfig/$name is Valid"
-      return 0
-    fi
-    echo "Waiting for CiliumEnvoyConfig/$name to reconcile..."
-    sleep 3
-    if ((SECONDS > end)); then
-      echo "Timeout waiting for CiliumEnvoyConfig/$name"
-      kubectl -n "$ns" get ciliumenvoyconfig "$name" -o yaml
-      return 1
-    fi
-  done
-}
-wait_for_cec_ready "dolphin" "dolphin-tls-ingress" || exit 1
- 
 set -uo pipefail
 
 NAMESPACE="dolphin"

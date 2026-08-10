@@ -127,3 +127,57 @@ wait_for_endpoints() {
     fi
   done
 }
+
+# verify DolphinEnvoyConfig populated as expected
+check_ing_dolphin_envoy_config() {
+  local namespace="dolphin"
+  local resource_name="dolphin-ingress-dolphin-basic-ingress"
+  local expected_service_name="dolphin-ingress-basic-ingress"
+  local expected_service_namespace="dolphin"
+
+  echo "🔍 Checking DolphinEnvoyConfig/$resource_name in namespace $namespace..."
+
+  # Check if the DolphinEnvoyConfig exists
+  if ! kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" &>/dev/null; then
+    echo "❌ Resource DolphinEnvoyConfig/$resource_name does not exist in namespace $namespace."
+    return 1
+  fi
+
+  local actual_service_name actual_service_namespace
+  actual_service_name=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].name}')
+  actual_service_namespace=$(kubectl -n "$namespace" get DolphinEnvoyConfig "$resource_name" -o jsonpath='{.spec.services[0].namespace}')
+
+  if [[ "$actual_service_name" == "$expected_service_name" && \
+        "$actual_service_namespace" == "$expected_service_namespace" ]]; then
+    echo "✅ Resource and expected services entry found."
+    return 0
+  else
+    echo "❌ Resource exists but expected services entry is missing or incorrect."
+    echo "    Expected: name=$expected_service_name, namespace=$expected_service_namespace"
+    echo "    Actual:   name=$actual_service_name, namespace=$actual_service_namespace"
+    return 2
+  fi
+}
+
+wait_for_pods() {
+    local LABEL=$1
+    local DESCRIPTION=$2
+    local elapsed=0
+
+    echo "Waiting for all '${DESCRIPTION}' pods to be ready... (timeout: ${TIMEOUT} seconds)"
+    while [ $elapsed -lt $TIMEOUT ]; do
+        NOT_READY=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL" -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
+        if [ -z "$NOT_READY" ]; then
+            echo "All '${DESCRIPTION}' pods are ready"
+            return 0
+        else
+            echo "Waiting for '${DESCRIPTION}' pods to be ready..."
+            sleep $INTERVAL
+            elapsed=$((elapsed + INTERVAL))
+        fi
+    done
+
+    echo "Timeout waiting for '${DESCRIPTION}' pods to be ready"
+    kubectl get pods -n "$NAMESPACE" -l "$LABEL"
+    return 1
+}
