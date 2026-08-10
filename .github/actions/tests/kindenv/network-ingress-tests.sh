@@ -575,14 +575,11 @@ printf 'kubectl -n "%s" exec "%s" -- curl -sSL -o /tmp/response.json -w "%%{http
     "${CACERT}" \
     "${URL}"
 
-curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+RESPONSE=$(curl_with_retry "$NAMESPACE" "$POD" 90 5 \
   curl -sSL -o /tmp/response.json -w "%{http_code}" \
   --resolve "${HOST}:443:${tlsingressip}" \
   --cacert "${CACERT}" \
-  "${URL}" || exit 1
-
-set +x
-
+  "${URL}")
 CURL_EXIT=$?
 
 if [[ $CURL_EXIT -ne 0 ]]; then
