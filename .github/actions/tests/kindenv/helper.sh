@@ -96,13 +96,13 @@ curl_with_retry() {
   while true; do
     code=$(kubectl -n "$namespace" exec "$pod" -- "$@" 2>/dev/null) || code="curl_failed"
     if [[ "$code" == "200" ]]; then
-      echo "Got 200"
+      echo "Got 200" >&2
       return 0
     fi
-    echo "Got '$code', retrying... ($((end - SECONDS))s left)"
+    echo "Got '$code', retrying... ($((end - SECONDS))s left)" >&2
     sleep "$interval"
     if ((SECONDS > end)); then
-      echo "ERROR: never got 200 within ${timeout}s (last: $code)"
+      echo "ERROR: never got 200 within ${timeout}s (last: $code)" >&2
       kubectl -n "$namespace" exec "$pod" -- cat /tmp/response.json 2>/dev/null || true
       return 1
     fi

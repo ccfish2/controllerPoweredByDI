@@ -575,27 +575,19 @@ printf 'kubectl -n "%s" exec "%s" -- curl -sSL -o /tmp/response.json -w "%%{http
     "${CACERT}" \
     "${URL}"
 
-RESPONSE=$(curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+if curl_with_retry "$NAMESPACE" "$POD" 90 5 \
   curl -sSL -o /tmp/response.json -w "%{http_code}" \
   --resolve "${HOST}:443:${tlsingressip}" \
   --cacert "${CACERT}" \
-  "${URL}")
-CURL_EXIT=$?
-
-if [[ $CURL_EXIT -ne 0 ]]; then
-    echo "ERROR: curl failed with exit code ${CURL_EXIT} (TLS handshake / connection issue)"
+  "${URL}"; then
+    echo "TLS ingress verification succeeded (HTTP 200)"
+    kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json
+    echo
+else
+    echo "failed"
     exit 1
 fi
 
-if [[ "${RESPONSE}" != "200" ]]; then
-    echo "ERROR: unexpected HTTP status ${RESPONSE}"
-    kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json || true
-    exit 1
-fi
-
-echo "TLS ingress verification succeeded (HTTP ${RESPONSE})"
-kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json
-echo
 ###
 # * Added bookinfo.cilium.rocks:443:172.19.0.101 to DNS cache
 # * Hostname bookinfo.cilium.rocks was found in DNS cache
