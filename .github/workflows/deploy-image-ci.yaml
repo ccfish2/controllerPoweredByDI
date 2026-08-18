@@ -324,7 +324,7 @@ jobs:
       # in the repository.
       - name: Run Customer Log Controller Functional Tests
         run: |
-          bash .github/actions/tests/kindenv/customer-log-controller-tests.sh
+          bash .github/actions/tests/kindenv/operator-tests.sh
 
       # ============================================================
       # 16. Network Ingress Functional Tests
