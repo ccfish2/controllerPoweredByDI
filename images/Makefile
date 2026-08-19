@@ -14,6 +14,7 @@ all-images: docker-image-generic
 
 docker-image-generic:
 	docker build \
+	    --no-cache --pull \
 		--build-arg TARGETOS=linux \
 		--build-arg TARGETARCH=amd64 \
 		--build-arg GO_TAGS_FLAGS="home_provider_generic" \
@@ -23,6 +24,7 @@ docker-image-generic:
 
 docker-image-%:
 	docker build \
+	    --no-cache --pull \
 		--build-arg TARGETOS=linux \
 		--build-arg TARGETARCH=amd64 \
 		--build-arg GO_TAGS_FLAGS="home_provider_$*" \

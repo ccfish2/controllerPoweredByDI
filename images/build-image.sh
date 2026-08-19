@@ -104,7 +104,7 @@ run_buildx() {
       exit 1
     fi
   fi
-  docker buildx build --output="${output}" "${tag_args[@]}" "${build_args[@]}"
+  docker buildx build --no-cache --pull --output="${output}" "${tag_args[@]}" "${build_args[@]}"
 }
 
 if [ "${do_build}" = "true" ] ; then
