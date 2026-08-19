@@ -16,6 +16,7 @@ type LogConfig struct {
 	AWSRegion   string
 
 	UploadInMinutesInterval time.Duration
+	EnableScalableLogis     bool
 }
 
 func (r *LogConfig) Flags(flags *pflag.FlagSet) {
@@ -24,4 +25,5 @@ func (r *LogConfig) Flags(flags *pflag.FlagSet) {
 	flags.StringVar(&r.S3Bucket, "s3-bucket", "", "s3 bucket to upload logs")
 	flags.StringVar(&r.AWSRegion, "aws-region", "", "aws region of s3 bucket")
 	flags.DurationVar(&r.UploadInMinutesInterval, "upload-in-minutes-interval", time.Minute, "log monitor interval in minutes")
+	flags.Bool("enable-log-controller-asis", r.EnableScalableLogis, "Enable the scalable log controller")
 }

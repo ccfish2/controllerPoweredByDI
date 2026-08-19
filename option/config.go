@@ -97,6 +97,8 @@ const (
 	SetDolphinIsUpCondition         = "set-dolphin-is-up-condition"
 	IngressDefaultXffNumTrustedHops = "ingress-default-xff-num-trusted-hops"
 	PodRestartSelector              = "pod-restart-selector"
+
+	EnableScalableLogis = "enable-Log-controller"
 )
 
 // OperatorConfig is the configuration used by the operator.
@@ -167,6 +169,8 @@ type OperatorConfig struct {
 	SetDolphinIsUpCondition       bool
 	IngressProxyXffNumTrustedHops uint32
 	PodRestartSelector            string
+
+	EnableScalableLogis bool // the log controller is used to demoing the framework scalability skip it for controller function tests
 }
 
 // Populate sets all options with the values from viper.
@@ -284,6 +288,8 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	} else {
 		c.IPAMAutoCreateDolphinPodIPPools = m
 	}
+
+	c.EnableScalableLogis = vp.GetBool(EnableScalableLogis)
 }
 
 // Config represents the operator configuration.
@@ -295,4 +301,5 @@ var Config = &OperatorConfig{
 	AWSInstanceLimitMapping:         make(map[string]string),
 	ENITags:                         make(map[string]string),
 	ENIGarbageCollectionTags:        make(map[string]string),
+	EnableScalableLogis:             false,
 }

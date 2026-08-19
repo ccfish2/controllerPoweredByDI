@@ -136,7 +136,7 @@ spec:
           http2ProtocolOptions: {}
   services:
   - listener: ""
-    name: dolphin-gateway-my-gateway
+    name: dolphin-gateway-tls-gateway
     namespace: dolphin
     ports:
     - 80
