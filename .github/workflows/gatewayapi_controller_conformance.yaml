@@ -1,0 +1,325 @@
+name: Deploy Image into Kind Cluster
+
+on:
+  # Trigger this workflow after the Image CI Builder workflow completes.
+  workflow_run:
+    workflows: ["Image CI Builder"]
+    types:
+      - completed
+
+jobs:
+  deploy-and-functional-test:
+    name: Deploy and Functionally Test in Kind Cluster
+    runs-on: ubuntu-22.04
+
+    # Only deploy and test when the upstream image build completed successfully.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      # ============================================================
+      # 1. Checkout application/operator repository
+      # ============================================================
+      # Provides deployment manifests, test scripts, and other
+      # resources required to deploy and test the operator.
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ============================================================
+      # 2. Set up Docker
+      # ============================================================
+      # Docker is required because the Kind Kubernetes nodes run
+      # as Docker containers.
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      # ============================================================
+      # 3. Prepare host directories for Kind node storage
+      # ============================================================
+      # The local volume provisioner uses local/host storage.
+      #
+      # These directories are mounted into the Kind nodes through
+      # the Kind cluster configuration.
+      - name: Create host directories
+        run: |
+          sudo mkdir -p /tmp/kind-node1-logs /tmp/kind-node2-logs
+          sudo chmod 777 /tmp/kind-node1-logs /tmp/kind-node2-logs
+
+          sudo mount --bind /tmp/kind-node1-logs /tmp/kind-node1-logs
+          sudo mount --bind /tmp/kind-node2-logs /tmp/kind-node2-logs
+
+      # ============================================================
+      # 4. Create Kind Kubernetes cluster
+      # ============================================================
+      # Creates the Kubernetes cluster using the project-specific
+      # Kind configuration.
+      #
+      # At this point the Kubernetes cluster exists, but the
+      # application/operator infrastructure has not been installed.
+      - name: Set up Kind
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: kind
+          config: .github/kind-config.yaml
+
+      # ============================================================
+      # 5. Install kubectl
+      # ============================================================
+      # kubectl is used to configure, deploy, and validate the
+      # Kubernetes resources throughout this workflow.
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      # ============================================================
+      # 6. Install GitHub CLI
+      # ============================================================
+      # GitHub CLI is available to deployment/test scripts that
+      # need to interact with GitHub resources.
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install gh -y
+
+      # ============================================================
+      # Optional: Load operator image directly into Kind
+      # ============================================================
+      # These steps are currently disabled because the deployment
+      # pulls the operator image from Quay.io instead.
+      #
+      # - name: Download Dolphin Operator Image from GitHub Release
+      #   run: |
+      #     curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/civ1/dolphin-operator-generic.tar
+      #
+      # - name: Load Docker Image into KinD
+      #   run: |
+      #     kind load image-archive ./dolphin-operator-generic.tar
+
+      # ============================================================
+      # 7. Checkout infrastructure repository
+      # ============================================================
+      # The infra repository contains the Dolphin CRD definitions
+      # required by the operator.
+      #
+      # It is checked out into ./infra so the CRDs can be applied
+      # before the operator is deployed.
+      - name: Checkout infra repo (with CRD YAMLs)
+        uses: actions/checkout@v4
+        with:
+          repository: ccfish2/infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: infra
+
+      # ============================================================
+      # 8. Deploy local storage provisioner
+      # ============================================================
+      # The Dolphin StatefulSet requires persistent storage.
+      #
+      # This step:
+      #   1. Installs the local volume provisioner.
+      #   2. Waits for its DaemonSet to become Ready.
+      #   3. Waits until at least two PVs are Available.
+      #
+      # Multiple available PVs are required for the StatefulSet
+      # storage configuration used by the Kind environment.
+      - name: Deploy local volume provisioner and wait for PV
+        run: |
+          kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
+
+          # Wait for the local volume provisioner DaemonSet
+          # to successfully roll out.
+          if kubectl -n kube-system rollout status ds/local-volume-provisioner --timeout=2m; then
+            echo "DaemonSet local-volume-provisioner rolled out successfully"
+          else
+            echo "DaemonSet local-volume-provisioner rollout failed or timed out"
+            exit 1
+          fi
+
+          # Wait for at least two Available PVs.
+          timeout=120
+          interval=5
+          elapsed=0
+
+          while [ $elapsed -lt $timeout ]; do
+              current_count=$(kubectl get pv --no-headers | awk '/Available/ {print $0}' | wc -l)
+
+              if [ "$current_count" -ge 2 ]; then
+                  echo "Found 2 Available PVs"
+                  exit 0
+              else
+                  sleep $interval
+                  elapsed=$((elapsed + interval))
+              fi
+          done
+
+          echo "Timeout reached. Did not find at least 2 Available PVs."
+          exit 1
+
+      # ============================================================
+      # 9. Install Dolphin and Gateway API CRDs
+      # ============================================================
+      # CRDs must be installed before the operator can create or
+      # manage the corresponding custom resources.
+      #
+      # This installs:
+      #
+      #   Dolphin CRDs
+      #   GatewayClass
+      #   Gateway
+      #   HTTPRoute
+      #   ReferenceGrant
+      #   GRPCRoute
+      #   TLSRoute
+      #
+      # TLSRoute is installed from the Gateway API experimental
+      # CRD directory.
+      - name: Deploy the CRD YAMLs
+        run: |
+          # Install Dolphin-specific CRDs.
+          kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
+
+          # Install Gateway API standard CRDs.
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
+
+          # Install the experimental TLSRoute CRD.
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
+
+      # ============================================================
+      # 10. Create namespace and Quay image pull secret
+      # ============================================================
+      # The Dolphin operator image is stored in Quay.io.
+      #
+      # The imagePullSecret allows Kubernetes to authenticate to
+      # the private Quay registry when pulling the operator image.
+      - name: Create image pull secret
+        run: |
+          kubectl create ns dolphin
+
+          kubectl create secret docker-registry quay-secret \
+            --docker-server=quay.io \
+            --docker-username=${{ secrets.QUAY_USER }} \
+            --docker-password=${{ secrets.QUAY_PASSWD }} \
+            --docker-email=dummy@example.com \
+            --namespace=dolphin \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ============================================================
+      # 11. Deploy Dolphin operator
+      # ============================================================
+      # Deploy the Kind-specific manifests.
+      #
+      # The image reference in each manifest is overridden with
+      # the exact image generated by the successful Image CI Builder
+      # workflow.
+      #
+      # github.event.workflow_run.head_sha identifies the commit
+      # associated with the upstream workflow run.
+      - name: Deploy Dolphin Operator
+        run: |
+          echo "Deploying image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}"
+
+          # Ensure the application namespace exists.
+          kubectl create namespace dolphin || true
+
+          # Override the container image in the Kind-specific
+          # deployment manifests.
+          for file in install/manifests/kindenv/*.yaml; do
+            sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
+          done
+
+          # Deploy the StatefulSet separately because it contains
+          # the persistent storage configuration.
+          kubectl apply -f install/manifests/statefulset.yaml
+
+      # ============================================================
+      # 12. Wait for PersistentVolumeClaims
+      # ============================================================
+      # The StatefulSet cannot become Ready until its PVCs are
+      # successfully bound to the available PVs.
+      - name: Wait for PVCs to be Ready
+        run: |
+          NAMESPACE="dolphin"
+
+          check_pvc_status() {
+              PVC_STATUS=$(kubectl get pvc -n "$NAMESPACE" --no-headers -o custom-columns=":status.phase")
+
+              for status in $PVC_STATUS; do
+                  if [[ "$status" != "Bound" ]]; then
+                      return 1
+                  fi
+              done
+
+              return 0
+          }
+
+          if check_pvc_status; then
+              echo "All PVCs are in 'Bound' status."
+              exit 0
+          else
+              echo "Some PVCs are not in 'Bound' status. Waiting for 2 minutes..."
+              sleep 120
+
+              if check_pvc_status; then
+                  echo "All PVCs are now in 'Bound' status."
+                  exit 0
+              else
+                  echo "PVCs are still not in 'Bound' status after waiting."
+                  exit 1
+              fi
+          fi
+
+      # ============================================================
+      # 13. Wait for Dolphin operator to become Ready
+      # ============================================================
+      # The deployment phase is considered successful only after
+      # the Dolphin StatefulSet has successfully rolled out.
+      #
+      # This ensures the operator is running before functional
+      # tests are executed.
+      - name: Wait for Dolphin Operator to be Ready
+        run: |
+          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
+            echo "StatefulSet operator-dolphin rolled out successfully"
+          else
+            echo "StatefulSet operator-dolphin rollout failed or timed out"
+            exit 1
+          fi
+
+      # ============================================================
+      # 14. Install functional-test dependencies
+      # ============================================================
+      # jq is required by the functional test scripts for parsing
+      # JSON output from Kubernetes and networking commands.
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # ============================================================
+      # 17. Gateway API Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      - name: Run Network Gateway API Functional Tests
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapi141ctl.sh
+
+      # ============================================================
+      # 18. Cleanup
+      # ============================================================
+      # Always delete the Kind cluster, including when deployment
+      # or any functional test fails.
+      #
+      # This ensures the GitHub Actions runner is cleaned up after
+      # every workflow execution.
+      - name: Delete Kind Cluster
+        if: always()
+        run: |
+          kind delete cluster

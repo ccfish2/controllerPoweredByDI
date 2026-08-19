@@ -95,6 +95,10 @@ func registerLogController(params logControllerParams, cfg *logctl.LogConfig, s3
 
 		params.LifeCycle.Append(cell.Hook{
 			OnStart: func(_ cell.HookContext) error {
+				if !cfg.EnableScalableLogis {
+					scopedLog.Infof("Skip log controller !")
+					return nil
+				}
 				scopedLog.Infof("Initializing log controller")
 				entries, err := os.ReadDir(cfg.LogRootPath)
 				if err != nil {
