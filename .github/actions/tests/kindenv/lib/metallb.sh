@@ -148,22 +148,44 @@ while true; do
 done
 
 
-end=$((SECONDS+120))
-while true; do
+# Validate internal nginx connectivity
+end=$((SECONDS + 120))
+
+kubectl wait \
+  --for=condition=available \
+  deployment/nginx \
+  --timeout=120s
+
+wait_for_endpoints default nginx 120
+
+while (( SECONDS <= end )); do
   echo "Checking internal connectivity to nginx service..."
-  output=$(kubectl run busybox --rm -i --restart=Never --image=curlimages/curl -- \
-        curl -s http://nginx.default.svc.cluster.local)
 
-  if echo "$output" | grep -q "Welcome to nginx"; then
-    echo "Service is reachable. Skipping LoadBalancer IP check in CI."
-    break
-  fi 
+  if output=$(kubectl run "curl-nginx-$RANDOM" \
+      --rm \
+      -i \
+      --restart=Never \
+      --image=curlimages/curl \
+      --quiet \
+      -- \
+      curl -sS --fail --connect-timeout 5 --max-time 10 \
+      http://nginx.default.svc.cluster.local 2>/dev/null); then
 
-  echo "Service not reachable yet. wait for 5 seconds..."
-  sleep 5
-  
-  if ((SECONDS > end)); then
-    echo "Timeout waiting for service to be reachable"
-    exit 1
+    if grep -q "Welcome to nginx" <<<"$output"; then
+      echo "✅ Service is reachable."
+      break
+    fi
+  else
+    echo "⚠️ nginx connectivity probe failed; retrying..."
   fi
+
+  echo "Service not reachable yet. Waiting 5 seconds..."
+  sleep 5
 done
+
+if (( SECONDS > end )); then
+  echo "❌ Timeout waiting for nginx service to be reachable."
+  kubectl get svc nginx
+  kubectl get endpoints nginx
+  exit 1
+fi
