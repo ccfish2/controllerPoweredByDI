@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-source "${SCRIPT_DIR}/helper.sh"
+source "${SCRIPT_DIR}/lib/helper.sh"
 source "${SCRIPT_DIR}/lib/metallb.sh"
 
 # dedicated lb mode - each ingress is created with its own loadbalancer service
