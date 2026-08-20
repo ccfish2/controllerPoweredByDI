@@ -11,6 +11,8 @@ NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
 kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books.info
+echo "Deploy Cilium CRDS"
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
 
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
