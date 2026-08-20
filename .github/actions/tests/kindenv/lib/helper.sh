@@ -181,3 +181,15 @@ wait_for_pods() {
     kubectl get pods -n "$NAMESPACE" -l "$LABEL"
     return 1
 }
+
+uninstall_helm_release() {
+  local release="$1"
+  local namespace="$2"
+
+  if helm status "$release" -n "$namespace" >/dev/null 2>&1; then
+    echo "Uninstalling Helm release '$release'..."
+    helm uninstall "$release" -n "$namespace"
+  else
+    echo "Helm release '$release' is not installed; skipping uninstall."
+  fi
+}
