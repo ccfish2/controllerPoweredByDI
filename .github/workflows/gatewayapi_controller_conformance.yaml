@@ -1,4 +1,4 @@
-name: Deploy Image into Kind Cluster
+name: Conformance Tests of Gateway API controllers
 
 on:
   # Trigger this workflow after the Image CI Builder workflow completes.
