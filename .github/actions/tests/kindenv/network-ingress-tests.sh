@@ -325,13 +325,15 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ing
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
 kubectl -n dolphin delete pod busybox --ignore-not-found --wait=true
 
-echo "taking a look at the pods status on the GH action cluster"
-kubectl -n dolphin get pods -o wide
-kubectl -n dolphin get pods -l app=details -o yaml | grep -A5 -E "phase|reason|message"
-kubectl -n dolphin describe pod -l app=details
-kubectl get events -n dolphin --sort-by='.lastTimestamp' | tail -40
+echo "Taking a look at the pods status on the GH Actions cluster"
+
+kubectl -n dolphin get pods -o wide || true
+kubectl -n dolphin get pods -l app=details -o yaml 2>/dev/null \
+  | grep -A5 -E "phase|reason|message" || true
+kubectl -n dolphin describe pod -l app=details || true
+kubectl get events -n dolphin --sort-by='.lastTimestamp' | tail -40 || true
 kubectl top nodes 2>/dev/null || echo "metrics-server not installed"
-kubectl describe nodes | grep -A5 "Conditions:\|Allocated resources"
+kubectl describe nodes | grep -A5 -E "Conditions:|Allocated resources" || true
 
 echo "ensuring bookinfo backends are present and healthy before TLS test"
 kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
