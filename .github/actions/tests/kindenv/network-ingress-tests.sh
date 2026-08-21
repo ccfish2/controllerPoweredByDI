@@ -119,9 +119,10 @@ wait_for_pods "k8s-app=cilium" "agent" || exit 1
 
 # switch operator lb-mode to shared mode
 kubectl -n dolphin delete sts/operator-dolphin
+
 time sleep 3
 
-helm -n dolphin uninstall dolphin-operator
+uninstall_helm_release dolphin-operator dolphin
 helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
 helm repo update
 helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace

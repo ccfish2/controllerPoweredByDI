@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/lib/metallb.sh"
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
-kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+#kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 echo "Deploy Cilium CRDS"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
 
@@ -231,6 +231,9 @@ echo "Passthrough service:"
 kubectl -n "${NAMESPACE}" get svc "${PASSTHROUGH_SERVICE}" -o wide
 kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 
+echo "Deploy cilium envoy config connecting client to backend pods"
+k apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml
+
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
   gateway_programmed="$(
@@ -268,58 +271,58 @@ if [[ "${gateway_programmed:-}" != "True" ||
 fi
 
 # current code lacks the systemcall generating ciliumenvoy configure which routes the traffict to the pods using ebpf
-# echo "Checking TCP connectivity to ${gateway_ip}:443"
-# if ! nc -vz -w 5 "${gateway_ip}" 443; then
-#   echo "Cannot connect to ${gateway_ip}:443"
-#   exit 1
-# fi
+echo "Checking TCP connectivity to ${gateway_ip}:443"
+if ! nc -vz -w 5 "${gateway_ip}" 443; then
+  echo "Cannot connect to ${gateway_ip}:443"
+  exit 1
+fi
 
-# response_file="$(mktemp)"
+response_file="$(mktemp)"
 
-# if ! curl \
-#   --verbose \
-#   --trace-time \
-#   --noproxy '*' \
-#   --connect-timeout 10 \
-#   --max-time 30 \
-#   --silent \
-#   --show-error \
-#   --insecure \
-#   --resolve "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}" \
-#   --output "${response_file}" \
-#   "https://${PASSTHROUGH_DOMAIN}/"; then
-#   echo "TLS passthrough curl request failed"
-#   rm -f "${response_file}"
-#   exit 1
-# fi
+if ! curl \
+  --verbose \
+  --trace-time \
+  --noproxy '*' \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --silent \
+  --show-error \
+  --insecure \
+  --resolve "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}" \
+  --output "${response_file}" \
+  "https://${PASSTHROUGH_DOMAIN}/"; then
+  echo "TLS passthrough curl request failed"
+  rm -f "${response_file}"
+  exit 1
+fi
 
-# response="$(cat "${response_file}")"
-# rm -f "${response_file}"
+response="$(cat "${response_file}")"
+rm -f "${response_file}"
 
-# echo "Backend response: ${response@Q}"
+echo "Backend response: ${response@Q}"
 
-# if [[ "${response}" != "TLS passthrough backend" ]]; then
-#   echo "Unexpected backend response"
-#   exit 1
-# fi
+if [[ "${response}" != "TLS passthrough backend" ]]; then
+  echo "Unexpected backend response"
+  exit 1
+fi
 
-# echo "Inspecting backend certificate"
+echo "Inspecting backend certificate"
 
-# certificate="$(
-#   openssl s_client \
-#     -connect "${gateway_ip}:443" \
-#     -servername "${PASSTHROUGH_DOMAIN}" \
-#     -connect_timeout 10 \
-#     -brief \
-#     </dev/null 2>&1
-# )"
+certificate="$(
+  openssl s_client \
+    -connect "${gateway_ip}:443" \
+    -servername "${PASSTHROUGH_DOMAIN}" \
+    -connect_timeout 10 \
+    -brief \
+    </dev/null 2>&1
+)"
 
-# echo "TLS handshake output:"
-# echo "${certificate}"
+echo "TLS handshake output:"
+echo "${certificate}"
 
-# if ! grep -q "subject=.*CN = ${PASSTHROUGH_DOMAIN}" <<<"${certificate}"; then
-#   echo "Backend certificate was not returned through the Gateway"
-#   exit 1
-# fi
+if ! grep -q "subject=.*CN = ${PASSTHROUGH_DOMAIN}" <<<"${certificate}"; then
+  echo "Backend certificate was not returned through the Gateway"
+  exit 1
+fi
 
 echo "TLS passthrough test passed"
