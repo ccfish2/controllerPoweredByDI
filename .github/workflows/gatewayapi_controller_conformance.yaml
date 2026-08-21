@@ -82,20 +82,6 @@ jobs:
           sudo apt install gh -y
 
       # ============================================================
-      # Optional: Load operator image directly into Kind
-      # ============================================================
-      # These steps are currently disabled because the deployment
-      # pulls the operator image from Quay.io instead.
-      #
-      # - name: Download Dolphin Operator Image from GitHub Release
-      #   run: |
-      #     curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/civ1/dolphin-operator-generic.tar
-      #
-      # - name: Load Docker Image into KinD
-      #   run: |
-      #     kind load image-archive ./dolphin-operator-generic.tar
-
-      # ============================================================
       # 7. Checkout infrastructure repository
       # ============================================================
       # The infra repository contains the Dolphin CRD definitions

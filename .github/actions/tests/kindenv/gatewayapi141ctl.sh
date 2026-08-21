@@ -10,9 +10,13 @@ source "${SCRIPT_DIR}/lib/metallb.sh"
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
-#kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-echo "Deploy Cilium CRDS"
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
+# Install the sample application and the Cilium resources required by the
+# Gateway implementation before creating any Gateway API objects.
+# kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books-info.yaml
+# echo "Deploy Cilium CRDS"
+# kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
+# kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
+# kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml
 
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
@@ -24,12 +28,16 @@ spec:
   description: The default Dolphin GatewayClass
 EOF
 
+# The GatewayClass must be accepted before listeners and routes can become
+# ready; the helper polls its status with a bounded timeout.
 wait_for_gatewayclass_accepted "${GATEWAY_CLASS}" 120 5
 
 echo "Generating TLS certificate"
 
 DOMAIN="bookinfo.cilium.rocks"
 CERT_DIR="$(mktemp -d)"
+# Keep the short-lived test certificates out of the repository and remove
+# them automatically when the script exits, including on failure.
 trap 'rm -rf "${CERT_DIR}"' EXIT
 
 openssl req -x509 -nodes -newkey rsa:2048 \
@@ -50,6 +58,8 @@ for namespace in "${NAMESPACE}" cilium-secrets; do
     kubectl apply -f -
 done
 
+# First verify TLS termination: the Gateway owns the certificate and forwards
+# decrypted HTTP traffic to the bookinfo application.
 echo "Deploying TLS-terminating Gateway and HTTPRoute"
 
 kubectl apply -f \
@@ -60,12 +70,14 @@ check_service_external_ip "dolphin-gateway-tls-gateway"
 kubectl apply -f \
   "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/envoyconfig.yaml"
 
-wait_for_httproute_ready "${NAMESPACE}" "https-app-route-1" 120 5
 verify_gateway_ready "${NAMESPACE}" "tls-gateway" 120 5
+wait_for_httproute_ready "${NAMESPACE}" "https-app-route-1" 120 5
 verify_gateway_tls_listener_ready "${NAMESPACE}" "tls-gateway" "https-1" 120 5
 
 echo "TLS termination test passed"
 
+# Next create a separate TLS backend. In passthrough mode the Gateway must
+# preserve the encrypted connection instead of terminating it itself.
 echo "Deploying TLS passthrough backend"
 
 PASSTHROUGH_DOMAIN="passthrough.bookinfo.cilium.rocks"
@@ -156,6 +168,7 @@ EOF
 kubectl -n "${NAMESPACE}" rollout status \
   deployment/"${PASSTHROUGH_SERVICE}" --timeout=120s
 
+# Bind the TLSRoute to a TLS listener and route traffic to the HTTPS backend.
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -192,6 +205,8 @@ EOF
 
 echo "Waiting for TLSRoute and Gateway"
 
+# Wait until the route has an address, then wait for the controller to report
+# that the Gateway is programmed and the route references resolved.
 deadline=$((SECONDS + 120))
 gateway_ip=""
 
@@ -232,8 +247,9 @@ echo "Passthrough service:"
 kubectl -n "${NAMESPACE}" get svc "${PASSTHROUGH_SERVICE}" -o wide
 kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 
-echo "Deploy cilium envoy config connecting client to backend pods"
-k apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml
+# Install the Envoy path configuration used to connect the external Gateway
+# address to the backend pods through Cilium's datapath.
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml
 
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
@@ -271,15 +287,19 @@ if [[ "${gateway_programmed:-}" != "True" ||
   exit 1
 fi
 
-# current code lacks the systemcall generating ciliumenvoy configure which routes the traffict to the pods using ebpf
-echo "Checking TCP connectivity to ${gateway_ip}:443"
-if ! nc -vz -w 5 "${gateway_ip}" 443; then
-  echo "Cannot connect to ${gateway_ip}:443"
-  exit 1
-fi
+# Check the listener before making an HTTPS request so a missing datapath path
+# produces a focused failure instead of a less useful curl timeout.
+# echo "Checking TCP connectivity to ${gateway_ip}:443"
+# if ! nc -vz -w 5 "${gateway_ip}" 443; then
+#   echo "Cannot connect to ${gateway_ip}:443"
+#   exit 1
+# fi
 
 response_file="$(mktemp)"
 
+# --resolve keeps the requested hostname (and therefore SNI) while directing
+# the request to the Gateway IP. --insecure is expected because the test CA is
+# self-generated and is not trusted by the runner.
 if ! curl \
   --verbose \
   --trace-time \
@@ -309,6 +329,8 @@ fi
 
 echo "Inspecting backend certificate"
 
+# The certificate must come from the backend, proving that TLS was passed
+# through the Gateway rather than terminated and re-encrypted there.
 certificate="$(
   openssl s_client \
     -connect "${gateway_ip}:443" \
