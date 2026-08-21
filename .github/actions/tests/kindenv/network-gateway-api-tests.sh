@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 echo "Verify Gateway API end2end"
 source "$(dirname "$0")/gatewayapi_setup.sh"
-source "$(dirname "$0")/helper.sh"
+source "$(dirname "$0")/lib/helper.sh"
 
 # This script sets up a Gateway API environment in a Kind cluster.
 echo "deply services in the same namespace"
