@@ -55,34 +55,39 @@ verify_https_connectivity() {
 
 check_service_external_ip() {
   local namespace="dolphin"
-  local service_name=$1
-  local retries=10
-  local sleep_seconds=5
+  local service_name="$1"
+  local retries="${2:-24}"
+  local sleep_seconds="${3:-5}"
+  local external_ip
+  local i
 
-  echo "🔍 Checking if service '$service_name' exists in namespace '$namespace'..."
+  echo "🔍 Waiting for service '$service_name' and its EXTERNAL-IP..."
 
-  # Check if the service exists
-  if ! kubectl get svc "$service_name" -n "$namespace" >/dev/null 2>&1; then
-    echo "❌ Service '$service_name' not found in namespace '$namespace'."
-    return 1
-  fi
-
-  echo "✅ Service exists. Waiting for EXTERNAL-IP to be assigned..."
-
-  # Wait for EXTERNAL-IP
   for ((i=1; i<=retries; i++)); do
-    external_ip=$(kubectl get svc "$service_name" -n "$namespace" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    
-    if [[ -n "$external_ip" ]]; then
-      echo "✅ Service has external IP: $external_ip"
-      return 0
+    if kubectl get svc "$service_name" -n "$namespace" >/dev/null 2>&1; then
+      external_ip="$(
+        kubectl get svc "$service_name" \
+          -n "$namespace" \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}' \
+          2>/dev/null || true
+      )"
+
+      if [[ -n "$external_ip" ]]; then
+        echo "✅ Service has external IP: $external_ip"
+        return 0
+      fi
+
+      echo "⏳ Attempt $i/$retries: EXTERNAL-IP not assigned yet."
+    else
+      echo "⏳ Attempt $i/$retries: service not created yet."
     fi
 
-    echo "⏳ Attempt $i/$retries: EXTERNAL-IP not assigned yet. Retrying in $sleep_seconds seconds..."
-    sleep "$sleep_seconds"
+    if (( i < retries )); then
+      sleep "$sleep_seconds"
+    fi
   done
 
-  echo "❌ EXTERNAL-IP was not assigned after $retries attempts."
+  echo "❌ Service '$service_name' did not receive an EXTERNAL-IP after $retries attempts."
   return 1
 }
 

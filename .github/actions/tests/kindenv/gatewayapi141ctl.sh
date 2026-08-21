@@ -54,6 +54,7 @@ echo "Deploying TLS-terminating Gateway and HTTPRoute"
 
 kubectl apply -f \
   "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml"
+  
 check_service_external_ip "dolphin-gateway-tls-gateway"
 
 kubectl apply -f \
