@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/lib/metallb.sh"
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
-kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books.info
+kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 echo "Deploy Cilium CRDS"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
 
