@@ -9,13 +9,6 @@ items:
       gateway.networking.k8s.io/gateway-name: tls-passthrough-gateway
     name: dolphin-gateway-tls-passthrough-gateway
     namespace: dolphin
-    ownerReferences:
-    - apiVersion: gateway.networking.k8s.io/v1
-      controller: true
-      kind: Gateway
-      name: tls-passthrough-gateway
-      uid: 9291bd9d-9ae5-4c68-a68d-e811858f8ba8
-    uid: 9291bd9d-9ae5-4c68-a68d-e811858f8ba8
   spec:
     backendServices:
     - name: tls-passthrough-backend
