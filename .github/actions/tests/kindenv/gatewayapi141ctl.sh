@@ -287,6 +287,7 @@ kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 # Install the Envoy path configuration used to connect the external Gateway
 # address to the backend pods through Cilium's datapath.
 kubectl -n "${NAMESPACE}" apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml
+sleep 10
 
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
