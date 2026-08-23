@@ -279,6 +279,24 @@ gateway_ip="$(kubectl -n "${NAMESPACE}" get gateway "${PASSTHROUGH_GATEWAY}" \
 
 echo "Testing TLS passthrough through ${gateway_ip}:443"
 
+dump_passthrough_debug() {
+  echo "=== TLS passthrough diagnostics ==="
+  echo "Gateway address: ${gateway_ip:-<unset>}"
+  kubectl -n "${NAMESPACE}" get gateway "${PASSTHROUGH_GATEWAY}" -o yaml || true
+  kubectl -n "${NAMESPACE}" get tlsroute "${PASSTHROUGH_ROUTE}" -o yaml || true
+  kubectl -n "${NAMESPACE}" get svc "${PASSTHROUGH_SERVICE}" -o wide || true
+  kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml || true
+  kubectl -n "${NAMESPACE}" get endpointslice \
+    -l "kubernetes.io/service-name=${PASSTHROUGH_SERVICE}" -o yaml || true
+  kubectl -n "${NAMESPACE}" get ciliumenvoyconfig \
+    "dolphin-gateway-${PASSTHROUGH_GATEWAY}" -o yaml || true
+  kubectl get pods -A -l k8s-app=cilium-envoy -o wide || true
+  kubectl -n "${NAMESPACE}" get pods -o wide || true
+  kubectl get nodes -o wide || true
+  kubectl get events -A --sort-by='.lastTimestamp' | tail -80 || true
+  echo "=== End TLS passthrough diagnostics ==="
+}
+
 echo "Gateway status:"
 kubectl -n "${NAMESPACE}" get gateway "${PASSTHROUGH_GATEWAY}" -o yaml
 
@@ -294,6 +312,8 @@ kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 kubectl -n "${NAMESPACE}" apply -f \
   "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml"
 sleep 10
+
+dump_passthrough_debug
 
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
@@ -358,6 +378,7 @@ if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --resolve "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}" \
   "https://${PASSTHROUGH_DOMAIN}/details/v1")"; then
   echo "TLS passthrough curl request failed"
+  dump_passthrough_debug
   exit 1
 fi
 
