@@ -3,8 +3,6 @@ items:
 - apiVersion: cilium.io/v2
   kind: CiliumEnvoyConfig
   metadata:
-    annotations:
-      cec.cilium.io/use-original-source-address: "false"
     labels:
       gateway.networking.k8s.io/gateway-name: tls-passthrough-gateway
     name: dolphin-gateway-tls-passthrough-gateway

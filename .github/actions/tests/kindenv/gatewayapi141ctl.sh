@@ -88,7 +88,7 @@ PASSTHROUGH_SERVICE="tls-passthrough-backend"
 openssl req -x509 -nodes -newkey rsa:2048 \
   -keyout "${CERT_DIR}/passthrough.key" \
   -out "${CERT_DIR}/passthrough.crt" \
-  -days 1 \
+  -days 2 \
   -subj "/CN=${PASSTHROUGH_DOMAIN}" \
   -addext "subjectAltName=DNS:${PASSTHROUGH_DOMAIN}"
 
@@ -98,9 +98,10 @@ kubectl -n "${NAMESPACE}" create secret tls passthrough-backend-tls \
   --dry-run=client -o yaml |
   kubectl apply -f -
 
-# Keep the Nginx configuration and the self-signed certificate in one
-# ConfigMap so the in-cluster netshoot client can use the same certificate
-# that the passthrough backend presents.
+PASSTHROUGH_CERT_HASH="$(sha256sum "${CERT_DIR}/passthrough.crt" | awk '{print $1}')"
+
+# Keep the Nginx configuration in a ConfigMap. The netshoot client mounts the
+# certificate directly from the Secret used by the backend below.
 cat >"${CERT_DIR}/default.conf" <<EOF
 server {
   listen 8443 ssl;
@@ -118,7 +119,6 @@ EOF
 
 kubectl -n "${NAMESPACE}" create configmap passthrough-backend-config \
   --from-file=default.conf="${CERT_DIR}/default.conf" \
-  --from-literal="${PASSTHROUGH_DOMAIN}.pem=$(cat "${CERT_DIR}/passthrough.crt")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
@@ -135,6 +135,8 @@ spec:
     metadata:
       labels:
         app: ${PASSTHROUGH_SERVICE}
+      annotations:
+        dolphin.io/tls-certificate-hash: ${PASSTHROUGH_CERT_HASH}
     spec:
       containers:
       - name: nginx
@@ -172,9 +174,9 @@ EOF
 kubectl -n "${NAMESPACE}" rollout status \
   deployment/"${PASSTHROUGH_SERVICE}" --timeout=120s
 
-# Create a disposable in-cluster client with the backend certificate mounted
-# from the ConfigMap. This validates the same path without relying on the
-# host's DNS or certificate store.
+# Create a disposable in-cluster client with the exact backend certificate
+# mounted from the Secret. This avoids trusting a separately serialized copy.
+kubectl -n "${NAMESPACE}" delete pod netshoot --ignore-not-found --wait=true
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
 apiVersion: v1
 kind: Pod
@@ -194,8 +196,11 @@ spec:
       mountPath: /certs
   volumes:
   - name: ca-cert
-    configMap:
-      name: passthrough-backend-config
+    secret:
+      secretName: passthrough-backend-tls
+      items:
+      - key: tls.crt
+        path: ${PASSTHROUGH_DOMAIN}.pem
 EOF
 
 kubectl -n "${NAMESPACE}" wait --for=condition=Ready pod/netshoot --timeout=120s
@@ -286,7 +291,8 @@ kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 
 # Install the Envoy path configuration used to connect the external Gateway
 # address to the backend pods through Cilium's datapath.
-kubectl -n "${NAMESPACE}" apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml
+kubectl -n "${NAMESPACE}" apply -f \
+  "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml"
 sleep 10
 
 deadline=$((SECONDS + 120))
@@ -334,8 +340,8 @@ fi
 # fi
 
 # --resolve keeps the requested hostname (and therefore SNI) while directing
-# the request to the Gateway IP. The mounted certificate lets curl verify the
-# self-signed certificate returned by the backend.
+# the request to the Gateway IP. The mounted Secret certificate lets curl
+# verify the self-signed certificate returned by the backend.
 if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --verbose \
   --trace-time \
@@ -355,6 +361,8 @@ if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   exit 1
 fi
 
+# expected response would be
+# 00:29:45.619327 < Connection: keep-alive 00:29:45.619337 <  TLS passthrough backend
 echo "Backend response: ${response@Q}"
 
 if [[ "${response}" != "TLS passthrough backend" ]]; then
