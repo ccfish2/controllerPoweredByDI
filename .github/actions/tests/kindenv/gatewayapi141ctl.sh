@@ -358,7 +358,7 @@ fi
 # --connect-to directs the connection to the Gateway IP while keeping the
 # requested hostname (and therefore SNI). The mounted Secret certificate lets
 # curl verify the self-signed certificate returned by the backend.
-if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
+response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --verbose \
   --trace-time \
   --noproxy '*' \
@@ -372,11 +372,11 @@ if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --show-error \
   --cacert "/certs/${PASSTHROUGH_DOMAIN}.pem" \
   --connect-to "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}:443" \
-  "https://${PASSTHROUGH_DOMAIN}/details/v1")"; then
+  "https://${PASSTHROUGH_DOMAIN}/details/v1")" || {
   echo "TLS passthrough curl request failed"
   dump_passthrough_debug
   exit 1
-fi
+}
 
 
 echo "Inspecting backend certificate"
@@ -404,7 +404,7 @@ fi
 
 # expected response would be
 # 00:29:45.619327 < Connection: keep-alive 00:29:45.619337 <  TLS passthrough backend
-echo "Backend response: ${response@Q}"
+printf 'Backend response: %q\n' "${response}"
 
 if [[ "${response}" != "TLS passthrough backend" ]]; then
   echo "Unexpected backend response"
