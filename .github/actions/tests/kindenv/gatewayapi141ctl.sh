@@ -390,7 +390,7 @@ certificate="$(
     -connect_timeout 10 \
     -brief \
     </dev/null 2>&1
-)"
+)" || true
 
 echo "TLS handshake output:"
 echo "${certificate}"
