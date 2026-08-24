@@ -18,6 +18,19 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crd
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml
 
+echo "Checking kube-system cilium agent and envoy pods are ready"
+NAMESPACE="kube-system"
+TIMEOUT=120
+INTERVAL=5
+wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
+wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
+NAMESPACE="dolphin"
+
+# Remove the legacy static CEC so it cannot reconcile a Service that this test
+# does not create. The active passthrough CEC is applied below.
+kubectl -n "${NAMESPACE}" delete ciliumenvoyconfig cilium-gateway-my-gateway \
+  --ignore-not-found=true
+
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
@@ -60,23 +73,6 @@ done
 
 # First verify TLS termination: the Gateway owns the certificate and forwards
 # decrypted HTTP traffic to the bookinfo application.
-echo "Deploying TLS-terminating Gateway and HTTPRoute"
-
-kubectl apply -f \
-  "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/gatewayhttproute.yaml"
-  
-check_service_external_ip "dolphin-gateway-tls-gateway"
-
-kubectl apply -f \
-  "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/envoyconfig.yaml"
-
-verify_gateway_ready "${NAMESPACE}" "tls-gateway" 120 5
-wait_for_httproute_ready "${NAMESPACE}" "https-app-route-1" 120 5
-verify_gateway_tls_listener_ready "${NAMESPACE}" "tls-gateway" "https-1" 120 5
-
-echo "TLS termination test passed"
-
-# Next create a separate TLS backend. In passthrough mode the Gateway must
 # preserve the encrypted connection instead of terminating it itself.
 echo "Deploying TLS passthrough backend"
 
@@ -359,9 +355,9 @@ fi
 #   exit 1
 # fi
 
-# --resolve keeps the requested hostname (and therefore SNI) while directing
-# the request to the Gateway IP. The mounted Secret certificate lets curl
-# verify the self-signed certificate returned by the backend.
+# --connect-to directs the connection to the Gateway IP while keeping the
+# requested hostname (and therefore SNI). The mounted Secret certificate lets
+# curl verify the self-signed certificate returned by the backend.
 if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --verbose \
   --trace-time \
@@ -375,21 +371,13 @@ if ! response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --silent \
   --show-error \
   --cacert "/certs/${PASSTHROUGH_DOMAIN}.pem" \
-  --resolve "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}" \
+  --connect-to "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}:443" \
   "https://${PASSTHROUGH_DOMAIN}/details/v1")"; then
   echo "TLS passthrough curl request failed"
   dump_passthrough_debug
   exit 1
 fi
 
-# expected response would be
-# 00:29:45.619327 < Connection: keep-alive 00:29:45.619337 <  TLS passthrough backend
-echo "Backend response: ${response@Q}"
-
-if [[ "${response}" != "TLS passthrough backend" ]]; then
-  echo "Unexpected backend response"
-  exit 1
-fi
 
 echo "Inspecting backend certificate"
 
@@ -409,6 +397,17 @@ echo "${certificate}"
 
 if ! grep -q "subject=.*CN = ${PASSTHROUGH_DOMAIN}" <<<"${certificate}"; then
   echo "Backend certificate was not returned through the Gateway"
+  exit 1
+fi
+
+
+
+# expected response would be
+# 00:29:45.619327 < Connection: keep-alive 00:29:45.619337 <  TLS passthrough backend
+echo "Backend response: ${response@Q}"
+
+if [[ "${response}" != "TLS passthrough backend" ]]; then
+  echo "Unexpected backend response"
   exit 1
 fi
 
