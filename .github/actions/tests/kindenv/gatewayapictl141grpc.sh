@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/gatewayapi_setup.sh"
 source "${SCRIPT_DIR}/lib/helper.sh"
-source "${SCRIPT_DIR}/lib/metallb.sh"
+#source "${SCRIPT_DIR}/lib/metallb.sh"
 
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
@@ -183,6 +183,10 @@ dump_debug() {
   kubectl get events -A --sort-by='.lastTimestamp' | tail -80 || true
   echo "=== End GRPCRoute diagnostics ==="
 }
+
+echo "Deploy GRPC route cilium envoy config"
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/grpc-cec.yaml
+sleep 10
 
 echo "Preparing netshoot client"
 
