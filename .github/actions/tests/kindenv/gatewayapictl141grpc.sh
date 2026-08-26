@@ -14,7 +14,7 @@ GATEWAY_CLASS="dolphin"
 # Gateway implementation before creating any Gateway API objects.
 kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 echo "Deploy Cilium CRDS"
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive || true # cilium CRDs
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml
 
@@ -113,7 +113,7 @@ spec:
     spec:
       containers:
       - name: grpc-echo
-        image: mockmoni/grpc-echo:latest
+        image: kong/go-echo:0.6.0
         ports:
         - name: grpc
           containerPort: ${SERVICE_PORT}

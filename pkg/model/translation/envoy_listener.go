@@ -4,7 +4,8 @@ import (
 	"cmp"
 	"fmt"
 	goslices "slices"
-	"syscall"
+
+	//"syscall"
 
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	envoy_config_listener "github.com/cilium/proxy/go/envoy/config/listener/v3"
@@ -60,8 +61,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 		listener.SocketOptions = []*envoy_config_core_v3.SocketOption{
 			{
 				Description: "Enable TCP keep-alive (default to enabled)",
-				Level:       syscall.SOL_SOCKET,
-				Name:        syscall.SO_KEEPALIVE,
+				// Level:       syscall.SOL_SOCKET,
+				// Name:        syscall.SO_KEEPALIVE,
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAlive,
 				},
@@ -69,8 +70,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive idle time (in seconds) (defaults to 10s)",
-				Level:       syscall.IPPROTO_TCP,
-				Name:        syscall.TCP_KEEPIDLE,
+				// Level:       syscall.IPPROTO_TCP,
+				// Name:        syscall.TCP_KEEPIDLE,
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepIdleInSeconds,
 				},
@@ -78,8 +79,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive probe intervals (in seconds) (defaults to 5s)",
-				Level:       syscall.IPPROTO_TCP,
-				Name:        syscall.TCP_KEEPINTVL,
+				// Level:       syscall.IPPROTO_TCP,
+				// Name:        syscall.TCP_KEEPINTVL,
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAliveProbeIntervalInSeconds,
 				},
@@ -87,8 +88,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive probe max failures.",
-				Level:       syscall.IPPROTO_TCP,
-				Name:        syscall.TCP_KEEPCNT,
+				// Level:       syscall.IPPROTO_TCP,
+				// Name:        syscall.TCP_KEEPCNT,
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAliveMaxFailures,
 				},

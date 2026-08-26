@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
@@ -60,8 +59,8 @@ var requiredGVK = []schema.GroupVersionKind{
 	gatewayv1.SchemeGroupVersion.WithKind("gateways"),
 	gatewayv1.SchemeGroupVersion.WithKind("httproutes"),
 	gatewayv1beta1.SchemeGroupVersion.WithKind("referencegrants"),
-	gatewayv1alpha2.SchemeGroupVersion.WithKind("grpcroutes"),
-	gatewayv1alpha2.SchemeGroupVersion.WithKind("tlsroutes"),
+	gatewayv1.SchemeGroupVersion.WithKind("grpcroutes"),
+	gatewayv1.SchemeGroupVersion.WithKind("tlsroutes"),
 }
 
 type gatewayAPIParams struct {
@@ -89,10 +88,6 @@ func initGatewayAPIController(params gatewayAPIParams) error {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
 		return nil
 	}
-	// register GatewayAPI into API-Scheme
-	if err := registerGatewayAPITypesToScheme(params.Scheme); err != nil {
-		return err
-	}
 
 	// registerReconcilers
 	if err := registerReconcilers(
@@ -113,6 +108,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 		newGatewayClassReconciler(mgr),
 		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds, true, false),
 		newhttpRouteReconciler(mgr),
+		newGRPCRouteReconciler(mgr),
 		newtlsrouteReconciler(mgr),
 	}
 
@@ -138,31 +134,22 @@ func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error
 			continue
 		}
 		found := false
-		for _, v := range crd.Spec.Versions {
-			fmt.Println(v.Name)
-			if v.Name == gvk.Version {
+		for _, version := range crd.Spec.Versions {
+			if version.Name == gvk.Version && version.Served {
 				found = true
 				break
 			}
 		}
+
 		if !found {
-			res = errors.Join(res, err)
+			res = errors.Join(res, fmt.Errorf(
+				"CRD %s does not serve version %s",
+				crd.Name,
+				gvk.Version,
+			))
 		}
 	}
 	return res
-}
-
-func registerGatewayAPITypesToScheme(scheme *runtime.Scheme) error {
-	for gv, f := range map[fmt.Stringer]func(s *runtime.Scheme) error{
-		gatewayv1.GroupVersion:       gatewayv1.AddToScheme,
-		gatewayv1beta1.GroupVersion:  gatewayv1beta1.AddToScheme,
-		gatewayv1alpha2.GroupVersion: gatewayv1alpha2.AddToScheme,
-	} {
-		if err := f(scheme); err != nil {
-			return fmt.Errorf("failed to add types from %s to scheme: %w", gv, err)
-		}
-	}
-	return nil
 }
 
 // registers the Gateway API for secret synchronization based on TLS secrets referenced

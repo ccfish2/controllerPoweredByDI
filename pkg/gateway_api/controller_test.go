@@ -25,7 +25,6 @@ func testScheme() *runtime.Scheme {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dolphinv1.AddToScheme(scheme))
 
-	registerGatewayAPITypesToScheme(scheme)
 	return scheme
 }
 
