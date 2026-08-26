@@ -36,7 +36,7 @@ type Input struct {
 	Gateway         gatewayv1.Gateway
 	HTTPRoutes      []gatewayv1.HTTPRoute
 	TLSRoutes       []gatewayv1alpha2.TLSRoute
-	GRPCRoutes      []gatewayv1alpha2.GRPCRoute
+	GRPCRoutes      []gatewayv1.GRPCRoute
 	ReferenceGrants []gatewayv1beta1.ReferenceGrant
 	Services        []corev1.Service
 }
@@ -48,7 +48,7 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 
 	var labels, annotations map[string]string
 	if input.Gateway.Spec.Infrastructure != nil {
-		labels = toMapLabelString(input.Gateway.Spec.Infrastructure.Labels)
+		labels = toMapString(input.Gateway.Spec.Infrastructure.Labels)
 		annotations = toMapString(input.Gateway.Spec.Infrastructure.Annotations)
 	}
 
@@ -112,7 +112,7 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 }
 
 // automation
-func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.GRPCRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
+func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
 	var grpcRoutes []model.HTTPRoute
 	for _, r := range input {
 
@@ -221,23 +221,23 @@ func backendToModelBackend(be gatewayv1.BackendRef, defaultNamespace string) mod
 
 func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
 	if len(match.Headers) == 0 {
-		return []model.KeyValueMatch{}
+		return nil
 	}
 	res := make([]model.KeyValueMatch, 0, len(match.Headers))
 	for _, h := range match.Headers {
-		var t *gatewayv1.GRPCHeaderMatchType
+		t := gatewayv1.HeaderMatchExact
 		if h.Type != nil {
-			t = h.Type
+			t = *h.Type
 		}
-		switch *t {
-		case gatewayv1.GRPCHeaderMatchExact:
+		switch t {
+		case gatewayv1.HeaderMatchExact:
 			res = append(res, model.KeyValueMatch{
 				Key: string(h.Name),
 				Match: model.StringMatch{
 					Exact: h.Value,
 				},
 			})
-		case gatewayv1.GRPCHeaderMatchRegularExpression:
+		case gatewayv1.HeaderMatchRegularExpression:
 			res = append(res, model.KeyValueMatch{
 				Key: string(h.Name),
 				Match: model.StringMatch{
@@ -245,7 +245,6 @@ func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
 				},
 			})
 		}
-
 	}
 	return res
 }
@@ -601,14 +600,6 @@ func toHostname(hostname *gatewayv1.Hostname) string {
 }
 
 func toMapString(in map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) map[string]string {
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[string(k)] = string(v)
-	}
-	return out
-}
-
-func toMapLabelString(in map[gatewayv1.LabelKey]gatewayv1.LabelValue) map[string]string {
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[string(k)] = string(v)

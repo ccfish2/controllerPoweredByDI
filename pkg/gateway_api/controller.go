@@ -119,6 +119,13 @@ func onlyStatusChanged() predicate.Predicate {
 					return false
 				}
 				return !cmp.Equal(o.Status, n.Status, option)
+			case *gatewayv1.GRPCRoute:
+				o, _ := e.ObjectOld.(*gatewayv1.GRPCRoute)
+				n, ok := e.ObjectNew.(*gatewayv1.GRPCRoute)
+				if !ok {
+					return false
+				}
+				return !cmp.Equal(o.Status, n.Status, option)
 			default:
 				return false
 			}
