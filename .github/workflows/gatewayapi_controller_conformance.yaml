@@ -286,7 +286,7 @@ jobs:
           sudo apt-get install -y jq
 
       # ============================================================
-      # 17. Gateway API Functional Tests
+      # 17. Gateway API HTTP/HTTPS/TLSROUTE Functional Tests
       # ============================================================
       # Validate Gateway API functionality provided by the operator.
       #
@@ -296,10 +296,21 @@ jobs:
       - name: Run Network Gateway API Functional Tests
         run: |
           bash .github/actions/tests/kindenv/gatewayapi141ctl.sh
+
+      # ============================================================
+      # 18. Gateway API Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      - name: Run Network Gateway API GRPC functional Tests
+        run: |
           bash .github/actions/tests/kindenv/gatewayapictl141grpc.sh
 
       # ============================================================
-      # 18. Cleanup
+      # 19. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.
