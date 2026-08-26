@@ -1,22 +1,10 @@
 apiVersion: cilium.io/v2
 kind: CiliumEnvoyConfig
 metadata:
-  annotations:
-    cec.cilium.io/use-original-source-address: "false"
-  creationTimestamp: "2026-08-26T01:53:18Z"
-  generation: 2
   labels:
     gateway.networking.k8s.io/gateway-name: tls-gateway
   name: cilium-gateway-tls-gateway
   namespace: dolphin
-  ownerReferences:
-  - apiVersion: gateway.networking.k8s.io/v1
-    controller: true
-    kind: Gateway
-    name: tls-gateway
-    uid: b2e4fd3e-2892-4037-aa09-944c3a13fbf3
-  resourceVersion: "175314"
-  uid: 1422caa4-05b4-4383-afa6-b4c992466649
 spec:
   backendServices:
   - name: grpc-echo

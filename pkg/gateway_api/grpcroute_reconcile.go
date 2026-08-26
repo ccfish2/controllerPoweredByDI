@@ -27,10 +27,20 @@ func (g *grpcrouteReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		logfields.Controller: grpcRoute,
 		logfields.Resource:   req.NamespacedName,
 	})
+
+	scopedLog.WithFields(logrus.Fields{
+		"routeVersion": gatewayv1.GroupVersion.String(),
+		"routeName":    req.NamespacedName.String(),
+	}).Info("GRPCRoute reconcile started")
 	scopedLog.Info("Reconcile GRPCRoute")
 
 	// Fetch GRPCRoute instance
 	original := &gatewayv1.GRPCRoute{}
+	scopedLog.WithFields(logrus.Fields{
+		"parentRefs": original.Spec.ParentRefs,
+		"hostnames":  original.Spec.Hostnames,
+		"rules":      len(original.Spec.Rules),
+	}).Info("Loaded GRPCRoute")
 	if err := g.Client.Get(ctx, req.NamespacedName, original); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return controllerruntime.Success()
@@ -89,6 +99,13 @@ func (g *grpcrouteReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			routechecker.CheckGatewayMatchingSection,
 		} {
 			continueCheck, err := fn(i, parent)
+
+			scopedLog.WithFields(logrus.Fields{
+				"validator": fmt.Sprintf("%T", fn),
+				"continue":  continueCheck,
+				"error":     err,
+				"parent":    parent.Name,
+			}).Info("GRPCRoute gateway validator completed")
 			if err != nil {
 				return g.handleReconcileErrorWithStatus(ctx, fmt.Errorf("failed to apply Gateway check: %w", err), original, gr)
 			}
@@ -109,6 +126,8 @@ func (g *grpcrouteReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 
+	scopedLog.WithField("parents", gr.Status.Parents).
+		Info("Updating GRPCRoute status")
 	if err := g.updateStatus(ctx, original, gr); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update GRPCRoute status: %w", err)
 	}
