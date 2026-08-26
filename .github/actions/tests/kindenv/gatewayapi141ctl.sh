@@ -71,9 +71,6 @@ for namespace in "${NAMESPACE}" cilium-secrets; do
     kubectl apply -f -
 done
 
-# First verify TLS termination: the Gateway owns the certificate and forwards
-# decrypted HTTP traffic to the bookinfo application.
-# preserve the encrypted connection instead of terminating it itself.
 echo "Deploying TLS passthrough backend"
 
 PASSTHROUGH_DOMAIN="passthrough.bookinfo.cilium.rocks"
@@ -202,6 +199,9 @@ EOF
 kubectl -n "${NAMESPACE}" wait --for=condition=Ready pod/netshoot --timeout=120s
 
 # Bind the TLSRoute to a TLS listener and route traffic to the HTTPS backend.
+# Please be noted that all TLS backends share the same TLS port 443 from the LoadBalancer
+# Envoy - either CNI controller or your customized controller would inspect the SNI through 
+# the TLS handshake and thus forward the TLS stream to the backend service 
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -358,6 +358,7 @@ fi
 # --connect-to directs the connection to the Gateway IP while keeping the
 # requested hostname (and therefore SNI). The mounted Secret certificate lets
 # curl verify the self-signed certificate returned by the backend.
+# we use the SNI connect to the backend 
 response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --verbose \
   --trace-time \
@@ -370,7 +371,7 @@ response="$(kubectl -n "${NAMESPACE}" exec netshoot -- curl \
   --retry-max-time 120 \
   --silent \
   --show-error \
-  --cacert "/certs/${PASSTHROUGH_DOMAIN}.pem" \
+  --cacert "/certs/${PASSTHROUGH_DOMAIN}.pem" \ 
   --connect-to "${PASSTHROUGH_DOMAIN}:443:${gateway_ip}:443" \
   "https://${PASSTHROUGH_DOMAIN}/details/v1")" || {
   echo "TLS passthrough curl request failed"

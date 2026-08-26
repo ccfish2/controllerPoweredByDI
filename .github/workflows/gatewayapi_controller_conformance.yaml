@@ -296,6 +296,7 @@ jobs:
       - name: Run Network Gateway API Functional Tests
         run: |
           bash .github/actions/tests/kindenv/gatewayapi141ctl.sh
+          bash .github/actions/tests/kindenv/gatewayapictl141grpc.sh
 
       # ============================================================
       # 18. Cleanup
