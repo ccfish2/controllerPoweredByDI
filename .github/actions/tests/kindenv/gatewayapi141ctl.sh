@@ -12,7 +12,7 @@ GATEWAY_CLASS="dolphin"
 
 # Install the sample application and the Cilium resources required by the
 # Gateway implementation before creating any Gateway API objects.
-kubectl -n "${NAMESPACE}" apply -f /Users/jiminhu/Documents/github.com/controllerPoweredByDI/.github/applications-for-conformance/books-info.yaml
+kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 echo "Deploy Cilium CRDS"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive # cilium CRDs
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
