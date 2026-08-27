@@ -29,6 +29,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/routechecker"
+	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
 
 type GRPCRouteInput struct {
@@ -183,7 +184,7 @@ func newGRPCRouteReconciler(mgr ctrl.Manager) *grpcrouteReconciler {
 // SetupWithManager sets up the controller with the Manager.
 func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{},
-		backendServiceIndex, getBackendServiceForGRPCRoute,
+		backendServiceImportIndex, r.getBackendServiceImportForGRPCRoute,
 	); err != nil {
 		return err
 	}
@@ -194,7 +195,7 @@ func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		// Watch for changes to GRPCRoute
 		For(&gatewayv1.GRPCRoute{}).
 		// Watch for changes to Backend services
@@ -202,10 +203,19 @@ func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Watch for changes to Reference Grants
 		Watches(&gatewayv1beta1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
 		// Watch for changes to Gateways and enqueue GRPCRoutes that reference them
-		Watches(&gatewayv1beta1.Gateway{}, r.enqueueRequestForGateway(),
+		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName)))).
-		Complete(r)
+				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName))))
+
+	if helpers.HasServiceImportSupport(r.Client.Scheme()) {
+		// Watch for changes to Backend Service Imports
+		builder = builder.Watches(&mcsapiv1alpha1.ServiceImport{}, r.enqueueRequestForBackendServiceImport())
+	}
+	return builder.Complete(r)
+}
+
+func (r *grpcrouteReconciler) enqueueRequestForBackendServiceImport() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(r.enqueueFromIndex(backendServiceImportIndex))
 }
 
 func getParentGatewayForGRPCRoute(rawObj client.Object) []string {
@@ -264,6 +274,56 @@ func (r *grpcrouteReconciler) enqueueRequestForReferenceGrant() handler.EventHan
 
 func (r *grpcrouteReconciler) enqueueRequestForGateway() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(r.enqueueFromIndex(gatewayIndex))
+}
+
+func (r *grpcrouteReconciler) getBackendServiceForGRPCRoute(rawObj client.Object) []string {
+	route, ok := rawObj.(*gatewayv1.GRPCRoute)
+	if !ok {
+		return nil
+	}
+	var backendServices []string
+	for _, rule := range route.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
+			namespace := helpers.NamespaceDerefOr(backend.Namespace, route.Namespace)
+			backendServiceName, err := helpers.GetBackendServiceName(r.Client, namespace, backend.BackendObjectReference)
+			if err != nil {
+				log.WithFields(logrus.Fields{
+					logfields.Controller: "grpcRoute",
+					logfields.Resource:   client.ObjectKeyFromObject(rawObj),
+				}).WithError(err).Error("Failed to get backend service name")
+				continue
+			}
+			backendServices = append(backendServices,
+				types.NamespacedName{
+					Namespace: helpers.NamespaceDerefOr(backend.Namespace, route.Namespace),
+					Name:      backendServiceName,
+				}.String(),
+			)
+		}
+	}
+	return backendServices
+}
+
+func (r *grpcrouteReconciler) getBackendServiceImportForGRPCRoute(rawObj client.Object) []string {
+	route, ok := rawObj.(*gatewayv1.GRPCRoute)
+	if !ok {
+		return nil
+	}
+	var backendServiceImports []string
+	for _, rule := range route.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
+			if !helpers.IsServiceImport(backend.BackendObjectReference) {
+				continue
+			}
+			backendServiceImports = append(backendServiceImports,
+				types.NamespacedName{
+					Namespace: helpers.NamespaceDerefOr(backend.Namespace, route.Namespace),
+					Name:      string(backend.Name),
+				}.String(),
+			)
+		}
+	}
+	return backendServiceImports
 }
 
 func (r *grpcrouteReconciler) enqueueFromIndex(index string) handler.MapFunc {

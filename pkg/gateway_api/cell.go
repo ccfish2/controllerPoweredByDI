@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
@@ -60,7 +61,7 @@ var requiredGVK = []schema.GroupVersionKind{
 	gatewayv1.SchemeGroupVersion.WithKind("httproutes"),
 	gatewayv1beta1.SchemeGroupVersion.WithKind("referencegrants"),
 	gatewayv1.SchemeGroupVersion.WithKind("grpcroutes"),
-	gatewayv1.SchemeGroupVersion.WithKind("tlsroutes"),
+	gatewayv1alpha2.SchemeGroupVersion.WithKind("tlsroutes"),
 }
 
 type gatewayAPIParams struct {
