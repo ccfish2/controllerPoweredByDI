@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/gatewayapi_setup.sh"
 source "${SCRIPT_DIR}/lib/helper.sh"
-#source "${SCRIPT_DIR}/lib/metallb.sh"
+source "${SCRIPT_DIR}/lib/metallb.sh"
 
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"

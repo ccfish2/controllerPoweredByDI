@@ -10,6 +10,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
@@ -32,13 +33,16 @@ const (
 
 // Input is the input for GatewayAPI.
 type Input struct {
-	GatewayClass    gatewayv1.GatewayClass
+	GatewayClass gatewayv1.GatewayClass
+
 	Gateway         gatewayv1.Gateway
 	HTTPRoutes      []gatewayv1.HTTPRoute
 	TLSRoutes       []gatewayv1alpha2.TLSRoute
 	GRPCRoutes      []gatewayv1.GRPCRoute
 	ReferenceGrants []gatewayv1beta1.ReferenceGrant
+	Namespaces      []corev1.Namespace
 	Services        []corev1.Service
+	ServiceImports  []mcsapiv1alpha1.ServiceImport
 }
 
 // translate gateway resources into a model
@@ -225,19 +229,19 @@ func toGRPCHeaderMatch(match gatewayv1.GRPCRouteMatch) []model.KeyValueMatch {
 	}
 	res := make([]model.KeyValueMatch, 0, len(match.Headers))
 	for _, h := range match.Headers {
-		t := gatewayv1.HeaderMatchExact
+		t := gatewayv1.GRPCHeaderMatchExact
 		if h.Type != nil {
 			t = *h.Type
 		}
 		switch t {
-		case gatewayv1.HeaderMatchExact:
+		case gatewayv1.GRPCHeaderMatchExact:
 			res = append(res, model.KeyValueMatch{
 				Key: string(h.Name),
 				Match: model.StringMatch{
 					Exact: h.Value,
 				},
 			})
-		case gatewayv1.HeaderMatchRegularExpression:
+		case gatewayv1.GRPCHeaderMatchRegularExpression:
 			res = append(res, model.KeyValueMatch{
 				Key: string(h.Name),
 				Match: model.StringMatch{
@@ -574,14 +578,15 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 	return httpRoutes
 }
 
-func toTLS(tls *gatewayv1.GatewayTLSConfig, grants []gatewayv1beta1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
+func toTLS(tls *gatewayv1.ListenerTLSConfig, grants []gatewayv1beta1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
 	if tls == nil {
 		return nil
 	}
-	var res []model.TLSSecret
-	res = make([]model.TLSSecret, len(tls.CertificateRefs))
+
+	res := make([]model.TLSSecret, 0, len(tls.CertificateRefs))
 	for _, cert := range tls.CertificateRefs {
-		if !helpers.IsSecretReferenceAllowed(defaultNamespace, cert, gatewayv1.SchemeGroupVersion.WithKind("Secret"), grants) {
+		if !helpers.IsSecretReferenceAllowed(defaultNamespace, cert, gatewayv1.SchemeGroupVersion.WithKind("Gateway"), grants) {
+			// not allowed to be referred to, skipping
 			continue
 		}
 		res = append(res, model.TLSSecret{
@@ -599,7 +604,7 @@ func toHostname(hostname *gatewayv1.Hostname) string {
 	return allHosts
 }
 
-func toMapString(in map[gatewayv1.AnnotationKey]gatewayv1.AnnotationValue) map[string]string {
+func toMapString[K, V ~string](in map[K]V) map[string]string {
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[string(k)] = string(v)
