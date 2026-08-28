@@ -96,14 +96,14 @@ spec:
           '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           commonTlsContext:
             tlsCertificateSdsSecretConfigs:
-            - name: cilium-secrets/default-grpc-certificate
+            - name: dolphin/grpc-certificate
     listenerFilters:
     - name: envoy.filters.listener.tls_inspector
       typedConfig:
         '@type': type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     name: listener
     socketOptions:
-    - description: Enable TCP keep-alive (default to enabled)
+    - description: Enable TCP keep-alive (dolphin to enabled)
       intValue: "1"
       level: "1"
       name: "9"
@@ -132,13 +132,13 @@ spec:
       - match:
           prefix: /
         route:
-          cluster: default:grpc-echo:7070
+          cluster: dolphin:grpc-echo:7070
           maxStreamDuration:
             maxStreamDuration: 0s
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     edsClusterConfig:
-      serviceName: default/grpc-echo:7070
-    name: default:grpc-echo:7070
+      serviceName: dolphin/grpc-echo:7070
+    name: dolphin:grpc-echo:7070
     outlierDetection:
       splitExternalLocalOriginErrors: true
     type: EDS
