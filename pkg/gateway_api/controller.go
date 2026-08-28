@@ -2,6 +2,7 @@ package gateway_api
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -26,9 +27,32 @@ const (
 	backendServiceIndex       string = "backendServiceIndex"
 	gatewayIndex              string = "gatewayIndex"
 	backendServiceImportIndex        = "backendServiceImportIndex"
+	// Indexes HTTPRoutes by all the backend Services referenced in the object.
+	backendServiceHTTPRouteIndex = "backendServiceHTTPRouteIndex"
+
+	// Indexes HTTPRoutes by all the backend ServiceImports referenced in the object.
+	backendServiceImportHTTPRouteIndex = "backendServiceImportHTTPRouteIndex"
+
+	// Indexes HTTPRoutes by all the Gateway parents referenced in the object.
+	gatewayHTTPRouteIndex = "gatewayHTTPRouteIndex"
+
+	// Indexes Gateways and records if the Gateway is relevant for Cilium.
+	implementationGatewayIndex = "implementationGatewayIndex"
+
+	// Indexes TLSRoutes by all the backend Services referenced in the object.
+	backendServiceTLSRouteIndex = "backendServiceTLSRouteIndex"
+
+	// Indexes TLSRoutes by all the Gateway parents referenced in the object.
+	gatewayTLSRouteIndex = "gatewayTLSRouteIndex"
+
+	// Indexes GRPCRoutes by all the backend Services referenced in the object.
+	backendServiceGRPCRouteIndex = "backendServiceGRPCRouteIndex"
+
+	// Indexes GRPCRoutes by all the Gateway parents referenced in the object.
+	gatewayGRPCRouteIndex = "gatewayGRPCRouteIndex"
 )
 
-func hasMatchingController(ctx context.Context, c client.Client, controllerName string) func(object client.Object) bool {
+func hasMatchingController(ctx context.Context, c client.Client, controllerName string, logger *slog.Logger) func(object client.Object) bool {
 	return func(obj client.Object) bool {
 		scopedLog := log.WithFields(logrus.Fields{
 			logfields.Controller: gateway,
@@ -51,7 +75,7 @@ func hasMatchingController(ctx context.Context, c client.Client, controllerName 
 }
 
 // if the gateway is configured with TLS secret, return them
-func getGatewaysForSecret(ctx context.Context, c client.Client, obj client.Object) []*gatewayv1.Gateway {
+func getGatewaysForSecret(ctx context.Context, c client.Client, obj client.Object, r *slog.Logger) []*gatewayv1.Gateway {
 	gwList := &gatewayv1.GatewayList{}
 	err := c.List(ctx, gwList)
 	if err != nil {

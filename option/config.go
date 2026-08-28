@@ -171,6 +171,8 @@ type OperatorConfig struct {
 	PodRestartSelector            string
 
 	EnableScalableLogis bool // the log controller is used to demoing the framework scalability skip it for controller function tests
+
+	KubeProxyReplacement bool
 }
 
 // Populate sets all options with the values from viper.

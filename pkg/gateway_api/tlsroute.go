@@ -2,6 +2,8 @@ package gateway_api
 
 import (
 	"context"
+	"log/slog"
+	"os"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -114,7 +116,7 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&gatewayv1beta1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
 		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway(),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName)),
+				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))),
 			)).
 		Complete(t)
 }

@@ -3,6 +3,8 @@ package gateway_api
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"reflect"
 	"time"
 
@@ -205,7 +207,7 @@ func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Watch for changes to Gateways and enqueue GRPCRoutes that reference them
 		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName))))
+				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil))))))
 
 	if helpers.HasServiceImportSupport(r.Client.Scheme()) {
 		// Watch for changes to Backend Service Imports

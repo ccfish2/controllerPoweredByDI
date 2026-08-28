@@ -11,10 +11,24 @@ const (
 	kindSecret        = "Secret"
 	kindService       = "Service"
 	kindServiceImport = "ServiceImport"
+
+	GatewayClassKind      string = "gatewayclasses"
+	GatewayKind           string = "gateways"
+	HTTPRouteKind         string = "httproutes"
+	GRPCRouteKind         string = "grpcroutes"
+	ReferenceGrantKind    string = "referencegrants"
+	TLSRouteKind          string = "tlsroutes"
+	TLSRouteListKind      string = "tlsroutelists"
+	ServiceImportKind     string = "serviceimports"
+	ServiceImportListKind string = "serviceimportlists"
 )
 
 func IsGateway(parent gatewayv1.ParentReference) bool {
 	return (parent.Kind == nil || *parent.Kind == kindGateway) && (parent.Group == nil || *parent.Group == gatewayv1.GroupName)
+}
+func IsGammaService(parent gatewayv1.ParentReference) bool {
+	return parent.Kind != nil && *parent.Kind == kindService &&
+		parent.Group != nil && (*parent.Group == corev1.GroupName || *parent.Group == "core")
 }
 
 func IsService(be gatewayv1.BackendObjectReference) bool {

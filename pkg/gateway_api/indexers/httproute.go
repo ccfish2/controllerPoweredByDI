@@ -42,3 +42,49 @@ func GenerateIndexerHTTPRouteByBackendService(c client.Client, logger *slog.Logg
 		return backendServices
 	}
 }
+
+// IndexHTTPRouteByGateway is a client.IndexerFunc that takes a single HTTPRoute and returns all
+// referenced Gateway object full names (`namespace/name`) to add to the relevant index.
+//
+// Note that this does _not_ filter to only Dolphin-relevant Gateways.
+func IndexHTTPRouteByGateway(rawObj client.Object) []string {
+	hr := rawObj.(*gatewayv1.HTTPRoute)
+	var gateways []string
+	for _, parent := range hr.Spec.ParentRefs {
+		if !helpers.IsGateway(parent) {
+			continue
+		}
+		gateways = append(gateways,
+			types.NamespacedName{
+				Namespace: helpers.NamespaceDerefOr(parent.Namespace, hr.Namespace),
+				Name:      string(parent.Name),
+			}.String(),
+		)
+	}
+	return gateways
+}
+
+// IndexHTTPRouteByBackendServiceImport is a client.IndexerFunx that takes a single HTTPRoute and
+// returns all referenced backend ServiceImport full names (`namespace/name`) to add to the relevant index.
+func IndexHTTPRouteByBackendServiceImport(rawObj client.Object) []string {
+	hr, ok := rawObj.(*gatewayv1.HTTPRoute)
+	if !ok {
+		return nil
+	}
+	var backendServiceImports []string
+
+	for _, rule := range hr.Spec.Rules {
+		for _, backend := range rule.BackendRefs {
+			if !helpers.IsServiceImport(backend.BackendObjectReference) {
+				continue
+			}
+			backendServiceImports = append(backendServiceImports,
+				types.NamespacedName{
+					Namespace: helpers.NamespaceDerefOr(backend.Namespace, hr.Namespace),
+					Name:      string(backend.Name),
+				}.String(),
+			)
+		}
+	}
+	return backendServiceImports
+}

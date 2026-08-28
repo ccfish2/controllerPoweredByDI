@@ -2,6 +2,8 @@ package gateway_api
 
 import (
 	"context"
+	"log/slog"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -54,9 +56,9 @@ func EnqueueTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.Event
 }
 
 func IsReferencedByDolphinGateway(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool {
-	gateway := getGatewaysForSecret(ctx, c, obj)
+	gateway := getGatewaysForSecret(ctx, c, obj, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	for _, gw := range gateway {
-		if hasMatchingController(ctx, c, controllerName)(gw) {
+		if hasMatchingController(ctx, c, controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))(gw) {
 			return true
 		}
 	}

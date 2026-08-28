@@ -1,10 +1,12 @@
 package gateway_api
 
 import (
+	"context"
 	"encoding/pem"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -137,4 +139,25 @@ func getGatewayKindForObject(obj metav1.Object) gatewayv1.Kind {
 	default:
 		return "unknown"
 	}
+}
+
+func getAllDolphinGatewaysSet(ctx context.Context, c client.Client) (map[string]struct{}, error) {
+	// Fetch all the Dolphin-relevant Gateways using the indexers.ImplementationGatewayIndex.
+	gwList := &gatewayv1.GatewayList{}
+	if err := c.List(ctx, gwList); err != nil {
+		return nil, err
+	}
+	// Build a set of all Dolphin Gateway full names.
+	// This makes sure we only add a reconcile.Request once for each Gateway.
+	allDolphinGatewaysSet := make(map[string]struct{})
+
+	for _, gw := range gwList.Items {
+		gwFullName := types.NamespacedName{
+			Name:      gw.GetName(),
+			Namespace: gw.GetNamespace(),
+		}
+		allDolphinGatewaysSet[gwFullName.String()] = struct{}{}
+	}
+
+	return allDolphinGatewaysSet, nil
 }

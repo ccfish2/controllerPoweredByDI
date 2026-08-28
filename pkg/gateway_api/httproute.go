@@ -2,6 +2,8 @@ package gateway_api
 
 import (
 	"context"
+	"log/slog"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -88,7 +90,7 @@ func (r *httpRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&gatewayv1beta1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
 		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName)))).
+				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))))).
 		Complete(r)
 }
 
