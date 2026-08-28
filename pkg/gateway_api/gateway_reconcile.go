@@ -21,6 +21,7 @@ import (
 	//myself
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	gatewayapihelpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/ingestion"
 	translation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/gateway-api"
@@ -89,15 +90,32 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	grpcRouteList := &gatewayv1.GRPCRouteList{}
+	if err := r.Client.List(ctx, grpcRouteList); err != nil {
+		scopedLog.Error(ctx, "Unable to list GRPCRoutes", logfields.Error, err)
+		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+	}
+
+	var namespaces []corev1.Namespace
+	if hasAllowedRoutesNamespaceSelector(gw) {
+		namespaceList := &corev1.NamespaceList{}
+		if err := r.Client.List(ctx, namespaceList); err != nil {
+			scopedLog.Error(ctx, "Unable to list Namespaces", logfields.Error, err)
+			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+		}
+		namespaces = namespaceList.Items
+	}
+	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
 	httpListeners, tlsListeners := ingestion.GatewayAPI(ingestion.Input{
 		GatewayClass: *gwc,
 		Gateway:      *copy,
 		HTTPRoutes:   r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items),
 		TLSRoutes:    r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
+		GRPCRoutes:   r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
 		Services:     servicesList.Items,
 	})
 
-	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList)
+	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList, grpcRouteList, namespaceLabels)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to set listener status")
 		setGatewayAccepted(copy, false, "Unable to set listener status")
@@ -182,10 +200,25 @@ func (r *gatewayReconciler) ensureService(ctx context.Context, desired *corev1.S
 	return err
 }
 
+func hasAllowedRoutesNamespaceSelector(gw *gatewayv1.Gateway) bool {
+	for _, listener := range gw.Spec.Listeners {
+		if listener.AllowedRoutes == nil || listener.AllowedRoutes.Namespaces == nil {
+			continue
+		}
+		if listener.AllowedRoutes.Namespaces.From != nil && *listener.AllowedRoutes.Namespaces.From == gatewayv1.NamespacesFromSelector {
+			return true
+		}
+		if listener.AllowedRoutes.Namespaces.From == nil && listener.AllowedRoutes.Namespaces.Selector != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // audit gateway routes configuration
 // calculate and update the statistics into the GW status
 // update collecting listeners info from gateway and update the total routes
-func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1alpha2.TLSRouteList) error {
+func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1alpha2.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
 	grants := &gatewayv1beta1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
 		return fmt.Errorf("failed to retrieve reference grants: %w", err)
@@ -286,6 +319,7 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 		var attachedRoutes int32
 		attachedRoutes += int32(len(r.filterHTTPRoutesByListener(ctx, gw, &l, httpRoutes.Items)))
 		attachedRoutes += int32(len(r.filterTLSRoutesByListener(ctx, gw, &l, tlsRoutes.Items)))
+		attachedRoutes += int32(len(r.filterGRPCRoutesByListener(ctx, gw, &l, grpcRoutes.Items, namespaceLabels)))
 
 		found := false
 		for i := range gw.Status.Listeners {
@@ -319,6 +353,19 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 	}
 	gw.Status.Listeners = newListenersStatus
 	return nil
+}
+
+func (r *gatewayReconciler) filterGRPCRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1.GRPCRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1.GRPCRoute {
+	var filtered []gatewayv1.GRPCRoute
+	for _, route := range routes {
+		if isAttachable(ctx, gw, &route, route.Status.Parents) &&
+			listenerisAllowed(gw, listener, &route, namespaceLabels) &&
+			len(computeHostsForListener(listener, route.Spec.Hostnames)) > 0 &&
+			parentRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
 }
 
 // read and compare pem
@@ -405,6 +452,16 @@ func parentRefMatched(gw *gatewayv1.Gateway, listener *gatewayv1.Listener, route
 }
 
 // isAllowed returns true if the provided Route is allowed to attach to given gateway
+func isGRPCAllowed(gw *gatewayv1.Gateway, route metav1.Object, namespaceLabels gatewayapihelpers.NamespaceLabelIndex) bool {
+	for _, listener := range gw.Spec.Listeners {
+		if listenerisAllowed(gw, &listener, route, namespaceLabels) {
+			return true
+		}
+	}
+	return false
+}
+
+// isAllowed returns true if the provided Route is allowed to attach to given gateway
 func isAllowed(ctx context.Context, c client.Client, gw *gatewayv1.Gateway, route metav1.Object) bool {
 	for _, listener := range gw.Spec.Listeners {
 		// all routes in the same namespace are allowed for this listener
@@ -441,6 +498,17 @@ func isAllowed(ctx context.Context, c client.Client, gw *gatewayv1.Gateway, rout
 		}
 	}
 	return false
+}
+
+func (r *gatewayReconciler) filterGRPCRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1.GRPCRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1.GRPCRoute {
+	var filtered []gatewayv1.GRPCRoute
+
+	for _, route := range routes {
+		if isAttachable(ctx, gw, &route, route.Status.Parents) && isGRPCAllowed(gw, &route, namespaceLabels) && len(computeHosts(gw, route.Spec.Hostnames)) > 0 {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
 }
 
 // this enables running locally: either ingress or hostip would work on gateway-api

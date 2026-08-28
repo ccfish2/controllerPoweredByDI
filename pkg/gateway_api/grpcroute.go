@@ -185,34 +185,67 @@ func newGRPCRouteReconciler(mgr ctrl.Manager) *grpcrouteReconciler {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{},
-		backendServiceImportIndex, r.getBackendServiceImportForGRPCRoute,
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.GRPCRoute{},
+		backendServiceImportIndex,
+		r.getBackendServiceImportForGRPCRoute,
 	); err != nil {
 		return err
 	}
 
-	// Create field indexer for Gateway parents, this allows a faster lookup for event queueing
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{},
-		gatewayIndex, getParentGatewayForGRPCRoute); err != nil {
+	// Index GRPCRoutes by backend Service.
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.GRPCRoute{},
+		backendServiceIndex,
+		r.getBackendServiceForGRPCRoute,
+	); err != nil {
+		return err
+	}
+
+	// Create field indexer for Gateway parents.
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&gatewayv1.GRPCRoute{},
+		gatewayIndex,
+		getParentGatewayForGRPCRoute,
+	); err != nil {
 		return err
 	}
 
 	builder := ctrl.NewControllerManagedBy(mgr).
-		// Watch for changes to GRPCRoute
 		For(&gatewayv1.GRPCRoute{}).
-		// Watch for changes to Backend services
-		Watches(&corev1.Service{}, r.enqueueRequestForBackendService()).
-		// Watch for changes to Reference Grants
-		Watches(&gatewayv1beta1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
-		// Watch for changes to Gateways and enqueue GRPCRoutes that reference them
-		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
+		Watches(
+			&corev1.Service{},
+			r.enqueueRequestForBackendService(),
+		).
+		Watches(
+			&gatewayv1beta1.ReferenceGrant{},
+			r.enqueueRequestForReferenceGrant(),
+		).
+		Watches(
+			&gatewayv1.Gateway{},
+			r.enqueueRequestForGateway(),
 			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil))))))
+				predicate.NewPredicateFuncs(
+					hasMatchingController(
+						context.Background(),
+						mgr.GetClient(),
+						controllerName,
+						slog.New(slog.NewTextHandler(os.Stdout, nil)),
+					),
+				),
+			),
+		)
 
 	if helpers.HasServiceImportSupport(r.Client.Scheme()) {
-		// Watch for changes to Backend Service Imports
-		builder = builder.Watches(&mcsapiv1alpha1.ServiceImport{}, r.enqueueRequestForBackendServiceImport())
+		builder = builder.Watches(
+			&mcsapiv1alpha1.ServiceImport{},
+			r.enqueueRequestForBackendServiceImport(),
+		)
 	}
+
 	return builder.Complete(r)
 }
 

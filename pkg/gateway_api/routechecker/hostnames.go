@@ -25,3 +25,13 @@ func toStringSlice[T ~string](s []T) []string {
 	}
 	return res
 }
+
+func GetAllListenerHostNames(listeners []gatewayv1.Listener) []gatewayv1.Hostname {
+	var hosts []gatewayv1.Hostname
+	for _, listener := range listeners {
+		if listener.Hostname != nil {
+			hosts = append(hosts, *listener.Hostname)
+		}
+	}
+	return hosts
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/pem"
 
+	gatewayapihelpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,6 +31,19 @@ func GatewayAddressTypePtr(addr gatewayv1.AddressType) *gatewayv1.AddressType {
 func setMergedLabelsAndAnnotations(temp, desired client.Object) {
 	temp.SetAnnotations(mergeMap(temp.GetAnnotations(), desired.GetAnnotations()))
 	temp.SetLabels(mergeMap(temp.GetLabels(), desired.GetLabels()))
+}
+
+// listenerisAllowed reports whether route may attach to listener.
+func listenerisAllowed(gw *gatewayv1.Gateway, listener *gatewayv1.Listener, route metav1.Object, namespaceLabels gatewayapihelpers.NamespaceLabelIndex) bool {
+	if listener.AllowedRoutes == nil || listener.AllowedRoutes.Namespaces == nil {
+		return gatewayapihelpers.IsListenerNamespaceAllowed(*listener, route.GetNamespace(), gw.GetNamespace(), namespaceLabels)
+	}
+
+	// check if route is kind-allowed
+	if !isKindAllowed(*listener, route) {
+		return false
+	}
+	return gatewayapihelpers.IsListenerNamespaceAllowed(*listener, route.GetNamespace(), gw.GetNamespace(), namespaceLabels)
 }
 
 func mergeMap(left, right map[string]string) map[string]string {

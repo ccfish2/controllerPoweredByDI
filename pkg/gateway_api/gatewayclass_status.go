@@ -2,7 +2,6 @@ package gateway_api
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"time"
 
@@ -20,7 +19,6 @@ const (
 // for the provided GatewayClass.
 func setGatewayClassAccepted(gwc *gatewayv1.GatewayClass, accepted bool) *gatewayv1.GatewayClass {
 	gwc.Status.Conditions = merge(gwc.Status.Conditions, gatewayClassAcceptedCondition(gwc, accepted))
-	fmt.Println("gwc %v", gwc)
 	return gwc
 }
 

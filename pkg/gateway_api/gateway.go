@@ -90,20 +90,20 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		gatewayHTTPRouteIndex:        indexers.IndexHTTPRouteByGateway,
 	} {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexName, indexerFunc); err != nil {
-			return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+			return fmt.Errorf("failed to setup HTTPRoutes field indexer %q: %w", indexName, err)
 		}
 	}
 
 	// Only index HTTPRoute by ServiceImport if ServiceImport is enabled
 	if serviceImportEnabled {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, backendServiceImportHTTPRouteIndex, indexers.IndexHTTPRouteByBackendServiceImport); err != nil {
-			return fmt.Errorf("failed to setup field indexer %q: %w", backendServiceImportHTTPRouteIndex, err)
+			return fmt.Errorf("failed to setup HTTPRoute by ServiceImport field indexer %q: %w", backendServiceImportHTTPRouteIndex, err)
 		}
 	}
 
 	// Index Gateways by implementation (ie `dolphin`)
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, implementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, controllerName)); err != nil {
-		return fmt.Errorf("failed to setup field indexer %q: %w", implementationGatewayIndex, err)
+		return fmt.Errorf("failed to setup Gateways field indexer %q: %w", implementationGatewayIndex, err)
 	}
 
 	// Add indexes for TLSRoutes
@@ -124,7 +124,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		gatewayGRPCRouteIndex:        indexers.IndexGRPCRouteByGateway,
 	} {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{}, indexName, indexerFunc); err != nil {
-			return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+			return fmt.Errorf("failed to setup TLSRoutes field indexer %q: %w", indexName, err)
 		}
 	}
 
@@ -139,7 +139,8 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate.NewPredicateFuncs(matchesControllerName(controllerName)))).
 		// Watch related backend Service for status
 		// LB Services are handled by the Owns call later.
-		Watches(&corev1.Service{}, r.enqueueRequestForBackendService()).
+
+		Watches(&corev1.Service{}, r.enqueueRequestForBackendService(tlsRouteEnabled)).
 		// Watch HTTPRoute linked to Gateway
 		Watches(&gatewayv1.HTTPRoute{}, r.enqueueRequestForOwningHTTPRoute(r.logger)).
 		// Watch GRPCRoute linked to Gateway
@@ -176,8 +177,6 @@ func (r *gatewayReconciler) usedInGateway(obj client.Object) bool {
 	return len(getGatewaysForSecret(context.Background(), r.Client, obj, r.logger)) > 0
 }
 
-// enqueueRequestForBackendServiceImport makes sure that Gateways are reconciled
-// if a relevant HTTPRoute backend Service Imports are updated.
 func (r *gatewayReconciler) enqueueRequestForBackendServiceImport() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
 		_, ok := o.(*mcsapiv1alpha1.ServiceImport)
@@ -373,89 +372,6 @@ func (r *gatewayReconciler) enqueueRequestForNodes(c client.Client, logger *slog
 			})
 		}
 		return reqs
-	})
-}
-
-// enqueueRequestForBackendService returns an event handler that, when passed a Service, returns reconcile.Requests
-// for all Dolphin-relevant Gateways where that Service is used as a backend for a HTTPRoute that is attached to that Gateway.
-func (r *gatewayReconciler) enqueueRequestForBackendService() handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
-		_, ok := o.(*corev1.Service)
-		if !ok {
-			return nil
-		}
-
-		scopedLog := r.logger.With(logfields.LogSubsys, "queue-gw-from-backend-svc")
-
-		// Make a set to hold all reconcile requests
-		reconcileRequests := make(map[reconcile.Request]struct{})
-
-		// Then, fetch all HTTPRoutes that reference this service, using the backendServiceIndex
-		hrList := &gatewayv1.HTTPRouteList{}
-
-		if err := r.Client.List(ctx, hrList, &client.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector(backendServiceHTTPRouteIndex, client.ObjectKeyFromObject(o).String()),
-		}); err != nil {
-			scopedLog.ErrorContext(ctx, "Failed to get related HTTPRoutes", logfields.Error, err)
-			return []reconcile.Request{}
-		}
-
-		// Then, fetch all TLSRoutes that reference this service, using the backendServiceIndex
-		tlsrList := &gatewayv1alpha2.TLSRouteList{}
-
-		if err := r.Client.List(ctx, tlsrList, &client.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector(backendServiceTLSRouteIndex, client.ObjectKeyFromObject(o).String()),
-		}); err != nil {
-			scopedLog.Error("Failed to get related HTTPRoutes", logfields.Error, err)
-			return []reconcile.Request{}
-		}
-
-		grpcRouteList := &gatewayv1.GRPCRouteList{}
-		if err := r.Client.List(ctx, grpcRouteList, &client.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector(backendServiceGRPCRouteIndex, client.ObjectKeyFromObject(o).String()),
-		}); err != nil {
-			scopedLog.ErrorContext(ctx, "Unable to list GRPCRoutes", logfields.Error, err)
-			return []reconcile.Request{}
-		}
-
-		// Fetch all the Dolphin-relevant Gateways using the implementationGatewayIndex.
-		gwList := &gatewayv1.GatewayList{}
-		if err := r.Client.List(ctx, gwList, &client.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector(implementationGatewayIndex, "Dolphin"),
-		}); err != nil {
-			scopedLog.ErrorContext(ctx, "Failed to get Dolphin Gateways", logfields.Error, err)
-			return []reconcile.Request{}
-		}
-
-		// Build a set of all Dolphin Gateway full names.
-		// This makes sure we only add a reconcile.Request once for each Gateway.
-		allDolphinGatewaysSet := make(map[string]struct{})
-
-		for _, gw := range gwList.Items {
-			gwFullName := types.NamespacedName{
-				Name:      gw.GetName(),
-				Namespace: gw.GetNamespace(),
-			}
-			allDolphinGatewaysSet[gwFullName.String()] = struct{}{}
-		}
-
-		// iterate through the HTTPRoutes, update reconcileRequests for each Gateway that is relevant.
-		for _, hr := range hrList.Items {
-			updateReconcileRequestsForParentRefs(hr.Spec.ParentRefs, hr.Namespace, allDolphinGatewaysSet, reconcileRequests)
-		}
-
-		// iterate through the TLSRoutes, update reconcileRequests for each Gateway that is relevant.
-		for _, tlsr := range tlsrList.Items {
-			updateReconcileRequestsForParentRefs(tlsr.Spec.ParentRefs, tlsr.Namespace, allDolphinGatewaysSet, reconcileRequests)
-		}
-
-		// iterate through the TLSRoutes, update reconcileRequests for each Gateway that is relevant.
-		for _, grpcr := range grpcRouteList.Items {
-			updateReconcileRequestsForParentRefs(grpcr.Spec.ParentRefs, grpcr.Namespace, allDolphinGatewaysSet, reconcileRequests)
-		}
-
-		// return the keys of the set, since that's the actual reconcile.Requests.
-		return slices.Collect(maps.Keys(reconcileRequests))
 	})
 }
 
@@ -670,5 +586,115 @@ func (r *gatewayReconciler) enqueueRequestForTLSSecret() handler.EventHandler {
 			})
 		}
 		return reqs
+	})
+}
+
+func (r *gatewayReconciler) enqueueRequestForBackendService(tlsRouteEnabled bool) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
+		_, ok := o.(*corev1.Service)
+		if !ok {
+			return nil
+		}
+
+		scopedLog := r.logger.With(logfields.LogSubsys, "queue-gw-from-backend-svc")
+
+		// Make a set to hold all reconcile requests.
+		reconcileRequests := make(map[reconcile.Request]struct{})
+
+		// Fetch all HTTPRoutes that reference this Service.
+		hrList := &gatewayv1.HTTPRouteList{}
+		if err := r.Client.List(ctx, hrList, &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(
+				backendServiceHTTPRouteIndex,
+				client.ObjectKeyFromObject(o).String(),
+			),
+		}); err != nil {
+			scopedLog.ErrorContext(ctx, "Failed to get related HTTPRoutes", logfields.Error, err)
+			return []reconcile.Request{}
+		}
+
+		// Fetch all TLSRoutes only when the TLSRoute CRD/index is enabled.
+		tlsrList := &gatewayv1alpha2.TLSRouteList{}
+		if tlsRouteEnabled {
+			if err := r.Client.List(ctx, tlsrList, &client.ListOptions{
+				FieldSelector: fields.OneTermEqualSelector(
+					backendServiceTLSRouteIndex,
+					client.ObjectKeyFromObject(o).String(),
+				),
+			}); err != nil {
+				scopedLog.ErrorContext(ctx, "Failed to get related TLSRoutes", logfields.Error, err)
+				return []reconcile.Request{}
+			}
+		}
+
+		// Fetch all GRPCRoutes that reference this Service.
+		grpcRouteList := &gatewayv1.GRPCRouteList{}
+		if err := r.Client.List(ctx, grpcRouteList, &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(
+				backendServiceGRPCRouteIndex,
+				client.ObjectKeyFromObject(o).String(),
+			),
+		}); err != nil {
+			scopedLog.ErrorContext(ctx, "Unable to list GRPCRoutes", logfields.Error, err)
+			return []reconcile.Request{}
+		}
+
+		// Fetch all Dolphin-relevant Gateways.
+		gwList := &gatewayv1.GatewayList{}
+		if err := r.Client.List(ctx, gwList, &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(
+				implementationGatewayIndex,
+				"dolphin",
+			),
+		}); err != nil {
+			scopedLog.ErrorContext(ctx, "Failed to get Dolphin Gateways", logfields.Error, err)
+			return []reconcile.Request{}
+		}
+
+		// Build a set of all Dolphin Gateway full names.
+		allDolphinGatewaysSet := make(map[string]struct{})
+
+		for _, gw := range gwList.Items {
+			gwFullName := types.NamespacedName{
+				Name:      gw.GetName(),
+				Namespace: gw.GetNamespace(),
+			}
+			allDolphinGatewaysSet[gwFullName.String()] = struct{}{}
+		}
+
+		// Add Gateways referenced by HTTPRoutes.
+		for _, hr := range hrList.Items {
+			updateReconcileRequestsForParentRefs(
+				hr.Spec.ParentRefs,
+				hr.Namespace,
+				allDolphinGatewaysSet,
+				reconcileRequests,
+			)
+		}
+
+		// Add Gateways referenced by TLSRoutes.
+		if tlsRouteEnabled {
+			for _, tlsr := range tlsrList.Items {
+				updateReconcileRequestsForParentRefs(
+					tlsr.Spec.ParentRefs,
+					tlsr.Namespace,
+					allDolphinGatewaysSet,
+					reconcileRequests,
+				)
+			}
+		}
+
+		// Add Gateways referenced by GRPCRoutes.
+		for _, grpcr := range grpcRouteList.Items {
+			updateReconcileRequestsForParentRefs(
+				grpcr.Spec.ParentRefs,
+				grpcr.Namespace,
+				allDolphinGatewaysSet,
+				reconcileRequests,
+			)
+		}
+
+		// Return the keys of the set.
+		return slices.Collect(maps.Keys(reconcileRequests))
 	})
 }
