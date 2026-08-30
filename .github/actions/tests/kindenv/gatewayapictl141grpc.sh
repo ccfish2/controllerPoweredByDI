@@ -77,6 +77,9 @@ GATEWAY_NAME="tls-gateway"
 ROUTE_NAME="grpc-route"
 SERVICE_NAME="grpc-echo"
 SERVICE_PORT=7070
+TARGET_PORT=9000
+# grpcbin.GRPCBin/Empty
+# list
 
 openssl req -x509 -nodes -newkey rsa:2048 \
   -keyout "${CERT_DIR}/tls.key" \
@@ -131,7 +134,7 @@ spec:
   ports:
   - name: grpc
     port: ${SERVICE_PORT}
-    targetPort: ${SERVICE_PORT}
+    targetPort: ${TARGET_PORT}
     # Required so the route uses plaintext HTTP/2 to the backend instead of
     # attempting HTTP/1.1 — without this you'll see protocol errors.
     appProtocol: kubernetes.io/h2c
