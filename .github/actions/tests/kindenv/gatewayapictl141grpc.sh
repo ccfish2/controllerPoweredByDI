@@ -13,6 +13,9 @@ GATEWAY_CLASS="dolphin"
 # Install the sample application and the Cilium resources required by the
 # Gateway implementation before creating any Gateway API objects.
 kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+# arm64 compitable
+#kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books-info.yaml
+
 echo "Deploy Cilium CRDS"
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive || true # cilium CRDs
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
@@ -113,7 +116,7 @@ spec:
     spec:
       containers:
       - name: grpc-echo
-        image: kong/go-echo:0.6.0
+        image: kong/grpcbin:latest
         ports:
         - name: grpc
           containerPort: ${SERVICE_PORT}
@@ -295,7 +298,7 @@ fi
 echo "Gateway address: ${gateway_ip}"
 
 echo "Testing gRPC call through ${gateway_ip}:443 (from inside netshoot)"
-
+# curl -kv --resolve grpc-echo.cilium.rocks:443:{gateway_ip} https://grpc-echo.cilium.rocks/
 # grpcurl runs inside the netshoot pod, in-cluster, talking directly to the
 # Gateway IP but sending the configured hostname as :authority (the gRPC
 # equivalent of --connect-to + SNI in the curl passthrough test). It verifies
