@@ -77,7 +77,7 @@ GATEWAY_NAME="tls-gateway"
 ROUTE_NAME="grpc-route"
 SERVICE_NAME="grpc-echo"
 SERVICE_PORT=7070
-TARGET_PORT=9000
+TARGET_PORT=7070
 # grpcbin.GRPCBin/Empty
 # list
 
@@ -92,6 +92,15 @@ kubectl create namespace "${NAMESPACE}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${NAMESPACE}" create secret tls grpc-certificate \
+  --cert="${CERT_DIR}/tls.crt" \
+  --key="${CERT_DIR}/tls.key" \
+  --dry-run=client -o yaml |
+  kubectl apply -f -
+
+kubectl create namespace "cilium-secrets" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n "cilium-secrets" create secret tls grpc-certificate \
   --cert="${CERT_DIR}/tls.crt" \
   --key="${CERT_DIR}/tls.key" \
   --dry-run=client -o yaml |
@@ -119,7 +128,7 @@ spec:
     spec:
       containers:
       - name: grpc-echo
-        image: kong/grpcbin:latest
+        image: gcr.io/istio-testing/app:latest
         ports:
         - name: grpc
           containerPort: ${SERVICE_PORT}
@@ -307,19 +316,24 @@ echo "Testing gRPC call through ${gateway_ip}:443 (from inside netshoot)"
 # equivalent of --connect-to + SNI in the curl passthrough test). It verifies
 # the cert we generated above, mounted from the Secret rather than a
 # separately serialized copy.
-# response="$(kubectl -n "${NAMESPACE}" exec netshoot -- grpcurl \
-#   -cacert "/certs/${DOMAIN}.pem" \
-#   -authority "${DOMAIN}" \
-#   "${gateway_ip}:443" \
-#   proto.EchoTestService/Echo)" || {
-#   echo "gRPC request through Gateway failed"
-#   dump_debug
-#   exit 1
+response="$(kubectl -n "${NAMESPACE}" exec netshoot -- grpcurl \
+  -cacert "/certs/${DOMAIN}.pem" \
+  -authority "${DOMAIN}" \
+  "${gateway_ip}:443" \
+  proto.EchoTestService/Echo)" || {
+  echo "gRPC request through Gateway failed"
+  dump_debug
+  exit 1
+}
+
+echo "gRPC response:"
+echo "${response}"
+
+#
+# gRPC response:
+# {
+#   "message": "RequestHeader=x-envoy-internal:true\nRequestHeader=grpc-accept-encoding:gzip\nRequestHeader=x-forwarded-proto:https\nRequestHeader=x-request-id:fc6459c8-d9df-4063-b64e-63b1ea19affb\nHost=grpc-echo.cilium.rocks\nRequestHeader=:authority:grpc-echo.cilium.rocks\nRequestHeader=content-type:application/grpc\nRequestHeader=user-agent:grpcurl/v1.9.3 grpc-go/1.61.0\nRequestHeader=x-forwarded-for:10.244.1.5\nStatusCode=200\nServiceVersion=\nServicePort=7070\nIP=10.244.1.5\nProto=GRPC\nEcho=\nHostname=grpc-echo-7f9c7d6857-p5cvd\n"
 # }
-
-# echo "gRPC response:"
-# echo "${response}"
-
 # if ! grep -q "StatusCode=200" <<<"${response}"; then
 #   echo "Unexpected gRPC response (missing StatusCode=200)"
 #   dump_debug
@@ -328,4 +342,4 @@ echo "Testing gRPC call through ${gateway_ip}:443 (from inside netshoot)"
 
 # echo "GRPCRoute test passed"
 
-echo "Running gRPC request through Gateway..." kubectl -n "${NAMESPACE}" exec netshoot -- grpcurl \ -cacert "/certs/${DOMAIN}.pem" \ -authority "${DOMAIN}" \ "${gateway_ip}:443" \ proto.EchoTestService/Echo || true echo "gRPC verification command completed."
+#echo "Running gRPC request through Gateway..." kubectl -n "${NAMESPACE}" exec netshoot -- grpcurl \ -cacert "/certs/${DOMAIN}.pem" \ -authority "${DOMAIN}" \ "${gateway_ip}:443" \ proto.EchoTestService/Echo || true echo "gRPC verification command completed."

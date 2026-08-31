@@ -96,7 +96,7 @@ spec:
           '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
           commonTlsContext:
             tlsCertificateSdsSecretConfigs:
-            - name: dolphin/grpc-certificate
+            - name: cilium-secrets/grpc-certificate
     listenerFilters:
     - name: envoy.filters.listener.tls_inspector
       typedConfig:
@@ -150,7 +150,7 @@ spec:
         useDownstreamProtocolConfig:
           http2ProtocolOptions: {}
   services:
-  - name: dolphin-gateway-tls-gateway 
+  - name: dolphin-gateway-tls-gateway
     namespace: dolphin
     ports:
     - 443
