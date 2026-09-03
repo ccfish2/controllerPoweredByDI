@@ -6,14 +6,34 @@ on:
     workflows: ["Image CI Builder"]
     types:
       - completed
+  
+  # Allow manual triggering of the workflow with test selection
+  workflow_dispatch:
+    inputs:
+      run_http_tests:
+        description: 'Run HTTP/HTTPS/TLSROUTE Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_grpc_tests:
+        description: 'Run GRPC Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_http_split_tests:
+        description: 'Run HTTP Splitting Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
     name: Deploy and Functionally Test in Kind Cluster
     runs-on: ubuntu-22.04
 
-    # Only deploy and test when the upstream image build completed successfully.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only deploy and test when the upstream image build completed successfully,
+    # or when manually triggered.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       # ============================================================
@@ -293,7 +313,13 @@ jobs:
       # The test suite exercises the Gateway API resources installed
       # earlier in this workflow, including GatewayClass, Gateway,
       # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_http_tests to false.
       - name: Run Network Gateway API Functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_tests == 'true')
         run: |
           bash .github/actions/tests/kindenv/gatewayapi141ctl.sh
 
@@ -305,12 +331,36 @@ jobs:
       # The test suite exercises the Gateway API resources installed
       # earlier in this workflow, including GatewayClass, Gateway,
       # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_grpc_tests to false.
       - name: Run Network Gateway API GRPC functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_grpc_tests == 'true')
         run: |
           bash .github/actions/tests/kindenv/gatewayapictl141grpc.sh
 
       # ============================================================
-      # 19. Cleanup
+      # 19. Gateway API -- HTTP Splitting Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_http_split_tests to false.
+      - name: Run Network Gateway API HTTP Splitting functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_split_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapictl141httpsplit.sh
+
+      # ============================================================
+      # 20. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.

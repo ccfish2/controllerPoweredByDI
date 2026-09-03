@@ -220,6 +220,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 
 func backendToModelBackend(be gatewayv1.BackendRef, defaultNamespace string) model.Backend {
 	res := backendRefToModelBackend(be.BackendObjectReference, defaultNamespace)
+	res.Weight = be.Weight
 	return res
 }
 
