@@ -25,6 +25,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_http_modify_header_tests:
+        description: 'Run Network Gateway API HTTP Modify Header'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -360,7 +365,17 @@ jobs:
           bash .github/actions/tests/kindenv/gatewayapictl141httpsplit.sh
 
       # ============================================================
-      # 20. Cleanup
+      # 20. Gateway API -- HTTP Header Modify
+      # ============================================================
+      - name: Run Network Gateway API HTTP Modify Header
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapictl141httpheader-modify.sh
+          
+      # ============================================================
+      # 21. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.

@@ -33,7 +33,7 @@ spec:
         - name: quay-secret
       containers:
       - name: dolphin-operator
-        image: docker.io/jimin1/dolphin-operator-generic:43090882cb0fdb8272f85873d01b1bc4e82a318a
+        image: docker.io/jimin1/dolphin-operator-generic:01750f207a2ba61b03c11c78a1a38874218a229d
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9953
