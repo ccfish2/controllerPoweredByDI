@@ -30,7 +30,12 @@ on:
         required: false
         default: 'true'
         type: boolean
-
+      run_parameterized_gatewayclass:
+        desciption: Run Network Gateway API Parameterized Gateway Class
+        required: false
+        default: 'true'
+        type: boolean
+      
 jobs:
   deploy-and-functional-test:
     name: Deploy and Functionally Test in Kind Cluster
@@ -373,9 +378,20 @@ jobs:
           (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
         run: |
           bash .github/actions/tests/kindenv/gatewayapictl141httpheader-modify.sh
+
+      
+      # ============================================================
+      # 21. Gateway API -- Parameterized Gateway Class
+      # ============================================================
+      - name: Run Network Gateway API Parameterized Gateway Class
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapictl141parameterizedclas.sh
           
       # ============================================================
-      # 21. Cleanup
+      # 22. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.
