@@ -46,7 +46,7 @@ sleep 180
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Deploy Cilium Envoy Cnofig for Gateway and HTTP Route"
-kubectl -n dolphin -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/nodeport-gateway-cec.yaml
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/nodeport-gateway-cec.yaml
 sleep 10
 
 echo "Deploying netshoot client"
