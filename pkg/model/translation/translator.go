@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +60,7 @@ func NewTranslator(name, namespace, secretsNamespace string, enforceHTTPs bool, 
 }
 
 // translate translates the model into a DolphinEnvoyConfig
-func (d *defaultTranslator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
+func (d *defaultTranslator) Translate(m *model.Model, _ ...*dolphinv2alpha1.DolphinGatewayClassConfig) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
 	dec := &dolphinv1.DolphinEnvoyConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      d.name,

@@ -3,9 +3,10 @@ package translation
 import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	v1 "k8s.io/api/core/v1"
 )
 
 type Translator interface {
-	Translate(*model.Model) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error)
+	Translate(*model.Model, ...*dolphinv2alpha1.DolphinGatewayClassConfig) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error)
 }

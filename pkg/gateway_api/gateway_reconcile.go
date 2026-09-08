@@ -28,6 +28,7 @@ import (
 
 	// dolphin
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 )
 
@@ -106,13 +107,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		namespaces = namespaceList.Items
 	}
 	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
+	dgccfg := r.getGatewayClassConfig(ctx, gwc)
 	httpListeners, tlsListeners := ingestion.GatewayAPI(ingestion.Input{
-		GatewayClass: *gwc,
-		Gateway:      *copy,
-		HTTPRoutes:   r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items),
-		TLSRoutes:    r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
-		GRPCRoutes:   r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
-		Services:     servicesList.Items,
+		GatewayClass:       *gwc,
+		Gateway:            *copy,
+		GatewayClassConfig: dgccfg,
+		HTTPRoutes:         r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items),
+		TLSRoutes:          r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
+		GRPCRoutes:         r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
+		Services:           servicesList.Items,
 	})
 
 	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList, grpcRouteList, namespaceLabels)
@@ -125,7 +128,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// step 3: translate the listeners into dolphin model
 	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
-	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners})
+	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners}, dgccfg)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to translate resources")
 		setGatewayAccepted(gw, false, "Unable to translate resources")
@@ -198,6 +201,25 @@ func (r *gatewayReconciler) ensureService(ctx context.Context, desired *corev1.S
 		return nil
 	})
 	return err
+}
+
+func (r *gatewayReconciler) getGatewayClassConfig(ctx context.Context, gwc *gatewayv1.GatewayClass) *dolphinv2alpha1.DolphinGatewayClassConfig {
+	if gwc.Spec.ParametersRef == nil ||
+		gwc.Spec.ParametersRef.Group != dolphinv2alpha1.CustomResourceDefinitionGroup ||
+		gwc.Spec.ParametersRef.Kind != dolphinv2alpha1.DGCCKindDefinition {
+		fmt.Println(" 11111 somethign wrong here  ")
+		return nil
+	}
+
+	res := &dolphinv2alpha1.DolphinGatewayClassConfig{}
+	if err := r.Client.Get(ctx, client.ObjectKey{
+		Namespace: string(*gwc.Spec.ParametersRef.Namespace),
+		Name:      gwc.Spec.ParametersRef.Name,
+	}, res); err != nil {
+		fmt.Println("\n\n  2222 somethign wrong here ??? err <<%v>> \n", err)
+		return nil
+	}
+	return res
 }
 
 func hasAllowedRoutesNamespaceSelector(gw *gatewayv1.Gateway) bool {

@@ -14,6 +14,7 @@ import (
 
 	// dolphin
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -30,7 +31,7 @@ type translator struct {
 }
 
 // Translate implements Translator.
-func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
+func (t *translator) Translate(m *model.Model, dgccfg ...*dolphinv2alpha1.DolphinGatewayClassConfig) (*dolphinv1.DolphinEnvoyConfig, *v1.Service, *v1.Endpoints, error) {
 	listeners := m.GetListeners()
 	if len(listeners) == 0 || len(listeners[0].GetSources()) == 0 {
 		return nil, nil, nil, fmt.Errorf("model source can't be empty")
@@ -49,7 +50,7 @@ func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *
 	}
 
 	trans := translation.NewTranslator(dolphinGatewayPrefix+source.Name, source.Namespace, t.SecretNameSpace, false, false, true, t.idleTimeoutSeconds, t.enableIpv4, t.enableIpv6)
-	dec, _, _, err := trans.Translate(m)
+	dec, _, _, err := trans.Translate(m, dgccfg[0])
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -72,7 +73,7 @@ func (t *translator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *
 		allAnnotations = mergeMap(allAnnotations, l.GetAnnotations())
 		allLabels = mergeMap(allLabels, l.GetLabels())
 	}
-	return dec, getService(source, ports, allLabels, allAnnotations), getEndpoints(*source), err
+	return dec, getService(source, ports, allLabels, allAnnotations, dgccfg[0]), getEndpoints(*source), err
 }
 
 var _ translation.Translator = (*translator)(nil)
@@ -97,7 +98,7 @@ func mergeMap(left, right map[string]string) map[string]string {
 }
 
 // compse gateway api laodbalance servce type
-func getService(resource *model.FullyQualifiedResource, allPorts []uint32, labels, annotations map[string]string) *corev1.Service {
+func getService(resource *model.FullyQualifiedResource, allPorts []uint32, labels, annotations map[string]string, dgccfg *dolphinv2alpha1.DolphinGatewayClassConfig) *corev1.Service {
 	uniquePorts := map[uint32]struct{}{}
 	for _, p := range allPorts {
 		uniquePorts[p] = struct{}{}
@@ -111,7 +112,8 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 			Protocol: corev1.ProtocolTCP,
 		})
 	}
-
+	svcType := toServiceType(dgccfg)
+	fmt.Printf("!!!!#%v !!!!!\n", svcType)
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        model.Shorten(dolphinGatewayPrefix + resource.Name),
@@ -129,10 +131,19 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 			},
 		},
 		Spec: corev1.ServiceSpec{
-			Type:  corev1.ServiceTypeLoadBalancer,
+			Type:  toServiceType(dgccfg),
 			Ports: ports,
 		},
 	}
+}
+
+func toServiceType(dgccfg *dolphinv2alpha1.DolphinGatewayClassConfig) corev1.ServiceType {
+	fmt.Printf("\n\n #%v \n\n", *dgccfg)
+	if dgccfg != nil && dgccfg.Spec.Service.Type == v1.ServiceTypeNodePort {
+		return corev1.ServiceTypeNodePort
+	}
+
+	return corev1.ServiceTypeLoadBalancer
 }
 
 func getEndpoints(resource model.FullyQualifiedResource) *corev1.Endpoints {

@@ -14,6 +14,7 @@ import (
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 )
 
 func toHTTPHeaders(headers []gatewayv1.HTTPHeader) []model.Header {
@@ -33,7 +34,8 @@ const (
 
 // Input is the input for GatewayAPI.
 type Input struct {
-	GatewayClass gatewayv1.GatewayClass
+	GatewayClass       gatewayv1.GatewayClass
+	GatewayClassConfig *v2alpha1.DolphinGatewayClassConfig
 
 	Gateway         gatewayv1.Gateway
 	HTTPRoutes      []gatewayv1.HTTPRoute

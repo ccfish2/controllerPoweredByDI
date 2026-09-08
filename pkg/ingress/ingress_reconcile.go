@@ -12,6 +12,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -182,7 +183,7 @@ func (r *ingressReconciler) buildDedicatedResources(ctx context.Context, ingress
 		m.HTTP = append(m.HTTP, ingestion.Ingress(*ingress, r.defaultSecretNamespace, r.defaultSecretName, r.enforcedHTTPS, insecureHTTPPort, secureHTTPPort, r.defaultRequestTimeout)...)
 	}
 
-	dec, svc, ep, err := r.dedicatedTranslator.Translate(m)
+	dec, svc, ep, err := r.dedicatedTranslator.Translate(m, &dolphinv2alpha1.DolphinGatewayClassConfig{})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to translate model into resources: %w", err)
 	}
@@ -366,7 +367,7 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*dolphinv
 		}
 	}
 
-	dec, _, _, err := r.sharedTranslator.Translate(m)
+	dec, _, _, err := r.sharedTranslator.Translate(m, &dolphinv2alpha1.DolphinGatewayClassConfig{})
 
 	return dec, err
 }

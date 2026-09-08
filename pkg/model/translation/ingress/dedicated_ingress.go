@@ -9,6 +9,7 @@ import (
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -36,7 +37,7 @@ func NewDedicatedIngressTranslator(secretsNamespace string, enforceHTTPs bool, u
 	}
 }
 
-func (d *DedicatedIngressTranslator) Translate(m *model.Model) (*dolphinv1.DolphinEnvoyConfig, *corev1.Service, *corev1.Endpoints, error) {
+func (d *DedicatedIngressTranslator) Translate(m *model.Model, _ ...*dolphinv2alpha1.DolphinGatewayClassConfig) (*dolphinv1.DolphinEnvoyConfig, *corev1.Service, *corev1.Endpoints, error) {
 	if m == nil || (len(m.HTTP) == 0 && len(m.TLS) == 0) {
 		return nil, nil, nil, fmt.Errorf("model source can't be empty")
 	}
@@ -64,7 +65,7 @@ func (d *DedicatedIngressTranslator) Translate(m *model.Model) (*dolphinv1.Dolph
 	// The logic is same as what we have with default translator, but with a different model
 	// (i.e. the HTTP listeners are just belonged to one Ingress resource).
 	translator := translation.NewTranslator(name, namespace, d.secretsNamespace, d.enforceHTTPs, d.useProxyProtocol, false, d.idleTimeoutSeconds, true, false)
-	cec, _, _, err := translator.Translate(m)
+	cec, _, _, err := translator.Translate(m, &dolphinv2alpha1.DolphinGatewayClassConfig{})
 	if err != nil {
 		return nil, nil, nil, err
 	}

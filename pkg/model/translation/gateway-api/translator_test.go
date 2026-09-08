@@ -8,6 +8,7 @@ import (
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -60,7 +61,7 @@ func Test_Translator_Translate(t *testing.T) {
 			output := &dolphinv1.DolphinEnvoyConfig{}
 			readOutput(t, fmt.Sprintf("testdata/%s/cec-output.yaml", tt.name), output)
 
-			cec, _, _, err := trans.Translate(input)
+			cec, _, _, err := trans.Translate(input, &dolphinv2alpha1.DolphinGatewayClassConfig{})
 
 			require.Equal(t, tt.wantErr, err != nil, "Error mismatch")
 			diffOutput := cmp.Diff(output, cec, protocmp.Transform())

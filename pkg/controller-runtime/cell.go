@@ -19,6 +19,7 @@ import (
 
 	gatewayapischeme "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/scheme"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	k8sclient "github.com/ccfish2/infra/pkg/k8s/client"
 )
 
@@ -39,6 +40,15 @@ func NewScheme() (*runtime.Scheme, error) {
 			return nil, fmt.Errorf("%V", gv)
 		}
 	}
+
+	for gv, f := range map[fmt.Stringer]func(s *runtime.Scheme) error{
+		dolphinv2alpha1.SchemeGroupVersion: dolphinv2alpha1.AddToScheme,
+	} {
+		if err := f(scheme); err != nil {
+			return nil, fmt.Errorf("%V", gv)
+		}
+	}
+
 	if err := gatewayapischeme.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
