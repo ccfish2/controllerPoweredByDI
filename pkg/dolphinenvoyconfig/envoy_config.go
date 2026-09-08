@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ccfish2/infra/pkg/envoy"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/envoy"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"

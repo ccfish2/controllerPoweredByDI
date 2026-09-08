@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
-	"github.com/ccfish2/infra/pkg/envoy"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/envoy"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 )
 
