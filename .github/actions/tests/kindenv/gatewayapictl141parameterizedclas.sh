@@ -40,13 +40,13 @@ wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
 
 
 echo "Deploy GatewayClass, DolphinGatewayClassConfig, Gateway, HTTPRoute"
-k -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/deploy.yaml
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/deploy.yaml
 sleep 180
 
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Deploy Cilium Envoy Cnofig for Gateway and HTTP Route"
-k -n dolphin -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/nodeport-gateway-cec.yaml
+kubectl -n dolphin -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/nodeport-gateway-cec.yaml
 sleep 10
 
 echo "Deploying netshoot client"
@@ -59,6 +59,7 @@ metadata:
   labels:
     run: netshoot
   name: netshoot
+  namespace: dolphin
 spec:
   containers:
   - command:
