@@ -207,7 +207,6 @@ func (r *gatewayReconciler) getGatewayClassConfig(ctx context.Context, gwc *gate
 	if gwc.Spec.ParametersRef == nil ||
 		gwc.Spec.ParametersRef.Group != dolphinv2alpha1.CustomResourceDefinitionGroup ||
 		gwc.Spec.ParametersRef.Kind != dolphinv2alpha1.DGCCKindDefinition {
-		fmt.Println(" 11111 somethign wrong here  ")
 		return nil
 	}
 
@@ -216,7 +215,6 @@ func (r *gatewayReconciler) getGatewayClassConfig(ctx context.Context, gwc *gate
 		Namespace: string(*gwc.Spec.ParametersRef.Namespace),
 		Name:      gwc.Spec.ParametersRef.Name,
 	}, res); err != nil {
-		fmt.Println("\n\n  2222 somethign wrong here ??? err <<%v>> \n", err)
 		return nil
 	}
 	return res

@@ -112,8 +112,6 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 			Protocol: corev1.ProtocolTCP,
 		})
 	}
-	svcType := toServiceType(dgccfg)
-	fmt.Printf("!!!!#%v !!!!!\n", svcType)
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        model.Shorten(dolphinGatewayPrefix + resource.Name),
@@ -138,7 +136,6 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 }
 
 func toServiceType(dgccfg *dolphinv2alpha1.DolphinGatewayClassConfig) corev1.ServiceType {
-	fmt.Printf("\n\n #%v \n\n", *dgccfg)
 	if dgccfg != nil && dgccfg.Spec.Service.Type == v1.ServiceTypeNodePort {
 		return corev1.ServiceTypeNodePort
 	}
