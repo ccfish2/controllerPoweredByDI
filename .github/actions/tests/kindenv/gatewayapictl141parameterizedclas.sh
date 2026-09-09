@@ -50,6 +50,7 @@ kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtest
 sleep 10
 
 echo "Deploying netshoot client"
+NAMESPACE="dolphin"
 # grpcurl installed alongside curl/openssl in the netshoot image.
 kubectl -n "${NAMESPACE}" delete pod netshoot --ignore-not-found --wait=true
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
