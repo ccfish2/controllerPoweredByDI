@@ -10,3 +10,9 @@ subjects:
 - kind: ServiceAccount
   name: dolphin-operator
   namespace: dolphin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dolphin-operator
+  namespace: dolphin
