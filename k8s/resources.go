@@ -9,6 +9,12 @@ import (
 	"github.com/ccfish2/infra/pkg/k8s/resource"
 )
 
+/*
+// ResourceCell provides a set of handles to Kubernetes resources used throughout the 
+// operator. 
+// Each of the resources share a client-go informer and backing store so we only have one
+// watch API call for each resource kind and that we maintain only one copy of each object
+*/
 var (
 	ResourcesCell = cell.Module(
 		"k8s-resources",
