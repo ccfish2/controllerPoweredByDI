@@ -80,6 +80,16 @@ jobs:
         uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
+      
+      # ============================================================
+      # 5.5. Install Helm
+      # ============================================================
+      # Helm is required to install and manage Cilium and other
+      # Kubernetes packages.
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
 
       # ============================================================
       # 6. Install GitHub CLI
