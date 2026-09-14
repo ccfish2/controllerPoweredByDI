@@ -5,7 +5,6 @@ import (
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
-	"github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,10 +12,9 @@ import (
 )
 
 func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
-		logfields.Controller: "gatewayclass",
-		logfields.Resource:   req.NamespacedName,
-	})
+	scopedLog := r.logger.With(
+		logfields.Resource, req.NamespacedName,
+	)
 
 	scopedLog.Info("Reconciling GatewayClass", "requestedName", req.Name)
 	origin := &gatewayv1.GatewayClass{}
@@ -25,7 +23,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			scopedLog.Info("GatewayClass no longer exists; skipping reconcile")
 			return controllerruntime.Success()
 		}
-		scopedLog.WithError(err).Error("Failed to get GatewayClass during reconcile")
+		scopedLog.Error("Failed to get GatewayClass during reconcile")
 		return controllerruntime.Fail(err)
 	}
 
@@ -36,9 +34,9 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	actualController := string(origin.Spec.ControllerName)
 	matched := matchesControllerName(controllerName)(origin)
-	scopedLog.WithField("[Reconcile] actualControllerName ", actualController).WithField(" expectedControllerName ", controllerName).WithField("matched: ", matched).Info(" GatewayClass controller match result")
+	scopedLog.Info("[Reconcile] actualControllerName ", actualController, "expected controller name ", controllerName, "matched: ", matched, " GatewayClass controller match result")
 	if !matched {
-		scopedLog.WithField("controllerName", actualController).Debug("Ignoring GatewayClass for a different controller")
+		scopedLog.Info("controllerName", actualController, "Ignoring GatewayClass for a different controller")
 		return controllerruntime.Success()
 	}
 
@@ -46,7 +44,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	setGatewayClassAccepted(gwc, true)
 	setGatewayClassSupportedFeatures(gwc)
 	if err := r.ensureStatus(ctx, gwc, origin); err != nil {
-		scopedLog.Errorf("Failed to update GatewayClass status %v", err)
+		scopedLog.Error("Failed to update GatewayClass status ", err.Error())
 		return controllerruntime.Fail(err)
 	}
 
