@@ -18,7 +18,7 @@ wait_for_endpoints dolphin productpage || exit 1
 
 echo "Install Cilium Agent and Envoy"
 helm repo add cilium https://helm.cilium.io
-helm upgrade cilium cilium/cilium --version 1.20.1 \
+helm install cilium cilium/cilium --version 1.20.1 \
    --namespace kube-system \
    --set kubeProxyReplacement=true \
    --set gatewayAPI.enabled=true
