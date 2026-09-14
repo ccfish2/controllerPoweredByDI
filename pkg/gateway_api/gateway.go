@@ -249,11 +249,15 @@ func (r *gatewayReconciler) enqueueRequestForOwningTLSRoute(logger *slog.Logger)
 			return nil
 		}
 
-		return getGatewayReconcileRequestsForRoute(context.Background(), r.Client, a, hr.Spec.CommonRouteSpec, logger)
+		return getGatewayReconcileRequestsForRoute(ctx, r.Client, a, hr.Spec.CommonRouteSpec, logger)
 	})
 }
 
 func getGatewayReconcileRequestsForRoute(ctx context.Context, c client.Client, object metav1.Object, route gatewayv1.CommonRouteSpec, logger *slog.Logger) []reconcile.Request {
+	if ctx.Err() != nil {
+		return nil
+	}
+
 	var reqs []reconcile.Request
 
 	scopedLog := logger.With(
@@ -505,11 +509,15 @@ func (r *gatewayReconciler) enqueueRequestForOwningHTTPRoute(logger *slog.Logger
 			return nil
 		}
 
-		return getReconcileRequestsForRoute(context.Background(), r.Client, a, hr.Spec.CommonRouteSpec)
+		return getReconcileRequestsForRoute(ctx, r.Client, a, hr.Spec.CommonRouteSpec)
 	})
 }
 
 func getReconcileRequestsForRoute(ctx context.Context, c client.Client, object metav1.Object, route gatewayv1.CommonRouteSpec) []reconcile.Request {
+	if ctx.Err() != nil {
+		return nil
+	}
+
 	var reqs []reconcile.Request
 
 	scopedLog := log.WithFields(logrus.Fields{

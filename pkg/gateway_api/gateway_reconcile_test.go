@@ -67,6 +67,51 @@ func Test_gatewayReconciler_Reconcile(t *testing.T) {
 	})
 }
 
+func Test_getReconcileRequestsForRoute_RespectsCanceledContext(t *testing.T) {
+	gatewayClass := &gatewayv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "dolphin"},
+		Spec: gatewayv1.GatewayClassSpec{
+			ControllerName: "io.dolphin/gateway-controller",
+		},
+	}
+	gateway := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "gateway-with-http",
+		},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "dolphin",
+		},
+	}
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "http-route",
+		},
+		Spec: gatewayv1.HTTPRouteSpec{
+			CommonRouteSpec: gatewayv1.CommonRouteSpec{
+				ParentRefs: []gatewayv1.ParentReference{{
+					Name:      "gateway-with-http",
+					Namespace: model.AddressOf[gatewayv1.Namespace]("default"),
+				}},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(testScheme()).
+		WithObjects(gatewayClass, gateway).
+		Build()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	requests := getReconcileRequestsForRoute(ctx, c, route, route.Spec.CommonRouteSpec)
+	if len(requests) != 0 {
+		t.Fatalf("expected canceled context to abort enqueueing, got %d requests", len(requests))
+	}
+}
+
 func Test_gatewayReconciler_Reconcile_WithTLS(t *testing.T) {
 	tlsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -105,7 +150,7 @@ func Test_gatewayReconciler_Reconcile_WithTLS(t *testing.T) {
 					Name:     "https",
 					Port:     443,
 					Protocol: gatewayv1.TLSProtocolType,
-					TLS: &gatewayv1.GatewayTLSConfig{
+					TLS: &gatewayv1.ListenerTLSConfig{
 						CertificateRefs: []gatewayv1.SecretObjectReference{
 							{
 								Name: gatewayv1.ObjectName("gateway-tls-secret"),
@@ -123,9 +168,11 @@ func Test_gatewayReconciler_Reconcile_WithTLS(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: gatewayv1alpha2.TLSRouteSpec{
-			ParentRefs: []gatewayv1.ParentReference{
-				{
-					Name: gatewayv1.ObjectName("gateway-with-tls"),
+			CommonRouteSpec: gatewayv1.CommonRouteSpec{
+				ParentRefs: []gatewayv1.ParentReference{
+					{
+						Name: gatewayv1.ObjectName("gateway-with-tls"),
+					},
 				},
 			},
 			Hostnames: []gatewayv1.Hostname{

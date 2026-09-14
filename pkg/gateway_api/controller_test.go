@@ -2,6 +2,8 @@ package gateway_api
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
@@ -24,6 +27,8 @@ func testScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dolphinv1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 
 	return scheme
 }
@@ -63,7 +68,7 @@ var ctrlTestFixture = []client.Object{
 					Name:     "https",
 					Port:     443,
 					Hostname: model.AddressOf[gatewayv1.Hostname]("example.com"),
-					TLS: &gatewayv1.GatewayTLSConfig{
+					TLS: &gatewayv1.ListenerTLSConfig{
 						CertificateRefs: []gatewayv1.SecretObjectReference{
 							{Name: "gateway-secret"},
 						},
@@ -85,7 +90,7 @@ var ctrlTestFixture = []client.Object{
 					Name:     "https",
 					Port:     80,
 					Hostname: model.AddressOf[gatewayv1.Hostname]("example2.com"),
-					TLS: &gatewayv1.GatewayTLSConfig{
+					TLS: &gatewayv1.ListenerTLSConfig{
 						CertificateRefs: []gatewayv1.SecretObjectReference{},
 					},
 				},
@@ -159,7 +164,7 @@ var ctrlTestFixture = []client.Object{
 					Name:     "https",
 					Port:     443,
 					Hostname: model.AddressOf[gatewayv1.Hostname]("example3.com"),
-					TLS:      &gatewayv1.GatewayTLSConfig{},
+					TLS:      &gatewayv1.ListenerTLSConfig{},
 					AllowedRoutes: &gatewayv1.AllowedRoutes{
 						Namespaces: &gatewayv1.RouteNamespaces{
 							From: model.AddressOf(gatewayv1.NamespacesFromAll),
@@ -182,7 +187,7 @@ var ctrlTestFixture = []client.Object{
 					Name:     "https",
 					Port:     443,
 					Hostname: model.AddressOf[gatewayv1.Hostname]("example3.com"),
-					TLS:      &gatewayv1.GatewayTLSConfig{},
+					TLS:      &gatewayv1.ListenerTLSConfig{},
 					AllowedRoutes: &gatewayv1.AllowedRoutes{
 						Namespaces: &gatewayv1.RouteNamespaces{
 							From: model.AddressOf(gatewayv1.NamespacesFromAll),
@@ -234,7 +239,7 @@ var namespaceFixture = []client.Object{
 
 func Test_hasMathingController(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(ctrlTestFixture...).Build()
-	fn := hasMatchingController(context.TODO(), c, "io.dolphin/gateway-controller")
+	fn := hasMatchingController(context.TODO(), c, "io.dolphin/gateway-controller", slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	t.Run("invalid object", func(t *testing.T) {
 		res := fn(&corev1.Pod{})
@@ -312,7 +317,9 @@ func Test_OnlyStatusChange(t *testing.T) {
 }
 
 func Test_SelectGWForNamespace(t *testing.T) {
-	c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(namespaceFixture...).Build()
+	objects := append([]client.Object{}, namespaceFixture...)
+	objects = append(objects, ctrlTestFixture...)
+	c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(objects...).Build()
 	type args struct {
 		namespacce string
 	}
@@ -325,7 +332,7 @@ func Test_SelectGWForNamespace(t *testing.T) {
 		{
 			name: "from-same-and-all-namespace",
 			args: args{namespacce: "default"},
-			want: []string{"gateway-from-all-namespaces", "gateway-from-same-namespaces"},
+			want: []string{"gateway-from-all-namespaces", "gateway-from-same-namespaces", "another-gw-for-tls-with-selector"},
 		},
 	}
 
@@ -337,11 +344,11 @@ func Test_SelectGWForNamespace(t *testing.T) {
 				},
 			})
 
-			res := make([]string, len(gwlist))
+			res := make([]string, 0, len(gwlist))
 			for _, gw := range gwlist {
 				res = append(res, gw.Name)
 			}
-			assert.Equal(t, tt.args.namespacce, res)
+			assert.ElementsMatch(t, tt.want, res)
 		})
 	}
 }

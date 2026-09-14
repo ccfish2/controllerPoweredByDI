@@ -3,6 +3,8 @@ package gateway_api
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	meatav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -34,8 +36,8 @@ func Test_gatewayStatusScheduledCondition(t *testing.T) {
 				Type:               "Accepted",
 				Status:             "True",
 				ObservedGeneration: 100,
-				Reason:             "Scheduled",
-				Message:            "Shceld gageway",
+				Reason:             "Accepted",
+				Message:            "gateway scheduled",
 			},
 		},
 		{
@@ -46,14 +48,15 @@ func Test_gatewayStatusScheduledCondition(t *testing.T) {
 						Generation: 100,
 					},
 				},
-				scheduled: true,
+				scheduled: false,
 				msg:       "gateway not scheduled",
 			},
 			want: meatav1.Condition{
-				Type:    "Accepted",
-				Status:  "False",
-				Reason:  "Not Scheduled",
-				Message: "gageway is not scheduled",
+				Type:               "Accepted",
+				Status:             "False",
+				ObservedGeneration: 100,
+				Reason:             "NoResources",
+				Message:            "gateway not scheduled",
 			},
 		},
 	}
@@ -61,7 +64,7 @@ func Test_gatewayStatusScheduledCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := gwStsAcpCondition(tt.args.gw, tt.args.scheduled, tt.args.msg)
-			assert.Equal(t, tt.want, got)
+			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreFields(meatav1.Condition{}, "LastTransitionTime")))
 		})
 	}
 }
@@ -93,7 +96,7 @@ func Test_gatewayStatusReadyCondition(t *testing.T) {
 				Status:             "True",
 				ObservedGeneration: 100,
 				Reason:             "Ready",
-				Message:            "gateway is ready",
+				Message:            "Listener Ready",
 			},
 		},
 		{
@@ -104,14 +107,15 @@ func Test_gatewayStatusReadyCondition(t *testing.T) {
 						Generation: 100,
 					},
 				},
-				scheduled: true,
+				scheduled: false,
 				msg:       "Listener Unready",
 			},
 			want: meatav1.Condition{
-				Type:    "Ready",
-				Status:  "False",
-				Reason:  "Not Ready",
-				Message: "gageway is not ready",
+				Type:               "Ready",
+				Status:             "False",
+				ObservedGeneration: 100,
+				Reason:             "NoResources",
+				Message:            "Listener Unready",
 			},
 		},
 	}
@@ -119,7 +123,7 @@ func Test_gatewayStatusReadyCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := gwStsReadyCondition(tt.args.gw, tt.args.scheduled, tt.args.msg)
-			assert.Equal(t, tt.want, got)
+			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreFields(meatav1.Condition{}, "LastTransitionTime")))
 		})
 	}
 }
@@ -150,7 +154,7 @@ func Test_gatewayListenerProgrammedConditino(t *testing.T) {
 				Type:               "Programmed",
 				Status:             "True",
 				ObservedGeneration: 100,
-				Reason:             "Ready",
+				Reason:             "Accepted",
 				Message:            "Programmed",
 			},
 		},
@@ -162,14 +166,15 @@ func Test_gatewayListenerProgrammedConditino(t *testing.T) {
 						Generation: 100,
 					},
 				},
-				scheduled: true,
+				scheduled: false,
 				msg:       "Listener Unready",
 			},
 			want: meatav1.Condition{
-				Type:    "Programmed",
-				Status:  "False",
-				Reason:  "Not Ready",
-				Message: "UnProgrammed",
+				Type:               "Programmed",
+				Status:             "False",
+				ObservedGeneration: 100,
+				Reason:             "ListenersNotReady",
+				Message:            "Listener Unready",
 			},
 		},
 	}
@@ -177,7 +182,7 @@ func Test_gatewayListenerProgrammedConditino(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := gwStsProgrmCondition(tt.args.gw, tt.args.scheduled, tt.args.msg)
-			assert.Equal(t, tt.want, got)
+			assert.True(t, cmp.Equal(tt.want, got, cmpopts.IgnoreFields(meatav1.Condition{}, "LastTransitionTime")))
 		})
 	}
 }
