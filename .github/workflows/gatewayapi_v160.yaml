@@ -90,6 +90,17 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
+      
+      # ============================================================
+      # 14.5. Verify Helm Installation
+      # ============================================================
+      - name: Verify Helm Installation
+        run: |
+          echo "Checking Helm installation..."
+          which helm
+          helm version
+          helm repo list
+          echo "Helm verification complete"
 
       # ============================================================
       # 6. Install GitHub CLI
