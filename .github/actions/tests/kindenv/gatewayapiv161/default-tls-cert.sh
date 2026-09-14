@@ -3,9 +3,9 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-source "${SCRIPT_DIR}/gatewayapi_setup.sh"
-source "${SCRIPT_DIR}/lib/helper.sh"
-source "${SCRIPT_DIR}/lib/metallb.sh"
+source ".github/actions/tests/kindenv/gatewayapi_setup.sh"
+source ".github/actions/tests/kindenv/lib/helper.sh"
+source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
@@ -19,13 +19,20 @@ wait_for_endpoints dolphin productpage || exit 1
 echo "Deploy Cilium CRDS"
 kubectl apply -f https://github.com/cilium/cilium/tree/v1.20.0/pkg/k8s/apis/cilium.io/client/crds/v2 --recursive || true # cilium CRDs
 kubectl apply -f https://github.com/cilium/cilium/tree/v1.20.0/pkg/k8s/apis/cilium.io/client/crds/v2alpha1 --recursive || true # cilium CRDs
-kubectl apply -f .github/actions/tests/kindenv/ciliumv120/cilium-agent-ds.yaml
-kubectl apply -f .github/actions/tests/kindenv/ciliumv120/cilium-envoy-ds.yaml
 
+echo "Install Cilium Agent and Envoy"
+helm repo add cilium cilium/cilium
+helm upgrade cilium cilium/cilium --version 1.20.1 \
+   --namespace kube-system \
+   --set kubeProxyReplacement=true \
+   --set gatewayAPI.enabled=true
 echo "Checking kube-system cilium agent and envoy pods are ready"
 NAMESPACE="kube-system"
 sleep 120
 
+echo "UnInstall Cilium Operator"
+kubectl -n kube-system delete deployment cilium-operator
+sleep 60
 
 echo "Deploying gatewayclass and gateway"
 NAMESPACE="dolphin"
@@ -78,7 +85,7 @@ metadata:
   name: tls-gateway
   namespace: ${NAMESPACE}
 spec:
-  gatewayClassName: cilium
+  gatewayClassName: dolphin
   listeners:
   - name: default
     protocol: HTTPS
