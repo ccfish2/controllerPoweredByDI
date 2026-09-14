@@ -16,19 +16,19 @@ kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio
 wait_for_endpoints dolphin details || exit 1
 wait_for_endpoints dolphin productpage || exit 1
 
-echo "Deploy Cilium CRDS"
-kubectl apply -f https://github.com/cilium/cilium/tree/v1.20.0/pkg/k8s/apis/cilium.io/client/crds/v2 --recursive || true # cilium CRDs
-kubectl apply -f https://github.com/cilium/cilium/tree/v1.20.0/pkg/k8s/apis/cilium.io/client/crds/v2alpha1 --recursive || true # cilium CRDs
-
 echo "Install Cilium Agent and Envoy"
 helm repo add cilium cilium/cilium
 helm upgrade cilium cilium/cilium --version 1.20.1 \
    --namespace kube-system \
    --set kubeProxyReplacement=true \
    --set gatewayAPI.enabled=true
+
 echo "Checking kube-system cilium agent and envoy pods are ready"
 NAMESPACE="kube-system"
-sleep 120
+TIMEOUT=120
+INTERVAL=5
+wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
+wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
 
 echo "UnInstall Cilium Operator"
 kubectl -n kube-system delete deployment cilium-operator
