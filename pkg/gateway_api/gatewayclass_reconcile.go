@@ -36,7 +36,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	actualController := string(origin.Spec.ControllerName)
 	matched := matchesControllerName(controllerName)(origin)
-	scopedLog.WithField("actualControllerName", actualController).WithField("expectedControllerName", controllerName).WithField("matched", matched).Info("GatewayClass controller match result")
+	scopedLog.WithField("[Reconcile] actualControllerName ", actualController).WithField(" expectedControllerName ", controllerName).WithField("matched: ", matched).Info(" GatewayClass controller match result")
 	if !matched {
 		scopedLog.WithField("controllerName", actualController).Debug("Ignoring GatewayClass for a different controller")
 		return controllerruntime.Success()
