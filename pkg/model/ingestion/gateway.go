@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
@@ -39,7 +38,7 @@ type Input struct {
 
 	Gateway         gatewayv1.Gateway
 	HTTPRoutes      []gatewayv1.HTTPRoute
-	TLSRoutes       []gatewayv1alpha2.TLSRoute
+	TLSRoutes       []gatewayv1.TLSRoute
 	GRPCRoutes      []gatewayv1.GRPCRoute
 	ReferenceGrants []gatewayv1beta1.ReferenceGrant
 	Namespaces      []corev1.Namespace
@@ -348,7 +347,7 @@ func serviceExists(svcName, svcNamespace string, services []corev1.Service) bool
 	return true
 }
 
-func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.TLSRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.TLSRoute {
+func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.TLSRoute {
 	var tlsRoutes []model.TLSRoute
 	for _, r := range input {
 

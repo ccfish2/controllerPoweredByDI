@@ -24,7 +24,7 @@ type TLSRouteInput struct {
 	Logger   *logrus.Entry
 	Client   client.Client
 	Grants   *gatewayv1beta1.ReferenceGrantList
-	TLSRoute *gatewayv1alpha2.TLSRoute
+	TLSRoute *gatewayv1.TLSRoute
 
 	gateways map[gatewayv1.ParentReference]*gatewayv1.Gateway
 }
@@ -102,7 +102,7 @@ func (t *TLSRouteInput) GetContext() context.Context {
 
 // TLSRouteRule is used to implement the GenericRule interface for TLSRoute
 type TLSRouteRule struct {
-	Rule gatewayv1alpha2.TLSRouteRule
+	Rule gatewayv1.TLSRouteRule
 }
 
 func (t *TLSRouteRule) GetBackendRefs() []gatewayv1.BackendRef {

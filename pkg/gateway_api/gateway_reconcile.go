@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
@@ -79,7 +78,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
-	tlsRouteList := &gatewayv1alpha2.TLSRouteList{}
+	tlsRouteList := &gatewayv1.TLSRouteList{}
 	err = r.Client.List(ctx, tlsRouteList)
 	if err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
@@ -238,7 +237,7 @@ func hasAllowedRoutesNamespaceSelector(gw *gatewayv1.Gateway) bool {
 // audit gateway routes configuration
 // calculate and update the statistics into the GW status
 // update collecting listeners info from gateway and update the total routes
-func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1alpha2.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
+func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
 	grants := &gatewayv1beta1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
 		return fmt.Errorf("failed to retrieve reference grants: %w", err)
@@ -442,8 +441,8 @@ func (r *gatewayReconciler) filterHTTPRoutesByListener(ctx context.Context, gw *
 }
 
 // permited, and matched
-func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1alpha2.TLSRoute) []gatewayv1alpha2.TLSRoute {
-	var filtered []gatewayv1alpha2.TLSRoute
+func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, routes []gatewayv1.TLSRoute) []gatewayv1.TLSRoute {
+	var filtered []gatewayv1.TLSRoute
 	for _, route := range routes {
 		if isAttachable(ctx, gw, &route, route.Status.Parents) &&
 			isAllowed(ctx, r.Client, gw, &route) &&
@@ -579,8 +578,8 @@ func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *g
 	return filtered
 }
 
-func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1alpha2.TLSRoute) []gatewayv1alpha2.TLSRoute {
-	var filtered []gatewayv1alpha2.TLSRoute
+func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1.TLSRoute) []gatewayv1.TLSRoute {
+	var filtered []gatewayv1.TLSRoute
 	for _, route := range routes {
 		if isAttachable(ctx, gw, &route, route.Status.Parents) && isAllowed(ctx, r.Client, gw, &route) && len(computeHosts(gw, route.Spec.Hostnames)) > 0 {
 			filtered = append(filtered, route)

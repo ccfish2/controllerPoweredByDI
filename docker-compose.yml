@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  dolphin-operator:
+    build:
+      context: .
+      dockerfile: images/Dockerfile
+    image: dolphin-operator:local
+    container_name: dolphin-operator-local
+    working_dir: /
+    command:
+      - /usr/bin/dolphin-operator
+      - --k8s-kubeconfig-path
+      - /root/.kube/config
+      - --enable-gateway-api=true
+    environment:
+      KUBECONFIG: /root/.kube/config
+    volumes:
+      - /Users/jiminhu/.kube:/root/.kube:ro
+    network_mode: host
+    stdin_open: true
+    tty: true

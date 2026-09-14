@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -26,7 +25,7 @@ func (t *tlsrouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	scopedLog.Info("Reconciling TLSRoute PassThrough")
 
 	// Fetch the TLSRoute instance
-	original := &gatewayv1alpha2.TLSRoute{}
+	original := &gatewayv1.TLSRoute{}
 	if err := t.Client.Get(ctx, req.NamespacedName, original); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return controllerruntime.Success()
@@ -120,7 +119,7 @@ func (t *tlsrouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return controllerruntime.Success()
 }
 
-func (t *tlsrouteReconciler) updateStatus(ctx context.Context, original *gatewayv1alpha2.TLSRoute, new *gatewayv1alpha2.TLSRoute) error {
+func (t *tlsrouteReconciler) updateStatus(ctx context.Context, original *gatewayv1.TLSRoute, new *gatewayv1.TLSRoute) error {
 	oldStatus := original.Status.DeepCopy()
 	newStatus := new.Status.DeepCopy()
 
@@ -131,7 +130,7 @@ func (t *tlsrouteReconciler) updateStatus(ctx context.Context, original *gateway
 	return t.Client.Status().Update(ctx, new)
 }
 
-func (t *tlsrouteReconciler) handleReconcileErrorWithStatus(ctx context.Context, reconcileErr error, original *gatewayv1alpha2.TLSRoute, modified *gatewayv1alpha2.TLSRoute) (ctrl.Result, error) {
+func (t *tlsrouteReconciler) handleReconcileErrorWithStatus(ctx context.Context, reconcileErr error, original *gatewayv1.TLSRoute, modified *gatewayv1.TLSRoute) (ctrl.Result, error) {
 	if err := t.updateStatus(ctx, original, modified); err != nil {
 		return controllerruntime.Fail(fmt.Errorf("failed to update TLSRoute status while handling the reconcile error %w: %w", reconcileErr, err))
 	}

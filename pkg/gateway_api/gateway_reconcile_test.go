@@ -10,7 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
@@ -162,12 +161,12 @@ func Test_gatewayReconciler_Reconcile_WithTLS(t *testing.T) {
 		},
 	}
 
-	tlsRoute := &gatewayv1alpha2.TLSRoute{
+	tlsRoute := &gatewayv1.TLSRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tls-route",
 			Namespace: "default",
 		},
-		Spec: gatewayv1alpha2.TLSRouteSpec{
+		Spec: gatewayv1.TLSRouteSpec{
 			CommonRouteSpec: gatewayv1.CommonRouteSpec{
 				ParentRefs: []gatewayv1.ParentReference{
 					{
@@ -178,7 +177,7 @@ func Test_gatewayReconciler_Reconcile_WithTLS(t *testing.T) {
 			Hostnames: []gatewayv1.Hostname{
 				"example.com",
 			},
-			Rules: []gatewayv1alpha2.TLSRouteRule{
+			Rules: []gatewayv1.TLSRouteRule{
 				{
 					BackendRefs: []gatewayv1.BackendRef{
 						{

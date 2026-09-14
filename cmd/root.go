@@ -217,7 +217,26 @@ func NewOperatorCmd(h *hive.Hive) *cobra.Command {
 		},
 	}
 
-	h.RegisterFlags(cmd.Flags())
+	flags := cmd.Flags()
+	flags.DurationVar(&operatorOption.Config.LeaderElectionLeaseDuration, operatorOption.LeaderElectionLeaseDuration, 15*time.Second, "Duration that non-leader candidates will wait to force acquire leadership")
+	flags.DurationVar(&operatorOption.Config.LeaderElectionRenewDeadline, operatorOption.LeaderElectionRenewDeadline, 10*time.Second, "Duration that the acting leader will retry refreshing leadership before giving up")
+	flags.DurationVar(&operatorOption.Config.LeaderElectionRetryPeriod, operatorOption.LeaderElectionRetryPeriod, 2*time.Second, "Duration the leader election client waits between tries of actions")
+	flags.BoolVar(&operatorOption.Config.DisableLeaderElection, operatorOption.DisableLeaderElection, false, "Disable leader election and start leader-scoped controllers immediately (local/dev mode)")
+
+	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionLeaseDuration, flags.Lookup(operatorOption.LeaderElectionLeaseDuration)); err != nil {
+		panic(err)
+	}
+	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionRenewDeadline, flags.Lookup(operatorOption.LeaderElectionRenewDeadline)); err != nil {
+		panic(err)
+	}
+	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionRetryPeriod, flags.Lookup(operatorOption.LeaderElectionRetryPeriod)); err != nil {
+		panic(err)
+	}
+	if err := h.Viper().BindPFlag(operatorOption.DisableLeaderElection, flags.Lookup(operatorOption.DisableLeaderElection)); err != nil {
+		panic(err)
+	}
+
+	h.RegisterFlags(flags)
 	cmd.AddCommand(
 		MetricsCmd,
 		h.Command(),
@@ -268,6 +287,16 @@ func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8
 }
 
 func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
+	if operatorOption.Config.DisableLeaderElection {
+		log.Warn("Leader election disabled; starting leader-scoped controllers immediately for local/dev mode")
+		if err := lc.Start(context.Background()); err != nil {
+			log.WithError(err).Error("Failed to start leader-scoped controllers in local mode")
+			shutdowner.Shutdown(hive.ShutdownWithError(err))
+		}
+		isLeader.Store(true)
+		return
+	}
+
 	isLeader.Store(false)
 
 	leaderElectionCtx, leaderElectionCtxCancel = context.WithCancel(context.Background())

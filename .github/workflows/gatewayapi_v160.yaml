@@ -336,7 +336,7 @@ jobs:
           github.event_name == 'workflow_run' || 
           (github.event_name == 'workflow_dispatch' && inputs.run_tls_default_cert == 'true')
         run: |
-          bash .github/actions/tests/kindenv/gatewayapiv161/default-tls-cert.sh
+          bash .github/actions/tests/kindenv/gatewayapiv161/http/gatewayapi161-http.sh
 
       # ============================================================
       # 16. Cleanup

@@ -7,6 +7,7 @@ import (
 	gatewayapihelpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -22,6 +23,18 @@ const (
 	kindTCPRoute  = "TCPRoute"
 	kindService   = "Service"
 	kindSecret    = "Secret"
+
+	GatewayClassKind     string = "gatewayclasses"
+	GatewayKind          string = "gateways"
+	HTTPRouteKind        string = "httproutes"
+	GRPCRouteKind        string = "grpcroutes"
+	ReferenceGrantKind   string = "referencegrants"
+	BackendTLSPolicyKind string = "backendtlspolicies"
+	TLSRouteKind         string = "tlsroutes"
+	TCPRouteKind         string = "tcproutes"
+	UDPRouteKind         string = "udproutes"
+	ListenerSetKind      string = "listenersets"
+	ServiceImportKind    string = "serviceimports"
 )
 
 func GatewayAddressTypePtr(addr gatewayv1.AddressType) *gatewayv1.AddressType {
@@ -79,10 +92,10 @@ func getSupportedGroupKind(protocol gatewayv1.ProtocolType) (*gatewayv1.Group, g
 }
 
 func groupDerefOr(group *gatewayv1.Group, defaultGroup string) string {
-	if group != nil || *group != "" {
+	if group != nil && *group != "" {
 		return string(*group)
 	}
-	return ""
+	return defaultGroup
 }
 
 /*
@@ -144,7 +157,7 @@ func getGatewayKindForObject(obj metav1.Object) gatewayv1.Kind {
 	switch obj.(type) {
 	case *gatewayv1.HTTPRoute:
 		return kindHTTPRoute
-	case *gatewayv1alpha2.TLSRoute:
+	case *gatewayv1.TLSRoute:
 		return kindTLSRoute
 	case *gatewayv1alpha2.TCPRoute:
 		return kindTCPRoute
@@ -174,4 +187,23 @@ func getAllDolphinGatewaysSet(ctx context.Context, c client.Client) (map[string]
 	}
 
 	return allDolphinGatewaysSet, nil
+}
+
+var RequiredGVKs = []schema.GroupVersionKind{
+	GatewayV1GVK(GatewayClassKind),
+	GatewayV1GVK(GatewayKind),
+	GatewayV1GVK(HTTPRouteKind),
+	GatewayV1GVK(GRPCRouteKind),
+	GatewayV1GVK(TLSRouteKind),
+	GatewayV1GVK(ReferenceGrantKind),
+	GatewayV1GVK(BackendTLSPolicyKind),
+}
+
+// GatewayV1GVK returns the GroupVersionKind for a given Gateway API v1 kind.
+func GatewayV1GVK(kind string) schema.GroupVersionKind {
+	return schema.GroupVersionKind{
+		Group:   gatewayv1.GroupVersion.Group,
+		Version: gatewayv1.GroupVersion.Version,
+		Kind:    kind,
+	}
 }

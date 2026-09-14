@@ -85,6 +85,7 @@ const (
 	LeaderElectionLeaseDuration = "leader-election-lease-duration"
 	LeaderElectionRenewDeadline = "leader-election-renew-deadline"
 	LeaderElectionRetryPeriod   = "leader-election-retry-period"
+	DisableLeaderElection       = "disable-leader-election"
 
 	LoadBalancerL7 = "loadbalancer-l7"
 
@@ -120,6 +121,7 @@ type OperatorConfig struct {
 	LeaderElectionLeaseDuration time.Duration
 	LeaderElectionRenewDeadline time.Duration
 	LeaderElectionRetryPeriod   time.Duration
+	DisableLeaderElection       bool
 
 	BGPAnnounceLBIP bool
 	BGPConfigPath   string
@@ -194,6 +196,7 @@ func (c *OperatorConfig) Populate(vp *viper.Viper) {
 	c.LeaderElectionLeaseDuration = vp.GetDuration(LeaderElectionLeaseDuration)
 	c.LeaderElectionRenewDeadline = vp.GetDuration(LeaderElectionRenewDeadline)
 	c.LeaderElectionRetryPeriod = vp.GetDuration(LeaderElectionRetryPeriod)
+	c.DisableLeaderElection = vp.GetBool(DisableLeaderElection)
 	c.BGPAnnounceLBIP = vp.GetBool(BGPAnnounceLBIP)
 	c.BGPConfigPath = vp.GetString(BGPConfigPath)
 	c.LoadBalancerL7 = vp.GetString(LoadBalancerL7)

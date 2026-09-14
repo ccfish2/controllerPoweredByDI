@@ -129,9 +129,9 @@ func onlyStatusChanged() predicate.Predicate {
 					return false
 				}
 				return !cmp.Equal(o.Status, n.Status, option)
-			case *gatewayv1alpha2.TLSRoute:
-				o, _ := e.ObjectOld.(*gatewayv1alpha2.TLSRoute)
-				n, ok := e.ObjectNew.(*gatewayv1alpha2.TLSRoute)
+			case *gatewayv1.TLSRoute:
+				o, _ := e.ObjectOld.(*gatewayv1.TLSRoute)
+				n, ok := e.ObjectNew.(*gatewayv1.TLSRoute)
 				if !ok {
 					return false
 				}

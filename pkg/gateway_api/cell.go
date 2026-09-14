@@ -90,9 +90,12 @@ func newGatewayAPIPreconditions(params preconditionParams) (*gatewayAPIPrecondit
 		return &gatewayAPIPreconditions{Enabled: false}, nil
 	}
 
+	// Do not hard-disable Gateway API support solely because kube-proxy-replacement is false.
+	// This project runs in local Kind/dev environments where the dataplane config may not
+	// match Cilium's kube-proxy replacement setup, but the Gateway API CRDs and controllers
+	// still need to register and reconcile correctly.
 	if !params.OperatorConfig.KubeProxyReplacement {
-		params.Logger.Warn("Gateway API support requires kube-proxy-replacement enabled")
-		return &gatewayAPIPreconditions{Enabled: false}, nil
+		params.Logger.Warn("Gateway API support is enabled without kube-proxy-replacement; continuing with CRD discovery")
 	}
 
 	if err := validateExternalTrafficPolicy(params.GatewayApiConfig, params.Logger); err != nil {
@@ -206,7 +209,8 @@ func checkCRD(ctx context.Context, clientset k8sClient.Clientset, gvk schema.Gro
 		return nil
 	}
 
-	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, gvk.GroupKind().String(), metav1.GetOptions{})
+	crdName := fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)
+	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -219,7 +223,7 @@ func checkCRD(ctx context.Context, clientset k8sClient.Clientset, gvk schema.Gro
 		}
 	}
 	if !found {
-		return fmt.Errorf("CRD %q does not have version %q", gvk.GroupKind().String(), gvk.Version)
+		return fmt.Errorf("CRD %q does not have version %q", crdName, gvk.Version)
 	}
 
 	return nil
@@ -266,15 +270,6 @@ func (r gatewayApiConfig) Flags(flags *pflag.FlagSet) {
 	flags.BoolVar(&r.EnableGatewayAPI, "enable-gateway-api", true, "")
 }
 
-var requiredGVK = []schema.GroupVersionKind{
-	gatewayv1.SchemeGroupVersion.WithKind("gatewayclasses"),
-	gatewayv1.SchemeGroupVersion.WithKind("gateways"),
-	gatewayv1.SchemeGroupVersion.WithKind("httproutes"),
-	gatewayv1beta1.SchemeGroupVersion.WithKind("referencegrants"),
-	gatewayv1.SchemeGroupVersion.WithKind("grpcroutes"),
-	gatewayv1alpha2.SchemeGroupVersion.WithKind("tlsroutes"),
-}
-
 type gatewayAPIParams struct {
 	cell.In
 
@@ -299,23 +294,24 @@ type gatewayAPIPreconditions struct {
 }
 
 func initGatewayAPIController(params gatewayAPIParams) error {
-	/// check operator EnableGatewayAPI optoin
 	if !params.Config.EnableGatewayAPI {
 		log.Info("Gateway api is not enabled. Skip registering GatewayAPI controllers")
 		return nil
 	}
-	// check if GatewayAPICRD installed
-	params.Logger.WithField("requiredGVK", requiredGVK).Info("checking for required GatewayAPI resources")
+	if params.Preconditions == nil || !params.Preconditions.Enabled {
+		log.Info("Gateway API preconditions are not satisfied; skipping GatewayAPI controller registration")
+		return nil
+	}
 
-	// check if
+	params.Logger.WithField("RequiredGVKs", RequiredGVKs).Info("checking for required GatewayAPI resources")
+	params.Logger.WithField("InstalledKinds", params.Preconditions.InstalledKinds).Info("Gateway API preconditions passed; registering controllers")
+
 	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
 		return nil
 	}
 
 	installedKinds := params.Preconditions.InstalledKinds
-
-	// registerReconcilers
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	if err := registerReconcilers(
 		params.CtrlRuntimeManager,
@@ -334,7 +330,7 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 	reconcilers := []interface {
 		SetupWithManager(mgr ctrlRuntime.Manager) error
 	}{
-		newGatewayClassReconciler(mgr),
+		newGatewayClassReconciler(mgr, logger, "io.dolphin/gateway-controller"),
 		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds, true, false, logger, installedCRDs),
 		newhttpRouteReconciler(mgr),
 		newGRPCRouteReconciler(mgr),
@@ -356,8 +352,9 @@ func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error
 	}
 
 	var res error
-	for _, gvk := range requiredGVK {
-		crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, gvk.GroupKind().String(), metav1.GetOptions{})
+	for _, gvk := range RequiredGVKs {
+		crdName := fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)
+		crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 		if err != nil {
 			res = errors.Join(res, err)
 			continue
@@ -384,13 +381,17 @@ func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error
 // registers the Gateway API for secret synchronization based on TLS secrets referenced
 // by a Dolphin Gateway resource
 func registerSecretSync(params gatewayAPIParams) secretsync.SecretSyncRegistrationOut {
+	if params.Preconditions == nil || !params.Preconditions.Enabled {
+		return secretsync.SecretSyncRegistrationOut{}
+	}
+
 	// check RequiredCRD
 	err := checkRequiredCRDs(context.Background(), params.K8sClient)
 	if err != nil {
 		return secretsync.SecretSyncRegistrationOut{}
 	}
 
-	if operatorOption.Config.EnableGatewayAPI || !params.Config.EnableGatewayAPISecretsSync {
+	if !params.Config.EnableGatewayAPI || !params.Config.EnableGatewayAPISecretsSync {
 		return secretsync.SecretSyncRegistrationOut{}
 	}
 

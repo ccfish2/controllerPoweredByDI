@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -37,9 +36,9 @@ func newtlsrouteReconciler(mgr ctrl.Manager) *tlsrouteReconciler {
 }
 
 func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, backendServiceIndex,
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, backendServiceIndex,
 		func(rawObj client.Object) []string {
-			hr, ok := rawObj.(*gatewayv1alpha2.TLSRoute)
+			hr, ok := rawObj.(*gatewayv1.TLSRoute)
 			if !ok {
 				return nil
 			}
@@ -63,9 +62,9 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, backendServiceImportIndex,
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, backendServiceImportIndex,
 		func(rawObj client.Object) []string {
-			hr, ok := rawObj.(*gatewayv1alpha2.TLSRoute)
+			hr, ok := rawObj.(*gatewayv1.TLSRoute)
 			if !ok {
 				return nil
 			}
@@ -89,9 +88,9 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, gatewayIndex,
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, gatewayIndex,
 		func(rawObj client.Object) []string {
-			hr := rawObj.(*gatewayv1alpha2.TLSRoute)
+			hr := rawObj.(*gatewayv1.TLSRoute)
 			var gateways []string
 			for _, parent := range hr.Spec.ParentRefs {
 				if !helpers.IsGateway(parent) {
@@ -111,7 +110,7 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1alpha2.TLSRoute{}).
+		For(&gatewayv1.TLSRoute{}).
 		Watches(&corev1.Service{}, t.enqueueRequestForBackendService()).
 		Watches(&gatewayv1beta1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
 		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway(),
@@ -131,7 +130,7 @@ func (r *tlsrouteReconciler) enqueueAll() handler.MapFunc {
 			logfields.Controller: "tlsRoute",
 			logfields.Resource:   client.ObjectKeyFromObject(o),
 		})
-		trList := &gatewayv1alpha2.TLSRouteList{}
+		trList := &gatewayv1.TLSRouteList{}
 
 		if err := r.Client.List(ctx, trList, &client.ListOptions{}); err != nil {
 			scopedLog.WithError(err).Error("Failed to get TLSRoutes")
@@ -167,7 +166,7 @@ func (r *tlsrouteReconciler) enqueueRequestForBackendService() handler.EventHand
 
 func (r *tlsrouteReconciler) equeGatewayFromIndex(index string) handler.MapFunc {
 	return func(ctx context.Context, o client.Object) []reconcile.Request {
-		tlsRouteList := gatewayv1alpha2.TLSRouteList{}
+		tlsRouteList := gatewayv1.TLSRouteList{}
 		if err := r.Client.List(context.Background(), &tlsRouteList, &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(index, client.ObjectKeyFromObject(o).String())}); err != nil {
 			return nil
@@ -178,7 +177,7 @@ func (r *tlsrouteReconciler) equeGatewayFromIndex(index string) handler.MapFunc 
 
 func (r *tlsrouteReconciler) enqueueFromIndex(index string) handler.MapFunc {
 	return func(ctx context.Context, o client.Object) []reconcile.Request {
-		rList := &gatewayv1alpha2.TLSRouteList{}
+		rList := &gatewayv1.TLSRouteList{}
 		if err := r.Client.List(context.Background(), rList, &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(index, client.ObjectKeyFromObject(o).String()),
 		}); err != nil {

@@ -3,9 +3,10 @@ package indexers
 import (
 	"log/slog"
 
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -15,7 +16,7 @@ import (
 // to add to the relevant index.
 func GenerateIndexerTLSRoutebyBackendService(c client.Client, logger *slog.Logger) client.IndexerFunc {
 	return func(rawObj client.Object) []string {
-		route := rawObj.(*gatewayv1alpha2.TLSRoute)
+		route := rawObj.(*gatewayv1.TLSRoute)
 		var backendServices []string
 
 		for _, rule := range route.Spec.Rules {
@@ -47,7 +48,7 @@ func GenerateIndexerTLSRoutebyBackendService(c client.Client, logger *slog.Logge
 //
 // Note that this does _not_ filter to only Cilium-relevant Gateways.
 func IndexTLSRouteByGateway(rawObj client.Object) []string {
-	route := rawObj.(*gatewayv1alpha2.TLSRoute)
+	route := rawObj.(*gatewayv1.TLSRoute)
 	var gateways []string
 	for _, parent := range route.Spec.ParentRefs {
 		if !helpers.IsGateway(parent) {

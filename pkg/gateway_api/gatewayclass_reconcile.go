@@ -18,18 +18,30 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logfields.Resource:   req.NamespacedName,
 	})
 
-	scopedLog.Info("Reconciling GatewayClass")
+	scopedLog.Info("Reconciling GatewayClass", "requestedName", req.Name)
 	origin := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(ctx, req.NamespacedName, origin); err != nil {
 		if k8serrors.IsNotFound(err) {
+			scopedLog.Info("GatewayClass no longer exists; skipping reconcile")
 			return controllerruntime.Success()
 		}
+		scopedLog.WithError(err).Error("Failed to get GatewayClass during reconcile")
 		return controllerruntime.Fail(err)
 	}
 
 	if origin.GetDeletionTimestamp() != nil {
+		scopedLog.Info("GatewayClass is being deleted; skipping reconcile")
 		return controllerruntime.Success()
 	}
+
+	actualController := string(origin.Spec.ControllerName)
+	matched := matchesControllerName(controllerName)(origin)
+	scopedLog.WithField("actualControllerName", actualController).WithField("expectedControllerName", controllerName).WithField("matched", matched).Info("GatewayClass controller match result")
+	if !matched {
+		scopedLog.WithField("controllerName", actualController).Debug("Ignoring GatewayClass for a different controller")
+		return controllerruntime.Success()
+	}
+
 	gwc := origin.DeepCopy()
 	setGatewayClassAccepted(gwc, true)
 	setGatewayClassSupportedFeatures(gwc)
@@ -38,7 +50,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return controllerruntime.Fail(err)
 	}
 
-	scopedLog.Info(ctx, "Successfully reconciled GatewayClass")
+	scopedLog.Info("Successfully reconciled GatewayClass")
 	return controllerruntime.Success()
 }
 

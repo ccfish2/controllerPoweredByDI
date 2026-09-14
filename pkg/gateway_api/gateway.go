@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
@@ -112,7 +111,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			backendServiceTLSRouteIndex: indexers.GenerateIndexerTLSRoutebyBackendService(r.Client, r.logger),
 			gatewayTLSRouteIndex:        indexers.IndexTLSRouteByGateway,
 		} {
-			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TLSRoute{}, indexName, indexerFunc); err != nil {
+			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexName, indexerFunc); err != nil {
 				return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
 			}
 		}
@@ -162,7 +161,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if tlsRouteEnabled {
 		// Watch TLSRoute linked to Gateway
-		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1alpha2.TLSRoute{}, r.enqueueRequestForOwningTLSRoute(r.logger))
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TLSRoute{}, r.enqueueRequestForOwningTLSRoute(r.logger))
 	}
 
 	if serviceImportEnabled {
@@ -244,7 +243,7 @@ func (r *gatewayReconciler) enqueueRequestForBackendServiceImport() handler.Even
 // for all Dolphin-relevant Gateways associated with that TLSRoute.
 func (r *gatewayReconciler) enqueueRequestForOwningTLSRoute(logger *slog.Logger) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-		hr, ok := a.(*gatewayv1alpha2.TLSRoute)
+		hr, ok := a.(*gatewayv1.TLSRoute)
 		if !ok {
 			return nil
 		}
@@ -622,7 +621,7 @@ func (r *gatewayReconciler) enqueueRequestForBackendService(tlsRouteEnabled bool
 		}
 
 		// Fetch all TLSRoutes only when the TLSRoute CRD/index is enabled.
-		tlsrList := &gatewayv1alpha2.TLSRouteList{}
+		tlsrList := &gatewayv1.TLSRouteList{}
 		if tlsRouteEnabled {
 			if err := r.Client.List(ctx, tlsrList, &client.ListOptions{
 				FieldSelector: fields.OneTermEqualSelector(
