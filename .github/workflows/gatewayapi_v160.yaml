@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       run_tls_default_cert:
-        description: 'Run Network Gateway API TLS default certificate'
+        description: 'Run Network Gateway API HTTP Test'
         required: false
         default: 'true'
         type: boolean
@@ -321,7 +321,7 @@ jobs:
           sudo apt-get install -y jq
 
       # ============================================================
-      # 15. Gateway API TLS Default Certificate
+      # 15. Gateway API HTTP Test
       # ============================================================
       # Validate Gateway API functionality provided by the operator.
       #
@@ -331,7 +331,7 @@ jobs:
       #
       # This step can be skipped when manually triggering the workflow
       # by setting run_http_tests to false.
-      - name: Run Network Gateway API TLS default certificate 
+      - name: Run Network Gateway API HTTP Tests 
         if: |
           github.event_name == 'workflow_run' || 
           (github.event_name == 'workflow_dispatch' && inputs.run_tls_default_cert == 'true')
