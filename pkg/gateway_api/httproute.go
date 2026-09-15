@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	// myself
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
@@ -87,7 +86,7 @@ func (r *httpRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
 		Watches(&corev1.Service{}, r.enqueueRequestForBackendService()).
-		Watches(&gatewayv1beta1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
+		Watches(&gatewayv1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
 		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))))).

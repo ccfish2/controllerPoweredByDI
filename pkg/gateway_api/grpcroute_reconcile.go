@@ -47,7 +47,7 @@ func (g *grpcrouteReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	gr := original.DeepCopy()
 
 	// check if the backend allow
-	grants := &gatewayv1beta1.ReferenceGrantList{}
+	grants := &gatewayv1.ReferenceGrantList{}
 	if err := g.Client.List(ctx, grants); err != nil {
 		return g.handleReconcileErrorWithStatus(ctx, fmt.Errorf("failed to retrieve reference grants: %w", err), original, gr)
 	}

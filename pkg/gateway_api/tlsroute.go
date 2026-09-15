@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 type tlsrouteReconciler struct {
@@ -112,7 +111,7 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.TLSRoute{}).
 		Watches(&corev1.Service{}, t.enqueueRequestForBackendService()).
-		Watches(&gatewayv1beta1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
+		Watches(&gatewayv1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
 		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway(),
 			builder.WithPredicates(
 				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))),

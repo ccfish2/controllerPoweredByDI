@@ -96,6 +96,10 @@ func NewManager(params mgrParams) (ctrlruntime.Manager, error) {
 	)
 
 	jobG.Add(job.OneShot("manager", func(ctx context.Context, health cell.HealthReporter) error {
+		if err := mgr.Start(ctx); err != nil {
+			fmt.Printf(" ❌ Manager crashed %v", err)
+			panic(err)
+		}
 		return mgr.Start(ctx)
 	}))
 

@@ -40,7 +40,7 @@ type Input struct {
 	HTTPRoutes      []gatewayv1.HTTPRoute
 	TLSRoutes       []gatewayv1.TLSRoute
 	GRPCRoutes      []gatewayv1.GRPCRoute
-	ReferenceGrants []gatewayv1beta1.ReferenceGrant
+	ReferenceGrants []gatewayv1.ReferenceGrant
 	Namespaces      []corev1.Namespace
 	Services        []corev1.Service
 	ServiceImports  []mcsapiv1alpha1.ServiceImport
@@ -117,7 +117,7 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 }
 
 // automation
-func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
+func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant) []model.HTTPRoute {
 	var grpcRoutes []model.HTTPRoute
 	for _, r := range input {
 
@@ -347,7 +347,7 @@ func serviceExists(svcName, svcNamespace string, services []corev1.Service) bool
 	return true
 }
 
-func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.TLSRoute {
+func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant) []model.TLSRoute {
 	var tlsRoutes []model.TLSRoute
 	for _, r := range input {
 
@@ -443,7 +443,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 	return tlsRoutes
 }
 
-func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, services []corev1.Service, grants []gatewayv1beta1.ReferenceGrant) []model.HTTPRoute {
+func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant) []model.HTTPRoute {
 	var httpRoutes []model.HTTPRoute
 
 	for _, r := range input {
@@ -580,7 +580,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 	return httpRoutes
 }
 
-func toTLS(tls *gatewayv1.ListenerTLSConfig, grants []gatewayv1beta1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
+func toTLS(tls *gatewayv1.ListenerTLSConfig, grants []gatewayv1.ReferenceGrant, defaultNamespace string) []model.TLSSecret {
 	if tls == nil {
 		return nil
 	}

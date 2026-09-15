@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 func (r *httpRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -42,7 +41,7 @@ func (r *httpRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	hr := original.DeepCopy()
 
 	// check if this cert is allowed to be used by this gateway
-	grants := &gatewayv1beta1.ReferenceGrantList{}
+	grants := &gatewayv1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, fmt.Errorf("failed to retrieve reference grants: %w", err), original, hr)
 	}

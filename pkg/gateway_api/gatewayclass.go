@@ -1,6 +1,7 @@
 package gateway_api
 
 import (
+	"fmt"
 	"log/slog"
 
 	watchhandlers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/watch-handlers"
@@ -36,56 +37,132 @@ func (r *gatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		slog.String("controllerName", r.controllerName),
 		slog.String("watchKind", "GatewayClass"),
 	)
-	return ctrl.NewControllerManagedBy(mgr).
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.GatewayClass{},
 			builder.WithPredicates(gatewayClassDebugPredicate(r.controllerName, r.logger))).
-		Watches(&dolphinv2alpha1.DolphinGatewayClassConfig{}, watchhandlers.EnqueueRequestForCiliumGatewayClassConfig(r.Client, r.logger)).
-		Complete(r)
+		Watches(&dolphinv2alpha1.DolphinGatewayClassConfig{}, watchhandlers.EnqueueRequestForCiliumGatewayClassConfig(r.Client, r.logger))
+	r.logger.Info("GatewayClass controller setup complete; enqueuer ready",
+		"controllerName", r.controllerName,
+		"watchKind", "GatewayClass",
+	)
+	return controllerBuilder.Complete(r)
 }
 
 func gatewayClassDebugPredicate(controllerName string, logger *slog.Logger) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			logger.Info("GatewayClass create event received", "name", e.Object.GetName(), "controllerName", controllerName)
-			return matchesControllerName(controllerName)(e.Object)
+			logger.Info("GatewayClass create event received",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+				"actualControllerName", string(e.Object.GetLabels()["controllerName"]),
+			)
+			matched := matchesControllerName(controllerName, logger, e.Object)
+			logger.Info("GatewayClass create event match result",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+				"matched", matched,
+			)
+			if !matched {
+				return false
+			}
+			logger.Info("GatewayClass create event accepted by predicate; enqueuing reconcile request",
+				"name", e.Object.GetName(),
+				"controllerName", controllerName,
+			)
+			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			logger.Info("GatewayClass delete event received", "name", e.Object.GetName(), "controllerName", controllerName)
-			return matchesControllerName(controllerName)(e.Object)
+			logger.Info("GatewayClass delete event received",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+			)
+			matched := matchesControllerName(controllerName, logger, e.Object)
+			logger.Info("GatewayClass delete event match result",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+				"matched", matched,
+			)
+			if !matched {
+				return false
+			}
+			logger.Info("GatewayClass delete event accepted by predicate; enqueuing reconcile request",
+				"name", e.Object.GetName(),
+				"controllerName", controllerName,
+			)
+			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			logger.Info("GatewayClass update event received",
 				"oldName", e.ObjectOld.GetName(),
 				"newName", e.ObjectNew.GetName(),
-				"controllerName", controllerName,
+				"expectedControllerName", controllerName,
 			)
-			return matchesControllerName(controllerName)(e.ObjectNew)
+			matched := matchesControllerName(controllerName, logger, e.ObjectNew)
+			logger.Info("GatewayClass update event match result",
+				"newName", e.ObjectNew.GetName(),
+				"expectedControllerName", controllerName,
+				"matched", matched,
+			)
+			return matched
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			logger.Info("GatewayClass generic event received", "name", e.Object.GetName(), "controllerName", controllerName)
-			return matchesControllerName(controllerName)(e.Object)
+			logger.Info("GatewayClass generic event received",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+			)
+			matched := matchesControllerName(controllerName, logger, e.Object)
+			logger.Info("GatewayClass generic event match result",
+				"name", e.Object.GetName(),
+				"expectedControllerName", controllerName,
+				"matched", matched,
+			)
+			if !matched {
+				return false
+			}
+			logger.Info("GatewayClass generic event accepted by predicate; enqueuing reconcile request",
+				"name", e.Object.GetName(),
+				"controllerName", controllerName,
+			)
+			return true
 		},
 	}
 }
 
-func matchesControllerName(controllerName string) func(object client.Object) bool {
-	return func(obj client.Object) bool {
-		if obj == nil {
-			return false
+func matchesControllerName(controllerName string, logger *slog.Logger, obj client.Object) bool {
+	if obj == nil {
+		if logger != nil {
+			logger.Info("GatewayClass match check skipped: object is nil", "expectedControllerName", controllerName)
 		}
+		return false
+	}
 
-		gwc, ok := obj.(*gatewayv1.GatewayClass)
-		if !ok || gwc == nil {
-			return false
+	gwc, ok := obj.(*gatewayv1.GatewayClass)
+	if !ok || gwc == nil {
+		if logger != nil {
+			logger.Info("GatewayClass match check skipped: object is not a GatewayClass",
+				"expectedControllerName", controllerName,
+				"objType", fmt.Sprintf("%T", obj),
+			)
 		}
+		return false
+	}
 
-		match := string(gwc.Spec.ControllerName) == controllerName
-		log.Info("GatewayClass controller match check",
+	actualControllerName := string(gwc.Spec.ControllerName)
+	match := actualControllerName == controllerName
+	if logger != nil {
+		logger.Info("GatewayClass controller match check",
 			"name", gwc.Name,
-			"controllerName", controllerName,
-			"actualControllerName", string(gwc.Spec.ControllerName),
+			"expectedControllerName", controllerName,
+			"actualControllerName", actualControllerName,
 			"match", match,
 		)
-		return match
+	} else {
+		log.Info("GatewayClass controller match check",
+			"name", gwc.Name,
+			"expectedControllerName", controllerName,
+			"actualControllerName", actualControllerName,
+			"match", match,
+		)
 	}
+	return match
 }

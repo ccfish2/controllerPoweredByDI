@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/indexers"
@@ -135,7 +134,9 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Watch GatewayClass resources, which are linked to Gateway
 		Watches(&gatewayv1.GatewayClass{},
 			r.enqueueRequestForOwningGatewayClass(),
-			builder.WithPredicates(predicate.NewPredicateFuncs(matchesControllerName(controllerName)))).
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(obj client.Object) bool {
+				return matchesControllerName(controllerName, r.logger, obj)
+			}))).
 		// Watch related backend Service for status
 		// LB Services are handled by the Owns call later.
 
@@ -152,7 +153,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Namespace{},
 			r.enqueueRequestForAllowedNamespace()).
 		// Watch for changes to Reference Grants
-		Watches(&gatewayv1beta1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
+		Watches(&gatewayv1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
 		Watches(&corev1.Node{}, r.enqueueRequestForNodes(r.Client, r.logger, owningGatewayLabel)).
 		// Watch created and owned resources
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).

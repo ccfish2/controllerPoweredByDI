@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
@@ -238,7 +237,7 @@ func hasAllowedRoutesNamespaceSelector(gw *gatewayv1.Gateway) bool {
 // calculate and update the statistics into the GW status
 // update collecting listeners info from gateway and update the total routes
 func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
-	grants := &gatewayv1beta1.ReferenceGrantList{}
+	grants := &gatewayv1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
 		return fmt.Errorf("failed to retrieve reference grants: %w", err)
 	}

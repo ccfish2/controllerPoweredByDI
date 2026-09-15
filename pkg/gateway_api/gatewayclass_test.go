@@ -1,6 +1,8 @@
 package gateway_api
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,7 +44,8 @@ func Test_matchesController(t *testing.T) {
 		},
 	}
 
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, tc := range tests {
-		require.Equal(t, tc.expect, matchesControllerName("foo")(tc.object))
+		require.Equal(t, tc.expect, matchesControllerName("foo", logger, tc.object))
 	}
 }

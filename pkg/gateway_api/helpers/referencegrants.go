@@ -4,17 +4,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
-func IsBackendReferenceAllowed(originatingNamespace string, be gatewayv1.BackendRef, gvk schema.GroupVersionKind, grants []gatewayv1beta1.ReferenceGrant) bool {
+func IsBackendReferenceAllowed(originatingNamespace string, be gatewayv1.BackendRef, gvk schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {
 	return isReferenceAllowed(originatingNamespace, string(be.Name), be.Namespace, gvk, corev1.SchemeGroupVersion.WithKind("Service"), grants)
 }
-func IsSecretReferenceAllowed(originatingNamespace string, sr gatewayv1.SecretObjectReference, gvk schema.GroupVersionKind, grants []gatewayv1beta1.ReferenceGrant) bool {
+func IsSecretReferenceAllowed(originatingNamespace string, sr gatewayv1.SecretObjectReference, gvk schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {
 	return isReferenceAllowed(originatingNamespace, string(sr.Name), sr.Namespace, gvk, corev1.SchemeGroupVersion.WithKind("Secret"), grants)
 }
 
-func isReferenceAllowed(originatingNamespace, name string, namespace *gatewayv1.Namespace, fromGVK, toGVK schema.GroupVersionKind, grants []gatewayv1beta1.ReferenceGrant) bool {
+func isReferenceAllowed(originatingNamespace, name string, namespace *gatewayv1.Namespace, fromGVK, toGVK schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {
 	ns := NamespaceDerefOr(namespace, originatingNamespace)
 	if originatingNamespace == ns {
 		return true

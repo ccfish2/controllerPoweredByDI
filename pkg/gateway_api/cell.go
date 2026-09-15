@@ -67,6 +67,7 @@ var Cell = cell.Module(
 	cell.ProvidePrivate(newGatewayAPIPreconditions),
 	// start controller
 	cell.Invoke(initGatewayAPIController),
+	//cell.Provide(initGatewayAPIController),
 	// enable secrets sync
 	cell.Provide(registerSecretSync),
 )
@@ -293,14 +294,14 @@ type gatewayAPIPreconditions struct {
 	InstalledKinds []schema.GroupVersionKind
 }
 
-func initGatewayAPIController(params gatewayAPIParams) error {
+func initGatewayAPIController(params gatewayAPIParams) (*GatewayAPIController, error) {
 	if !params.Config.EnableGatewayAPI {
 		log.Info("Gateway api is not enabled. Skip registering GatewayAPI controllers")
-		return nil
+		return nil, nil
 	}
 	if params.Preconditions == nil || !params.Preconditions.Enabled {
 		log.Info("Gateway API preconditions are not satisfied; skipping GatewayAPI controller registration")
-		return nil
+		return nil, nil
 	}
 
 	params.Logger.WithField("RequiredGVKs", RequiredGVKs).Info("checking for required GatewayAPI resources")
@@ -308,25 +309,32 @@ func initGatewayAPIController(params gatewayAPIParams) error {
 
 	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
-		return nil
+		return nil, nil
 	}
 
 	installedKinds := params.Preconditions.InstalledKinds
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	if err := registerReconcilers(
+	reconcilers, err := registerReconcilers(
 		params.CtrlRuntimeManager,
 		params.Config.GatewayAPISecretsNamespace,
 		operatorOption.Config.ProxyIdleTimeoutSeconds,
 		logger,
 		installedKinds,
-	); err != nil {
-		return fmt.Errorf("failed to create gateway controller: %w", err)
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway controller: %w", err)
 	}
-	return nil
+	return reconcilers, nil
+}
+
+type GatewayAPIController struct {
+	reconcilers []interface {
+		SetupWithManager(mgr ctrlRuntime.Manager) error
+	}
 }
 
 // register the reconcilers one by one into controller manager which handles common tasks
-func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTimeoutSeconds int, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) error {
+func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTimeoutSeconds int, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) (*GatewayAPIController, error) {
 	reconcilers := []interface {
 		SetupWithManager(mgr ctrlRuntime.Manager) error
 	}{
@@ -339,11 +347,12 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 
 	for _, r := range reconcilers {
 		if err := r.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("failed to setup reconciler %#v: %w", r, err)
+			return nil, fmt.Errorf("failed to setup reconciler %#v: %w", r, err)
 		}
 	}
+
 	log.Info("Gateway API controllers registered successfully")
-	return nil
+	return &GatewayAPIController{reconcilers: reconcilers}, nil
 }
 
 func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error {

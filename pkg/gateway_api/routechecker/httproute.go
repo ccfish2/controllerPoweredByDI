@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/sirupsen/logrus"
 )
@@ -23,7 +22,7 @@ type HTTPRouteInput struct {
 	Ctx       context.Context
 	Logger    *logrus.Entry
 	Client    client.Client
-	Grants    *gatewayv1beta1.ReferenceGrantList
+	Grants    *gatewayv1.ReferenceGrantList
 	HTTPRoute *gatewayv1.HTTPRoute
 
 	gateways map[gatewayv1.ParentReference]*gatewayv1.Gateway
@@ -72,7 +71,7 @@ func (h *HTTPRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentR
 	})
 }
 
-func (h *HTTPRouteInput) GetGrants() []gatewayv1beta1.ReferenceGrant {
+func (h *HTTPRouteInput) GetGrants() []gatewayv1.ReferenceGrant {
 	return h.Grants.Items
 }
 
