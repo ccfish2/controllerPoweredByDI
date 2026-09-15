@@ -27,9 +27,6 @@ import (
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/routechecker"
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
@@ -128,11 +125,11 @@ func (g *GRPCRouteInput) GetGateway(parent gatewayv1.ParentReference) (*gatewayv
 	return gw, nil
 }
 
-func (g *GRPCRouteInput) GetHostnames() []gatewayv1beta1.Hostname {
+func (g *GRPCRouteInput) GetHostnames() []gatewayv1.Hostname {
 	return g.GRPCRoute.Spec.Hostnames
 }
 
-func (g *GRPCRouteInput) SetParentCondition(ref gatewayv1beta1.ParentReference, condition metav1.Condition) {
+func (g *GRPCRouteInput) SetParentCondition(ref gatewayv1.ParentReference, condition metav1.Condition) {
 	condition.LastTransitionTime = metav1.NewTime(time.Now())
 	condition.ObservedGeneration = g.GRPCRoute.GetGeneration()
 
@@ -157,7 +154,7 @@ func (g *GRPCRouteInput) Log() *logrus.Entry {
 	return g.Logger
 }
 
-func (g *GRPCRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentReference, updates []metav1.Condition) {
+func (g *GRPCRouteInput) mergeStatusConditions(parentRef gatewayv1.ParentReference, updates []metav1.Condition) {
 	index := -1
 	for i, parent := range g.GRPCRoute.Status.RouteStatus.Parents {
 		if reflect.DeepEqual(parent.ParentRef, parentRef) {
@@ -169,7 +166,7 @@ func (g *GRPCRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentR
 		g.GRPCRoute.Status.RouteStatus.Parents[index].Conditions = merge(g.GRPCRoute.Status.RouteStatus.Parents[index].Conditions, updates...)
 		return
 	}
-	g.GRPCRoute.Status.RouteStatus.Parents = append(g.GRPCRoute.Status.RouteStatus.Parents, gatewayv1alpha2.RouteParentStatus{
+	g.GRPCRoute.Status.RouteStatus.Parents = append(g.GRPCRoute.Status.RouteStatus.Parents, gatewayv1.RouteParentStatus{
 		ParentRef:      parentRef,
 		ControllerName: controllerName,
 		Conditions:     updates,

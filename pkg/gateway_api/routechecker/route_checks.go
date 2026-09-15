@@ -8,7 +8,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 func CheckAgainstCrossNamespaceBackendReferences(input Input) (bool, error) {
@@ -41,7 +40,7 @@ func CheckBackendIsService(input Input) (bool, error) {
 		for _, be := range rule.GetBackendRefs() {
 			if !helpers.IsService(be.BackendObjectReference) {
 				input.SetAllParentCondition(metav1.Condition{
-					Type:    string(gatewayv1alpha2.RouteConditionResolvedRefs),
+					Type:    string(gatewayv1.RouteConditionResolvedRefs),
 					Status:  metav1.ConditionFalse,
 					Reason:  string(gatewayv1.RouteReasonInvalidKind),
 					Message: "Unsupported backend kind " + string(*be.Kind),
@@ -52,7 +51,7 @@ func CheckBackendIsService(input Input) (bool, error) {
 			}
 			if be.BackendObjectReference.Port == nil {
 				input.SetAllParentCondition(metav1.Condition{
-					Type:    string(gatewayv1alpha2.RouteConditionResolvedRefs),
+					Type:    string(gatewayv1.RouteConditionResolvedRefs),
 					Status:  metav1.ConditionFalse,
 					Reason:  string(gatewayv1.RouteReasonInvalidKind),
 					Message: "Must have port for Service reference",

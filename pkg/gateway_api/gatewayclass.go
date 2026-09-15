@@ -33,19 +33,47 @@ func newGatewayClassReconciler(mgr ctrl.Manager, logger *slog.Logger, controller
 }
 
 func (r *gatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.logger.Info("Registering GatewayClass controller",
+	r.logger.Info(
+		"Registering GatewayClass controller",
 		slog.String("controllerName", r.controllerName),
 		slog.String("watchKind", "GatewayClass"),
 	)
+
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1.GatewayClass{},
-			builder.WithPredicates(gatewayClassDebugPredicate(r.controllerName, r.logger))).
-		Watches(&dolphinv2alpha1.DolphinGatewayClassConfig{}, watchhandlers.EnqueueRequestForCiliumGatewayClassConfig(r.Client, r.logger))
-	r.logger.Info("GatewayClass controller setup complete; enqueuer ready",
+		For(
+			&gatewayv1.GatewayClass{},
+			builder.WithPredicates(
+				gatewayClassDebugPredicate(
+					r.controllerName,
+					r.logger,
+				),
+			),
+		).
+		Watches(
+			&dolphinv2alpha1.DolphinGatewayClassConfig{},
+			watchhandlers.EnqueueRequestForDolphinGatewayClassConfig(
+				r.Client,
+				r.logger,
+			),
+		)
+
+	err := controllerBuilder.Complete(r)
+
+	if err != nil {
+		r.logger.Error(
+			"GatewayClass controller setup FAILED",
+			"error", err,
+		)
+		return err
+	}
+
+	r.logger.Info(
+		"GatewayClass controller setup COMPLETE",
 		"controllerName", r.controllerName,
 		"watchKind", "GatewayClass",
 	)
-	return controllerBuilder.Complete(r)
+
+	return nil
 }
 
 func gatewayClassDebugPredicate(controllerName string, logger *slog.Logger) predicate.Predicate {

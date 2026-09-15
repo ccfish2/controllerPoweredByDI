@@ -3,19 +3,34 @@ package scheme
 import (
 	"fmt"
 
+	helpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
-func AddToScheme(s *runtime.Scheme) error {
-	for gv, addToScheme := range map[fmt.Stringer]func(*runtime.Scheme) error{
-		gatewayv1.GroupVersion:       gatewayv1.AddToScheme,
-		gatewayv1beta1.GroupVersion:  gatewayv1beta1.AddToScheme,
-		gatewayv1alpha2.GroupVersion: gatewayv1alpha2.AddToScheme,
-	} {
-		if err := addToScheme(s); err != nil {
+func AddToScheme(scheme *runtime.Scheme) error {
+	addToSchema := make(map[fmt.Stringer]func(s *runtime.Scheme) error)
+
+	// Install all required GVKs.
+	for _, gvk := range helpers.RequiredGVKs {
+		addToSchema[gvk] = func(s *runtime.Scheme) error {
+			s.AddKnownTypes(
+				gvk.GroupVersion(),
+				helpers.GetConcreteObject(gvk),
+				helpers.GetConcreteListObject(gvk),
+			)
+			metav1.AddToGroupVersion(s, gvk.GroupVersion())
+			return nil
+		}
+	}
+
+	// We can also safely install the v1beta1 resources, as these are legacy
+	// and also included in the Standard install
+	addToSchema[gatewayv1beta1.GroupVersion] = gatewayv1beta1.Install
+
+	for gv, f := range addToSchema {
+		if err := f(scheme); err != nil {
 			return fmt.Errorf("failed to add types from %s to scheme: %w", gv, err)
 		}
 	}

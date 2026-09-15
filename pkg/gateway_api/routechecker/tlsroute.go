@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 // TLSRouteInput is used to implement the Input interface for TLSRoute
@@ -52,7 +51,7 @@ func (t *TLSRouteInput) SetAllParentCondition(condition metav1.Condition) {
 
 }
 
-func (t *TLSRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentReference, updates []metav1.Condition) {
+func (t *TLSRouteInput) mergeStatusConditions(parentRef gatewayv1.ParentReference, updates []metav1.Condition) {
 	index := -1
 	for i, parent := range t.TLSRoute.Status.RouteStatus.Parents {
 		if reflect.DeepEqual(parent.ParentRef, parentRef) {
@@ -64,7 +63,7 @@ func (t *TLSRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentRe
 		t.TLSRoute.Status.RouteStatus.Parents[index].Conditions = merge(t.TLSRoute.Status.RouteStatus.Parents[index].Conditions, updates...)
 		return
 	}
-	t.TLSRoute.Status.RouteStatus.Parents = append(t.TLSRoute.Status.RouteStatus.Parents, gatewayv1alpha2.RouteParentStatus{
+	t.TLSRoute.Status.RouteStatus.Parents = append(t.TLSRoute.Status.RouteStatus.Parents, gatewayv1.RouteParentStatus{
 		ParentRef:      parentRef,
 		ControllerName: controllerName,
 		Conditions:     updates,

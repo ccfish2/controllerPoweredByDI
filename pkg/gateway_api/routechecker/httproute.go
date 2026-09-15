@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/sirupsen/logrus"
 )
@@ -52,7 +51,7 @@ func (h *HTTPRouteInput) SetAllParentCondition(condition metav1.Condition) {
 
 }
 
-func (h *HTTPRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentReference, updates []metav1.Condition) {
+func (h *HTTPRouteInput) mergeStatusConditions(parentRef gatewayv1.ParentReference, updates []metav1.Condition) {
 	index := -1
 	for i, parent := range h.HTTPRoute.Status.RouteStatus.Parents {
 		if reflect.DeepEqual(parent.ParentRef, parentRef) {
@@ -64,7 +63,7 @@ func (h *HTTPRouteInput) mergeStatusConditions(parentRef gatewayv1alpha2.ParentR
 		h.HTTPRoute.Status.RouteStatus.Parents[index].Conditions = merge(h.HTTPRoute.Status.RouteStatus.Parents[index].Conditions, updates...)
 		return
 	}
-	h.HTTPRoute.Status.RouteStatus.Parents = append(h.HTTPRoute.Status.RouteStatus.Parents, gatewayv1alpha2.RouteParentStatus{
+	h.HTTPRoute.Status.RouteStatus.Parents = append(h.HTTPRoute.Status.RouteStatus.Parents, gatewayv1.RouteParentStatus{
 		ParentRef:      parentRef,
 		ControllerName: controllerName,
 		Conditions:     updates,

@@ -22,6 +22,7 @@ import (
 
 	//myself
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
+	helpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
@@ -29,25 +30,6 @@ import (
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
-
-var RequiredGVKs = []schema.GroupVersionKind{
-	GatewayV1GVK(GatewayClassKind),
-	GatewayV1GVK(GatewayKind),
-	GatewayV1GVK(HTTPRouteKind),
-	GatewayV1GVK(GRPCRouteKind),
-	GatewayV1GVK(TLSRouteKind),
-	GatewayV1GVK(ReferenceGrantKind),
-	GatewayV1GVK(BackendTLSPolicyKind),
-}
-
-// GatewayV1GVK returns the GroupVersionKind for a given Gateway API v1 kind.
-func GatewayV1GVK(kind string) schema.GroupVersionKind {
-	return schema.GroupVersionKind{
-		Group:   gatewayv1.GroupVersion.Group,
-		Version: gatewayv1.GroupVersion.Version,
-		Kind:    kind,
-	}
-}
 
 const crdDiscoveryTimeout = 30 * time.Second
 
@@ -119,8 +101,8 @@ func newGatewayAPIPreconditions(params preconditionParams) (*gatewayAPIPrecondit
 func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logger *slog.Logger, health cell.Health) (*gatewayAPIPreconditions, error) {
 	logger.Info(
 		"Checking for required and optional GatewayAPI resources",
-		logfields.RequiredGVK, RequiredGVKs,
-		logfields.OptionalGVK, RequiredGVKs,
+		logfields.RequiredGVK, helpers.RequiredGVKs,
+		logfields.OptionalGVK, helpers.RequiredGVKs,
 	)
 
 	// Configure exponential backoff for CRD discovery.
@@ -135,7 +117,7 @@ func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logg
 	}
 
 	for {
-		installedKinds, err := checkCRDs(ctx, client, logger, RequiredGVKs, RequiredGVKs)
+		installedKinds, err := checkCRDs(ctx, client, logger, helpers.RequiredGVKs, helpers.RequiredGVKs)
 		if err == nil {
 			// health.OK("Gateway API CRDs discovered")
 			return &gatewayAPIPreconditions{
@@ -307,7 +289,7 @@ func initGatewayAPIController(params gatewayAPIParams) (*GatewayAPIController, e
 		return nil, nil
 	}
 
-	params.Logger.WithField("RequiredGVKs", RequiredGVKs).Info("checking for required GatewayAPI resources")
+	params.Logger.WithField("RequiredGVKs", helpers.RequiredGVKs).Info("checking for required GatewayAPI resources")
 	params.Logger.WithField("InstalledKinds", params.Preconditions.InstalledKinds).Info("Gateway API preconditions passed; registering controllers")
 
 	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
@@ -336,35 +318,55 @@ type GatewayAPIController struct {
 	}
 }
 
-// register the reconcilers one by one into controller manager which handles common tasks
-func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTimeoutSeconds int, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) (*GatewayAPIController, error) {
+func registerReconcilers(
+	mgr ctrlRuntime.Manager,
+	secretNamespace string,
+	idelTimeoutSeconds int,
+	logger *slog.Logger,
+	installedCRDs []schema.GroupVersionKind,
+) (*GatewayAPIController, error) {
+
 	reconcilers := []interface {
 		SetupWithManager(mgr ctrlRuntime.Manager) error
 	}{
-		newGatewayClassReconciler(mgr, logger, "io.dolphin/gateway-controller"),
-		newGatewayReconciler(mgr, secretNamespace, idelTimeoutSeconds, true, false, logger, installedCRDs),
+		newGatewayClassReconciler(
+			mgr,
+			logger,
+			"io.dolphin/gateway-controller",
+		),
+		newGatewayReconciler(
+			mgr,
+			secretNamespace,
+			idelTimeoutSeconds,
+			true,
+			false,
+			logger,
+			installedCRDs,
+		),
 		newhttpRouteReconciler(mgr),
 		newGRPCRouteReconciler(mgr),
 		newtlsrouteReconciler(mgr),
 	}
 
 	for i, r := range reconcilers {
-		func() {
-			defer func() {
-				if err := recover(); err != nil {
-					logger.Error("Reconciler panicked during setup",
-						"index", i,
-						"panic", err)
-				}
-			}()
-			if err := r.SetupWithManager(mgr); err != nil {
-				logger.Error("Failed to setup reconciler", "index", i, "error", err)
-			}
-		}()
+		logger.Info("Setting up Gateway API reconciler", "index", i)
+
+		if err := r.SetupWithManager(mgr); err != nil {
+			return nil, fmt.Errorf(
+				"failed to setup Gateway API reconciler index=%d: %w",
+				i,
+				err,
+			)
+		}
+
+		logger.Info("Gateway API reconciler setup complete", "index", i)
 	}
 
-	log.Info("Gateway API controllers registered successfully")
-	return &GatewayAPIController{reconcilers: reconcilers}, nil
+	logger.Info("Gateway API controllers registered successfully")
+
+	return &GatewayAPIController{
+		reconcilers: reconcilers,
+	}, nil
 }
 
 func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error {
@@ -373,7 +375,7 @@ func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error
 	}
 
 	var res error
-	for _, gvk := range RequiredGVKs {
+	for _, gvk := range helpers.RequiredGVKs {
 		crdName := fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)
 		crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 		if err != nil {

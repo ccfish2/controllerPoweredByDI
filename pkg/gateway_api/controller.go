@@ -19,7 +19,6 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const (
@@ -136,13 +135,6 @@ func onlyStatusChanged() predicate.Predicate {
 					return false
 				}
 				return !cmp.Equal(o.Status, n.Status, option)
-			case *gatewayv1alpha2.GRPCRoute:
-				o, _ := e.ObjectOld.(*gatewayv1alpha2.GRPCRoute)
-				n, ok := e.ObjectNew.(*gatewayv1alpha2.GRPCRoute)
-				if !ok {
-					return false
-				}
-				return !cmp.Equal(o.Status, n.Status, option)
 			case *gatewayv1.GRPCRoute:
 				o, _ := e.ObjectOld.(*gatewayv1.GRPCRoute)
 				n, ok := e.ObjectNew.(*gatewayv1.GRPCRoute)
@@ -150,6 +142,13 @@ func onlyStatusChanged() predicate.Predicate {
 					return false
 				}
 				return !cmp.Equal(o.Status, n.Status, option)
+			// case *gatewayv1.GRPCRoute:
+			// 	o, _ := e.ObjectOld.(*gatewayv1.GRPCRoute)
+			// 	n, ok := e.ObjectNew.(*gatewayv1.GRPCRoute)
+			// 	if !ok {
+			// 		return false
+			// 	}
+			// 	return !cmp.Equal(o.Status, n.Status, option)
 			default:
 				return false
 			}

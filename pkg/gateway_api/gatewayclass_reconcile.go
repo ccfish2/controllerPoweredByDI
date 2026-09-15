@@ -2,6 +2,7 @@ package gateway_api
 
 import (
 	"context"
+	"fmt"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -12,6 +13,12 @@ import (
 )
 
 func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	fmt.Println(
+		"######## GATEWAYCLASS RECONCILE ENTER ########",
+		"name", req.Name,
+		"namespace", req.Namespace,
+	)
+
 	scopedLog := r.logger.With(
 		logfields.Resource, req.NamespacedName,
 	)

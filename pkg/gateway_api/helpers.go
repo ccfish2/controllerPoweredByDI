@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const (
@@ -77,13 +76,13 @@ func getSupportedGroupKind(protocol gatewayv1.ProtocolType) (*gatewayv1.Group, g
 	case gatewayv1.HTTPProtocolType:
 		return GroupPtr(gatewayv1.GroupName), kindHTTPRoute
 	case gatewayv1.TLSProtocolType:
-		return GroupPtr(gatewayv1alpha2.GroupName), kindTLSRoute
+		return GroupPtr(gatewayv1.GroupName), kindTLSRoute
 	case gatewayv1.HTTPSProtocolType:
 		return GroupPtr(gatewayv1.GroupName), kindHTTPRoute
 	case gatewayv1.TCPProtocolType:
-		return GroupPtr(gatewayv1alpha2.GroupName), kindTCPRoute
+		return GroupPtr(gatewayv1.GroupName), kindTCPRoute
 	case gatewayv1.UDPProtocolType:
-		return GroupPtr(gatewayv1alpha2.GroupName), kindUDPRoute
+		return GroupPtr(gatewayv1.GroupName), kindUDPRoute
 	default:
 		return GroupPtr("Unknown"), "unkown"
 	}
@@ -123,7 +122,7 @@ func isKindAllowed(listener gatewayv1.Listener, route metav1.Object) bool {
 		if kind.Group == nil || (string(*kind.Group) == gatewayv1.GroupName && kind.Kind == kindHTTPRoute && routedKind == kindHTTPRoute) {
 			return true
 		}
-		if kind.Group == nil || (string(*kind.Group) == gatewayv1alpha2.GroupName && kind.Kind == kindTLSRoute && routedKind == kindTLSRoute) {
+		if kind.Group == nil || (string(*kind.Group) == gatewayv1.GroupName && kind.Kind == kindTLSRoute && routedKind == kindTLSRoute) {
 			return true
 		}
 	}
@@ -157,9 +156,9 @@ func getGatewayKindForObject(obj metav1.Object) gatewayv1.Kind {
 		return kindHTTPRoute
 	case *gatewayv1.TLSRoute:
 		return kindTLSRoute
-	case *gatewayv1alpha2.TCPRoute:
+	case *gatewayv1.TCPRoute:
 		return kindTCPRoute
-	case *gatewayv1alpha2.UDPRoute:
+	case *gatewayv1.UDPRoute:
 		return kindUDPRoute
 	default:
 		return "unknown"

@@ -50,7 +50,7 @@ func EnqueueRequestForOwningGatewayClass(c client.Client, logger slog.Logger) ha
 	})
 }
 
-func EnqueueRequestForCiliumGatewayClassConfig(c client.Client, logger *slog.Logger) handler.EventHandler {
+func EnqueueRequestForDolphinGatewayClassConfig(c client.Client, logger *slog.Logger) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(enqueueGatewayClassFromIndex(c, logger, indexers.GatewayClassDolphinGatewayClassConfigsIndex))
 }
 
