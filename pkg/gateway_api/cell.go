@@ -19,34 +19,37 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	//myself
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
-	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
 
+var RequiredGVKs = []schema.GroupVersionKind{
+	GatewayV1GVK(GatewayClassKind),
+	GatewayV1GVK(GatewayKind),
+	GatewayV1GVK(HTTPRouteKind),
+	GatewayV1GVK(GRPCRouteKind),
+	GatewayV1GVK(TLSRouteKind),
+	GatewayV1GVK(ReferenceGrantKind),
+	GatewayV1GVK(BackendTLSPolicyKind),
+}
+
+// GatewayV1GVK returns the GroupVersionKind for a given Gateway API v1 kind.
+func GatewayV1GVK(kind string) schema.GroupVersionKind {
+	return schema.GroupVersionKind{
+		Group:   gatewayv1.GroupVersion.Group,
+		Version: gatewayv1.GroupVersion.Version,
+		Kind:    kind,
+	}
+}
+
 const crdDiscoveryTimeout = 30 * time.Second
-
-var requiredGVKs = []schema.GroupVersionKind{
-	gatewayv1.SchemeGroupVersion.WithKind(helpers.GatewayClassKind),
-	gatewayv1.SchemeGroupVersion.WithKind(helpers.GatewayKind),
-	gatewayv1.SchemeGroupVersion.WithKind(helpers.HTTPRouteKind),
-	gatewayv1.SchemeGroupVersion.WithKind(helpers.GRPCRouteKind),
-	gatewayv1beta1.SchemeGroupVersion.WithKind(helpers.ReferenceGrantKind),
-}
-
-var optionalGVKs = []schema.GroupVersionKind{
-	gatewayv1alpha2.SchemeGroupVersion.WithKind(helpers.TLSRouteKind),
-	mcsapiv1alpha1.SchemeGroupVersion.WithKind(helpers.ServiceImportKind),
-}
 
 // Cell manages gateway api controllers
 var Cell = cell.Module(
@@ -116,8 +119,8 @@ func newGatewayAPIPreconditions(params preconditionParams) (*gatewayAPIPrecondit
 func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logger *slog.Logger, health cell.Health) (*gatewayAPIPreconditions, error) {
 	logger.Info(
 		"Checking for required and optional GatewayAPI resources",
-		logfields.RequiredGVK, requiredGVKs,
-		logfields.OptionalGVK, optionalGVKs,
+		logfields.RequiredGVK, RequiredGVKs,
+		logfields.OptionalGVK, RequiredGVKs,
 	)
 
 	// Configure exponential backoff for CRD discovery.
@@ -132,7 +135,7 @@ func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logg
 	}
 
 	for {
-		installedKinds, err := checkCRDs(ctx, client, logger, requiredGVKs, optionalGVKs)
+		installedKinds, err := checkCRDs(ctx, client, logger, RequiredGVKs, RequiredGVKs)
 		if err == nil {
 			// health.OK("Gateway API CRDs discovered")
 			return &gatewayAPIPreconditions{

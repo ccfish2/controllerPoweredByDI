@@ -7,12 +7,10 @@ import (
 	gatewayapihelpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	// myself
 )
 
 const (
@@ -187,23 +185,4 @@ func getAllDolphinGatewaysSet(ctx context.Context, c client.Client) (map[string]
 	}
 
 	return allDolphinGatewaysSet, nil
-}
-
-var RequiredGVKs = []schema.GroupVersionKind{
-	GatewayV1GVK(GatewayClassKind),
-	GatewayV1GVK(GatewayKind),
-	GatewayV1GVK(HTTPRouteKind),
-	GatewayV1GVK(GRPCRouteKind),
-	GatewayV1GVK(TLSRouteKind),
-	GatewayV1GVK(ReferenceGrantKind),
-	GatewayV1GVK(BackendTLSPolicyKind),
-}
-
-// GatewayV1GVK returns the GroupVersionKind for a given Gateway API v1 kind.
-func GatewayV1GVK(kind string) schema.GroupVersionKind {
-	return schema.GroupVersionKind{
-		Group:   gatewayv1.GroupVersion.Group,
-		Version: gatewayv1.GroupVersion.Version,
-		Kind:    kind,
-	}
 }
