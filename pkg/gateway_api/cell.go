@@ -345,10 +345,19 @@ func registerReconcilers(mgr ctrlRuntime.Manager, secretNamespace string, idelTi
 		newtlsrouteReconciler(mgr),
 	}
 
-	for _, r := range reconcilers {
-		if err := r.SetupWithManager(mgr); err != nil {
-			return nil, fmt.Errorf("failed to setup reconciler %#v: %w", r, err)
-		}
+	for i, r := range reconcilers {
+		func() {
+			defer func() {
+				if err := recover(); err != nil {
+					logger.Error("Reconciler panicked during setup",
+						"index", i,
+						"panic", err)
+				}
+			}()
+			if err := r.SetupWithManager(mgr); err != nil {
+				logger.Error("Failed to setup reconciler", "index", i, "error", err)
+			}
+		}()
 	}
 
 	log.Info("Gateway API controllers registered successfully")

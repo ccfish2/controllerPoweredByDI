@@ -96,11 +96,15 @@ func NewManager(params mgrParams) (ctrlruntime.Manager, error) {
 	)
 
 	jobG.Add(job.OneShot("manager", func(ctx context.Context, health cell.HealthReporter) error {
+		params.Loggger.Info("🚀 Starting controller-runtime manager...")
+
 		if err := mgr.Start(ctx); err != nil {
-			fmt.Printf(" ❌ Manager crashed %v", err)
-			panic(err)
+			params.Loggger.WithError(err).Error("❌ Manager crashed")
+			return err
 		}
-		return mgr.Start(ctx)
+
+		params.Loggger.Info("✓ Manager running")
+		return nil
 	}))
 
 	params.Lifecycle.Append(jobG)

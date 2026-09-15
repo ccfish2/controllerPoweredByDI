@@ -204,6 +204,14 @@ rules:
 - apiGroups:
   - dolphin.io
   resources:
+  - dolphingatewayeclassconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - dolphin.io
+  resources:
   - dolphinpodippools
   verbs:
   - create
@@ -238,6 +246,18 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
+  - gatewayclasses
+  - gateways
+  - httproutes
+  - grpcroutes
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
   - gatewayclasses/status
   - gateways/status
   - httproutes/status
@@ -254,6 +274,28 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - leases
+  resourceNames:
+  - dolphin-controller-lock
+  verbs:
+  - get
+  - update
+  - patch
 - apiGroups: ["networking.k8s.io"]
   resources: ["ingresses"]
   verbs: ["get", "list", "watch"]

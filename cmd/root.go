@@ -217,26 +217,7 @@ func NewOperatorCmd(h *hive.Hive) *cobra.Command {
 		},
 	}
 
-	flags := cmd.Flags()
-	flags.DurationVar(&operatorOption.Config.LeaderElectionLeaseDuration, operatorOption.LeaderElectionLeaseDuration, 15*time.Second, "Duration that non-leader candidates will wait to force acquire leadership")
-	flags.DurationVar(&operatorOption.Config.LeaderElectionRenewDeadline, operatorOption.LeaderElectionRenewDeadline, 10*time.Second, "Duration that the acting leader will retry refreshing leadership before giving up")
-	flags.DurationVar(&operatorOption.Config.LeaderElectionRetryPeriod, operatorOption.LeaderElectionRetryPeriod, 2*time.Second, "Duration the leader election client waits between tries of actions")
-	flags.BoolVar(&operatorOption.Config.DisableLeaderElection, operatorOption.DisableLeaderElection, false, "Disable leader election and start leader-scoped controllers immediately (local/dev mode)")
-
-	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionLeaseDuration, flags.Lookup(operatorOption.LeaderElectionLeaseDuration)); err != nil {
-		panic(err)
-	}
-	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionRenewDeadline, flags.Lookup(operatorOption.LeaderElectionRenewDeadline)); err != nil {
-		panic(err)
-	}
-	if err := h.Viper().BindPFlag(operatorOption.LeaderElectionRetryPeriod, flags.Lookup(operatorOption.LeaderElectionRetryPeriod)); err != nil {
-		panic(err)
-	}
-	if err := h.Viper().BindPFlag(operatorOption.DisableLeaderElection, flags.Lookup(operatorOption.DisableLeaderElection)); err != nil {
-		panic(err)
-	}
-
-	h.RegisterFlags(flags)
+	h.RegisterFlags(cmd.Flags())
 	cmd.AddCommand(
 		MetricsCmd,
 		h.Command(),
