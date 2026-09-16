@@ -65,7 +65,7 @@ func hasMatchingController(ctx context.Context, c client.Client, controllerName 
 		gwc := &gatewayv1.GatewayClass{}
 		key := types.NamespacedName{Name: string(gw.Spec.GatewayClassName)}
 		if err := c.Get(ctx, key, gwc); err != nil {
-			scopedLog.WithError(err).Error("Unable to get GatewayClass")
+			scopedLog.WithError(err).Error("Unable to get GatewayClass within hasMatchingController")
 			return false
 		}
 

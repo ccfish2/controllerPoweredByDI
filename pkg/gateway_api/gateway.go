@@ -170,7 +170,11 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		gatewayBuilder = gatewayBuilder.Watches(&mcsapiv1alpha1.ServiceImport{}, r.enqueueRequestForBackendServiceImport())
 	}
 
-	return gatewayBuilder.Complete(r)
+	if err := gatewayBuilder.Complete(r); err != nil {
+		return fmt.Errorf("failed to complete Gateway controller: %w", err)
+	}
+
+	return nil
 }
 
 func (r *gatewayReconciler) usedInGateway(obj client.Object) bool {

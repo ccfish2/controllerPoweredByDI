@@ -3,8 +3,6 @@ package gateway_api
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 	"reflect"
 	"time"
 
@@ -19,10 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -224,16 +220,6 @@ func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&gatewayv1.Gateway{},
 			r.enqueueRequestForGateway(),
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(
-					hasMatchingController(
-						context.Background(),
-						mgr.GetClient(),
-						controllerName,
-						slog.New(slog.NewTextHandler(os.Stdout, nil)),
-					),
-				),
-			),
 		)
 
 	if helpers.HasServiceImportSupport(r.Client.Scheme()) {

@@ -35,17 +35,28 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		logfields.Controller: gateway,
 		logfields.Resource:   req.NamespacedName,
 	})
+
 	scopedLog.Info("Reconciling Gateway")
 
 	// step 1: retrieve the gateway
 	gw := &gatewayv1.Gateway{}
+
 	err := r.Client.Get(ctx, req.NamespacedName, gw)
 	if err != nil {
 		if k8serros.IsNotFound(err) {
+			scopedLog.Info("Gateway not found")
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, fmt.Errorf("failure")
+
+		scopedLog.WithError(err).Error("Failed to get Gateway")
+		return ctrl.Result{}, err
 	}
+
+	scopedLog.WithFields(logrus.Fields{
+		"gatewayClassName": gw.Spec.GatewayClassName,
+		"generation":       gw.Generation,
+		"resourceVersion":  gw.ResourceVersion,
+	}).Info("Gateway fetched")
 
 	// ignore deleting gateway
 	if gw.GetDeletionTimestamp() != nil {
@@ -56,14 +67,25 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// step 2: Gather all required information for the ingestion model
 	gwc := &gatewayv1.GatewayClass{}
+
 	err = r.Client.Get(ctx,
-		client.ObjectKey{Name: string(copy.Spec.GatewayClassName)}, gwc)
+		client.ObjectKey{Name: string(gw.Spec.GatewayClassName)},
+		gwc,
+	)
+
 	if err != nil {
-		scopedLog.WithField(gatewayClass, gw.Spec.GatewayClassName).
-			WithError(err).
-			Error("Unable to get GatewayClass")
+		scopedLog.WithFields(logrus.Fields{
+			"gatewayClassName": gw.Spec.GatewayClassName,
+			"error":            err,
+		}).Error("Unable to get GatewayClass")
+
 		return controllerruntime.Success()
 	}
+
+	scopedLog.WithFields(logrus.Fields{
+		"gatewayClassName": gwc.Name,
+		"controllerName":   gwc.Spec.ControllerName,
+	}).Info("GatewayClass fetched")
 
 	// handle HTTPRouteList, TLSRouteList, ServiceList
 	if string(gwc.Spec.ControllerName) != controllerName {

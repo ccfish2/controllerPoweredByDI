@@ -2,10 +2,10 @@ package gateway_api
 
 import (
 	"context"
-	"fmt"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
+	"github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,15 +13,10 @@ import (
 )
 
 func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	fmt.Println(
-		"######## GATEWAYCLASS RECONCILE ENTER ########",
-		"name", req.Name,
-		"namespace", req.Namespace,
-	)
-
-	scopedLog := r.logger.With(
-		logfields.Resource, req.NamespacedName,
-	)
+	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
+		logfields.Controller: gateway,
+		logfields.Resource:   req.NamespacedName,
+	})
 
 	scopedLog.Info("GatewayClass reconcile dequeued from queue",
 		"requestedName", req.Name,
@@ -44,7 +39,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	actualController := string(origin.Spec.ControllerName)
-	matched := matchesControllerName(controllerName, scopedLog, origin)
+	matched := matchesControllerName(controllerName, nil, origin)
 	scopedLog.Info("GatewayClass reconcile match result",
 		"actualControllerName", actualController,
 		"expectedControllerName", controllerName,

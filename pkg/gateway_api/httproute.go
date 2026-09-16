@@ -2,18 +2,14 @@ package gateway_api
 
 import (
 	"context"
-	"log/slog"
-	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -87,9 +83,9 @@ func (r *httpRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&gatewayv1.HTTPRoute{}).
 		Watches(&corev1.Service{}, r.enqueueRequestForBackendService()).
 		Watches(&gatewayv1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
-		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway(),
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))))).
+		Watches(&gatewayv1.Gateway{}, r.enqueueRequestForGateway()).
+		// builder.WithPredicates(
+		// 	predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))))).
 		Complete(r)
 }
 

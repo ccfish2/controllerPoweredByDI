@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	watchhandlers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/watch-handlers"
-	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -48,17 +46,15 @@ func (r *gatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					r.logger,
 				),
 			),
-		).
-		Watches(
-			&dolphinv2alpha1.DolphinGatewayClassConfig{},
-			watchhandlers.EnqueueRequestForDolphinGatewayClassConfig(
-				r.Client,
-				r.logger,
-			),
 		)
-
+		// 		Watches(
+		// 			&dolphinv2alpha1.DolphinGatewayClassConfig{},
+		// 			watchhandlers.EnqueueRequestForDolphinGatewayClassConfig(
+		// 				r.Client,
+		// 				r.logger,
+		// 			),
+		// 		)
 	err := controllerBuilder.Complete(r)
-
 	if err != nil {
 		r.logger.Error(
 			"GatewayClass controller setup FAILED",

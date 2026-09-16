@@ -2,8 +2,6 @@ package gateway_api
 
 import (
 	"context"
-	"log/slog"
-	"os"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -13,10 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -112,10 +108,7 @@ func (t *tlsrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&gatewayv1.TLSRoute{}).
 		Watches(&corev1.Service{}, t.enqueueRequestForBackendService()).
 		Watches(&gatewayv1.ReferenceGrant{}, t.enqueueRequestForReferenceGrant()).
-		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway(),
-			builder.WithPredicates(
-				predicate.NewPredicateFuncs(hasMatchingController(context.Background(), mgr.GetClient(), controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))),
-			)).
+		Watches(&gatewayv1.Gateway{}, t.enqueueRequestForGateway()).
 		Complete(t)
 }
 
