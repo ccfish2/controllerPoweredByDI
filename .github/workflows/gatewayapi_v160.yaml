@@ -15,7 +15,12 @@ on:
         required: false
         default: 'true'
         type: boolean
-      
+      run_gwapi_basic_functional_tests:
+        description: 'Run Network Gateway API Functional tests'
+        required: false
+        default: 'true'
+        type: boolean
+
 jobs:
   deploy-and-functional-test:
     name: Deploy and Feature Tests in Kind Cluster
@@ -338,6 +343,24 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/http/gatewayapi161-http.sh
 
+
+      # ============================================================
+      # 16. Gateway API Basic Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_http_tests to false.
+      - name: Run Gateway API Basic Functional Tests 
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
       # ============================================================
       # 16. Cleanup
       # ============================================================

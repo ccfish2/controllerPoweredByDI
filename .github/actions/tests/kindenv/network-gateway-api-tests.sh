@@ -5,8 +5,8 @@ source "$(dirname "$0")/lib/helper.sh"
 
 # This script sets up a Gateway API environment in a Kind cluster.
 echo "deply services in the same namespace"
-kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-
+#kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl -n dolphin apply -f .github/applications-for-conformance/books-info.yaml
 echo "deploy gateway class"
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
@@ -52,6 +52,7 @@ kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gat
 
 # deploy customized gateway envoyconfig yaml
 echo "deploy customized envoyconfig yaml"
+kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/cilium-dependency/CRDS --recursive || true
 kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # verify gateway status and httproute status 
@@ -101,4 +102,3 @@ while true; do
         exit 1
     fi
 done
-
