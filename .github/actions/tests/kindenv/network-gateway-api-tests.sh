@@ -21,6 +21,7 @@ echo "verify gateway class is accepted"
 wait_for_gatewayclass_accepted "dolphin" 120 5 || exit 1
 
 
+
 echo "generate tls secret"
 DOMAIN="bookinfo.cilium.rocks"
 CERT_FILE="${DOMAIN}.pem"
@@ -42,6 +43,7 @@ fi
 echo "binary mkcert exist"
 ls -l mkcert
 ./mkcert $DOMAIN
+kubectl create namespace cilium-secrets
 kubectl -n dolphin create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n cilium-secrets create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 cd ..
