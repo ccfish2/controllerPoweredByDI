@@ -204,7 +204,7 @@ rules:
 - apiGroups:
   - dolphin.io
   resources:
-  - dolphingatewayeclassconfigs
+  - dolphingatewayclassconfigs
   verbs:
   - get
   - list
