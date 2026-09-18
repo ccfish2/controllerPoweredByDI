@@ -61,9 +61,12 @@ openssl req -x509 -nodes -newkey rsa:2048 \
   -subj "/CN=${DOMAIN}" \
   -addext "subjectAltName=DNS:${DOMAIN}"
 
+NAMESPACE="dolphin"
+
 for namespace in "${NAMESPACE}" cilium-secrets; do
   kubectl create namespace "${namespace}" \
-    --dry-run=client -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml |
+    kubectl apply -f -
 
   kubectl -n "${namespace}" create secret tls tls-ingress-secret \
     --cert="${CERT_DIR}/tls.crt" \
