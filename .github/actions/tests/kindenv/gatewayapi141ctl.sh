@@ -73,7 +73,7 @@ kubectl -n dolphin create secret tls tls-ingress-secret \
   --dry-run=client -o yaml |
   kubectl apply -f -
 
-kubectl create cilium-secrets \
+kubectl create namespace cilium-secrets \
   --dry-run=client -o yaml |
   kubectl apply -f -
 
