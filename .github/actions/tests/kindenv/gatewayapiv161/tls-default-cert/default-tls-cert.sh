@@ -10,29 +10,64 @@ source ".github/actions/tests/kindenv/lib/metallb.sh"
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
-# Install the sample application and the Cilium resources required by the
-# Gateway implementation before creating any Gateway API objects.
-kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-wait_for_endpoints dolphin details || exit 1
-wait_for_endpoints dolphin productpage || exit 1
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "Install Cilium Agent and Envoy"
-helm repo add cilium https://helm.cilium.io
-helm install cilium cilium/cilium --version 1.20.1 \
-   --namespace kube-system \
-   --set kubeProxyReplacement=true \
-   --set gatewayAPI.enabled=true
+echo "Install/upgrade Cilium Agent and Envoy"
 
-echo "Checking kube-system cilium agent and envoy pods are ready"
 NAMESPACE="kube-system"
+CILIUM_VERSION="1.20.1"
 TIMEOUT=120
 INTERVAL=5
+
+# Add repo if needed; update is safe to run repeatedly.
+helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
+helm repo update >/dev/null
+
+# Install on first run, upgrade on subsequent runs.
+helm upgrade --install cilium cilium/cilium \
+    --version "${CILIUM_VERSION}" \
+    --namespace "${NAMESPACE}" \
+    --create-namespace \
+    --set kubeProxyReplacement=true \
+    --set gatewayAPI.enabled=true \
+    --set operator.replicas=0
+
+echo "Waiting for Cilium agent pods to be ready..."
 wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
+
+echo "Waiting for Cilium Envoy pods to be ready..."
 wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
 
-echo "UnInstall Cilium Operator"
-kubectl -n kube-system delete deployment cilium-operator
-sleep 60
+echo "Ensuring Cilium Operator is not running..."
+
+# In case an older installation created the operator, remove it.
+if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+    kubectl -n "${NAMESPACE}" delete deployment cilium-operator --ignore-not-found
+fi
+
+echo "Waiting for Cilium Operator deployment to disappear..."
+for ((elapsed=0; elapsed<TIMEOUT; elapsed+=INTERVAL)); do
+    if ! kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+        echo "Cilium Operator is absent."
+        break
+    fi
+
+    sleep "${INTERVAL}"
+done
+
+echo "Cilium installation complete."
+
+kubectl -n "${NAMESPACE}" get pods -l k8s-app=cilium -o wide
+kubectl -n "${NAMESPACE}" get pods -l k8s-app=cilium-envoy -o wide
+
+# Install the sample application and the Cilium resources required by the
+# Gateway implementation before creating any Gateway API objects.
+NAMESPACE=dolphin
+#kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books-info.yaml
+wait_for_endpoints dolphin details || exit 1
+wait_for_endpoints dolphin productpage || exit 1
 
 echo "Deploying gatewayclass and gateway"
 NAMESPACE="dolphin"
@@ -47,6 +82,7 @@ spec:
   controllerName: io.dolphin/gateway-controller
   description: The default Dolphin GatewayClass
 EOF
+
 
 DOMAIN="bookinfo.cilium.rocks"
 CERT_FILE="${DOMAIN}.pem"
@@ -73,7 +109,12 @@ ls -l mkcert
 kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
  
 kubectl -n cilium-secrets delete secret tls-default-secret --ignore-not-found
+
 kubectl -n cilium-secrets create secret tls tls-default-secret \
+  --cert=$CERT_FILE \
+  --key=$KEY_FILE
+
+kubectl -n dolphin create secret tls tls-default-secret \
   --cert=$CERT_FILE \
   --key=$KEY_FILE
 
