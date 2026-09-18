@@ -20,7 +20,7 @@ on:
         required: false
         default: 'true'
         type: boolean
-      run_http_tests:
+      run_tls_passthrough_tests:
         description: 'Run HTTP/HTTPS/TLSROUTE Functional Tests'
         required: false
         default: 'true'
@@ -380,7 +380,7 @@ jobs:
       #
       # This step can be skipped when manually triggering the workflow
       # by setting run_http_tests to false.
-      - name: Run Gateway API Basic Functional Tests 
+      - name: Run Network Gateway API Basic TLS Termination Functional Tests 
         if: |
           github.event_name == 'workflow_run' || 
           (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
@@ -397,13 +397,13 @@ jobs:
       # HTTPRoute and other supported Gateway API resources.
       #
       # This step can be skipped when manually triggering the workflow
-      # by setting run_http_tests to false.
-      - name: Run Network Gateway API Functional Tests
+      # by setting run_tls_passthrough_tests to false.
+      - name: Run Network Gateway API TLS Passthrough Functional Tests
         if: |
           github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_http_tests == 'true')
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_passthrough_tests == 'true')
         run: |
-          bash .github/actions/tests/kindenv/gatewayapi141ctl.sh
+          bash .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/gatewayapi161ctl.sh
 
       # ============================================================
       # 18. Gateway API Functional Tests
