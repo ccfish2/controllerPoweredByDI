@@ -63,17 +63,26 @@ openssl req -x509 -nodes -newkey rsa:2048 \
 
 NAMESPACE="dolphin"
 
-for namespace in "${NAMESPACE}" cilium-secrets; do
-  kubectl create namespace "${namespace}" \
-    --dry-run=client -o yaml |
-    kubectl apply -f -
+kubectl create namespace dolphin \
+  --dry-run=client -o yaml |
+  kubectl apply -f -
 
-  kubectl -n "${namespace}" create secret tls tls-ingress-secret \
-    --cert="${CERT_DIR}/tls.crt" \
-    --key="${CERT_DIR}/tls.key" \
-    --dry-run=client -o yaml |
-    kubectl apply -f -
-done
+kubectl -n dolphin create secret tls tls-ingress-secret \
+  --cert="${CERT_DIR}/tls.crt" \
+  --key="${CERT_DIR}/tls.key" \
+  --dry-run=client -o yaml |
+  kubectl apply -f -
+
+kubectl create cilium-secrets \
+  --dry-run=client -o yaml |
+  kubectl apply -f -
+
+kubectl -n cilium-secrets create secret tls tls-ingress-secret \
+  --cert="${CERT_DIR}/tls.crt" \
+  --key="${CERT_DIR}/tls.key" \
+  --dry-run=client -o yaml |
+  kubectl apply -f -
+
 
 echo "Deploying TLS passthrough backend"
 
