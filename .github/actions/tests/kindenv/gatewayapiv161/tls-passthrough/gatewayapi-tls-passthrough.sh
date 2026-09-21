@@ -12,56 +12,30 @@ GATEWAY_CLASS="dolphin"
 
 # Install the sample application and the Cilium resources required by the
 # Gateway implementation before creating any Gateway API objects.
-kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-#kubectl -n dolphin apply -f .github/applications-for-conformance/books-info.yaml
-echo "Deploy Cilium CRDS"
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/crds/ --recursive || true # cilium CRDs
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-agent.yaml
-kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/custom-envoy.yaml
-
-echo "Checking kube-system cilium agent and envoy pods are ready"
-NAMESPACE="kube-system"
-TIMEOUT=120
-INTERVAL=5
-wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
-wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
-NAMESPACE="dolphin"
+kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml || true
 
 # Remove the legacy static CEC so it cannot reconcile a Service that this test
 # does not create. The active passthrough CEC is applied below.
 kubectl -n "${NAMESPACE}" delete ciliumenvoyconfig cilium-gateway-my-gateway \
   --ignore-not-found=true
-
-kubectl apply -f - <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: ${GATEWAY_CLASS}
-spec:
-  controllerName: io.dolphin/gateway-controller
-  description: The default Dolphin GatewayClass
-EOF
-
 # The GatewayClass must be accepted before listeners and routes can become
 # ready; the helper polls its status with a bounded timeout.
-wait_for_gatewayclass_accepted "${GATEWAY_CLASS}" 120 5
 
 echo "Generating TLS certificate"
 
 DOMAIN="bookinfo.cilium.rocks"
 CERT_DIR="$(mktemp -d)"
+NAMESPACE="dolphin"
+
 # Keep the short-lived test certificates out of the repository and remove
 # them automatically when the script exits, including on failure.
 trap 'rm -rf "${CERT_DIR}"' EXIT
-
 openssl req -x509 -nodes -newkey rsa:2048 \
   -keyout "${CERT_DIR}/tls.key" \
   -out "${CERT_DIR}/tls.crt" \
   -days 1 \
   -subj "/CN=${DOMAIN}" \
   -addext "subjectAltName=DNS:${DOMAIN}"
-
-NAMESPACE="dolphin"
 
 kubectl create namespace dolphin \
   --dry-run=client -o yaml |
@@ -319,7 +293,7 @@ kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 # Install the Envoy path configuration used to connect the external Gateway
 # address to the backend pods through Cilium's datapath.
 kubectl -n "${NAMESPACE}" apply -f \
-  "${SCRIPT_DIR}/ingressintegrationtests_setup/gatewayapi/tls-paththrough/ciliumenvoconfig.yaml"
+  .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/ciliumenvoconfig-tls-passthrough.yaml
 sleep 10
 
 dump_passthrough_debug

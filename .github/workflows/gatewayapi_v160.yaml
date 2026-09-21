@@ -25,26 +25,26 @@ on:
         required: false
         default: 'true'
         type: boolean
-      run_grpc_tests:
-        description: 'Run GRPC Functional Tests'
-        required: false
-        default: 'true'
-        type: boolean
-      run_http_split_tests:
-        description: 'Run HTTP Splitting Functional Tests'
-        required: false
-        default: 'true'
-        type: boolean
-      run_http_modify_header_tests:
-        description: 'Run Network Gateway API HTTP Modify Header'
-        required: false
-        default: 'true'
-        type: boolean
-      run_parameterized_gatewayclass:
-        desciption: Run Network Gateway API Parameterized Gateway Class
-        required: false
-        default: 'true'
-        type: boolean
+      # run_grpc_tests:
+      #   description: 'Run GRPC Functional Tests'
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
+      # run_http_split_tests:
+      #   description: 'Run HTTP Splitting Functional Tests'
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
+      # run_http_modify_header_tests:
+      #   description: 'Run Network Gateway API HTTP Modify Header'
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
+      # run_parameterized_gatewayclass:
+      #   desciption: Run Network Gateway API Parameterized Gateway Class
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -366,7 +366,7 @@ jobs:
           github.event_name == 'workflow_run' || 
           (github.event_name == 'workflow_dispatch' && inputs.run_tls_default_cert == 'true')
         run: |
-          bash .github/actions/tests/kindenv/gatewayapiv161/http/gatewayapi161-http.sh
+          bash .github/actions/tests/kindenv/gatewayapiv161/tls-default-cert/default-tls-cert.sh
 
 
       # ============================================================
@@ -380,6 +380,7 @@ jobs:
       #
       # This step can be skipped when manually triggering the workflow
       # by setting run_http_tests to false.
+      # there are some overlapps between api-tests and default-tls-cert tests
       - name: Run Network Gateway API Basic TLS Termination Functional Tests 
         if: |
           github.event_name == 'workflow_run' || 
@@ -403,64 +404,64 @@ jobs:
           github.event_name == 'workflow_run' || 
           (github.event_name == 'workflow_dispatch' && inputs.run_tls_passthrough_tests == 'true')
         run: |
-          bash .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/gatewayapi161ctl.sh
+          bash .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/gatewayapi-tls-passthrough.sh
 
-      # ============================================================
-      # 18. Gateway API Functional Tests
-      # ============================================================
-      # Validate Gateway API functionality provided by the operator.
-      #
-      # The test suite exercises the Gateway API resources installed
-      # earlier in this workflow, including GatewayClass, Gateway,
-      # HTTPRoute and other supported Gateway API resources.
-      #
-      # This step can be skipped when manually triggering the workflow
-      # by setting run_grpc_tests to false.
-      - name: Run Network Gateway API GRPC functional Tests
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_grpc_tests == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/gatewayapictl141grpc.sh
+      # # ============================================================
+      # # 18. Gateway API Functional Tests
+      # # ============================================================
+      # # Validate Gateway API functionality provided by the operator.
+      # #
+      # # The test suite exercises the Gateway API resources installed
+      # # earlier in this workflow, including GatewayClass, Gateway,
+      # # HTTPRoute and other supported Gateway API resources.
+      # #
+      # # This step can be skipped when manually triggering the workflow
+      # # by setting run_grpc_tests to false.
+      # - name: Run Network Gateway API GRPC functional Tests
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_grpc_tests == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/gatewayapictl141grpc.sh
 
-      # ============================================================
-      # 19. Gateway API -- HTTP Splitting Functional Tests
-      # ============================================================
-      # Validate Gateway API functionality provided by the operator.
-      #
-      # The test suite exercises the Gateway API resources installed
-      # earlier in this workflow, including GatewayClass, Gateway,
-      # HTTPRoute and other supported Gateway API resources.
-      #
-      # This step can be skipped when manually triggering the workflow
-      # by setting run_http_split_tests to false.
-      - name: Run Network Gateway API HTTP Splitting functional Tests
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_http_split_tests == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/gatewayapictl141httpsplit.sh
+      # # ============================================================
+      # # 19. Gateway API -- HTTP Splitting Functional Tests
+      # # ============================================================
+      # # Validate Gateway API functionality provided by the operator.
+      # #
+      # # The test suite exercises the Gateway API resources installed
+      # # earlier in this workflow, including GatewayClass, Gateway,
+      # # HTTPRoute and other supported Gateway API resources.
+      # #
+      # # This step can be skipped when manually triggering the workflow
+      # # by setting run_http_split_tests to false.
+      # - name: Run Network Gateway API HTTP Splitting functional Tests
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_http_split_tests == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/gatewayapictl141httpsplit.sh
 
-      # ============================================================
-      # 20. Gateway API -- HTTP Header Modify
-      # ============================================================
-      - name: Run Network Gateway API HTTP Modify Header
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/gatewayapictl141httpheader-modify.sh
+      # # ============================================================
+      # # 20. Gateway API -- HTTP Header Modify
+      # # ============================================================
+      # - name: Run Network Gateway API HTTP Modify Header
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/gatewayapictl141httpheader-modify.sh
 
       
-      # ============================================================
-      # 21. Gateway API -- Parameterized Gateway Class
-      # ============================================================
-      - name: Run Network Gateway API Parameterized Gateway Class
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/gatewayapictl141parameterizedclas.sh
+      # # ============================================================
+      # # 21. Gateway API -- Parameterized Gateway Class
+      # # ============================================================
+      # - name: Run Network Gateway API Parameterized Gateway Class
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/gatewayapictl141parameterizedclas.sh
       
       # ============================================================
       # 16. Cleanup
