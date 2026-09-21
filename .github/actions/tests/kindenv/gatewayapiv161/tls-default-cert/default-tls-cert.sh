@@ -15,14 +15,15 @@ echo "Install/upgrade Cilium Agent and Envoy"
 
 NAMESPACE="kube-system"
 CILIUM_VERSION="1.20.1"
-TIMEOUT=120
+TIMEOUT=300
 INTERVAL=5
 
 echo "Installing/upgrading Cilium ${CILIUM_VERSION}..."
 helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
 helm repo update >/dev/null
 
-helm upgrade --install cilium cilium/cilium \
+CILIUM_HELM_TIMEOUT=300
+if ! helm upgrade --install cilium cilium/cilium \
     --version "${CILIUM_VERSION}" \
     --namespace "${NAMESPACE}" \
     --create-namespace \
@@ -30,7 +31,42 @@ helm upgrade --install cilium cilium/cilium \
     --set gatewayAPI.enabled=true \
     --set operator.replicas=0 \
     --wait \
-    --timeout "${TIMEOUT}s"
+    --timeout "${CILIUM_HELM_TIMEOUT}s"
+then
+    echo "Cilium failed to become ready; collecting diagnostics..."
+
+    kubectl -n kube-system get pods -o wide || true
+
+    echo "----- Cilium DaemonSet -----"
+    kubectl -n kube-system get ds cilium -o wide || true
+    kubectl -n kube-system describe ds cilium || true
+
+    echo "----- Cilium pod descriptions -----"
+    kubectl -n kube-system describe pods \
+        -l k8s-app=cilium || true
+
+    echo "----- Cilium logs -----"
+    kubectl -n kube-system logs \
+        -l k8s-app=cilium \
+        --all-containers=true \
+        --tail=300 \
+        --prefix || true
+
+    echo "----- kube-system events -----"
+    kubectl get events -n kube-system \
+        --sort-by='.lastTimestamp' | tail -100 || true
+
+    echo "----- all nodes -----"
+    kubectl get nodes -o wide || true
+
+    echo "----- node conditions/resources -----"
+    kubectl describe nodes | \
+        grep -A10 -E "Conditions:|Allocated resources" || true
+
+    echo "----- Helm status -----"
+    helm status cilium -n kube-system || true
+    exit 1
+fi
 
 echo "Waiting for Cilium agent pods to be ready..."
 wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
