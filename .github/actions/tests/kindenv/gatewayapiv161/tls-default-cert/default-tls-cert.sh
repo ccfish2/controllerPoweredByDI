@@ -151,6 +151,9 @@ kubectl -n dolphin create secret tls tls-default-secret \
   --cert=$CERT_FILE \
   --key=$KEY_FILE
 
+# going back to parent folder
+cd ..
+
 echo "Deploying Gateway and HTTP Route"
 kubectl apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
