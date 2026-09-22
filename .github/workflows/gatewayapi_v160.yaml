@@ -30,21 +30,21 @@ on:
         required: false
         default: 'true'
         type: boolean
-      # run_http_split_tests:
-      #   description: 'Run HTTP Splitting Functional Tests'
-      #   required: false
-      #   default: 'true'
-      #   type: boolean
-      # run_http_modify_header_tests:
-      #   description: 'Run Network Gateway API HTTP Modify Header'
-      #   required: false
-      #   default: 'true'
-      #   type: boolean
-      # run_parameterized_gatewayclass:
-      #   desciption: Run Network Gateway API Parameterized Gateway Class
-      #   required: false
-      #   default: 'true'
-      #   type: boolean
+      run_http_split_tests:
+        description: 'Run HTTP Splitting Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_http_modify_header_tests:
+        description: 'Run Network Gateway API HTTP Modify Header'
+        required: false
+        default: 'true'
+        type: boolean
+      run_parameterized_gatewayclass:
+        desciption: Run Network Gateway API Parameterized Gateway Class
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -442,27 +442,27 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/httpsplit/161httpsplit.sh
 
-      # # ============================================================
-      # # 20. Gateway API -- HTTP Header Modify
-      # # ============================================================
-      # - name: Run Network Gateway API HTTP Modify Header
-      #   if: |
-      #     github.event_name == 'workflow_run' || 
-      #     (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
-      #   run: |
-      #     bash .github/actions/tests/kindenv/gatewayapictl141httpheader-modify.sh
+      # ============================================================
+      # 20. Gateway API -- HTTP Header Modify
+      # ============================================================
+      - name: Run Network Gateway API HTTP Modify Header
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/httpheadermodify/gw161httpheader-modify.sh
 
       
-      # # ============================================================
-      # # 21. Gateway API -- Parameterized Gateway Class
-      # # ============================================================
-      # - name: Run Network Gateway API Parameterized Gateway Class
-      #   if: |
-      #     github.event_name == 'workflow_run' || 
-      #     (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
-      #   run: |
-      #     bash .github/actions/tests/kindenv/gatewayapictl141parameterizedclas.sh
-      
+      # ============================================================
+      # 21. Gateway API -- Parameterized Gateway Class
+      # ============================================================
+      - name: Run Network Gateway API Parameterized Gateway Class
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/gatewayapictl161parameterizedclas.sh
+
       # ============================================================
       # 16. Cleanup
       # ============================================================
