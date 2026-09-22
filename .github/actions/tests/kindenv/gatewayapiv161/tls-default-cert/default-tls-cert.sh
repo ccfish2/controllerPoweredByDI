@@ -29,7 +29,6 @@ if ! helm upgrade --install cilium cilium/cilium \
     --create-namespace \
     --set kubeProxyReplacement=true \
     --set gatewayAPI.enabled=true \
-    --set operator.replicas=0 \
     --wait \
     --timeout "${CILIUM_HELM_TIMEOUT}s"
 then
