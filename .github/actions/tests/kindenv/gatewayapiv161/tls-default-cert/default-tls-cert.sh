@@ -8,7 +8,6 @@ source ".github/actions/tests/kindenv/lib/helper.sh"
 source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 #!/usr/bin/env bash
-#!/usr/bin/env bash
 set -euo pipefail
 
 echo "Install/upgrade Cilium Agent and Envoy"
