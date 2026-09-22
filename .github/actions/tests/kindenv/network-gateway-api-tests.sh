@@ -42,7 +42,7 @@ fi
 echo "binary mkcert exist"
 ls -l mkcert
 ./mkcert $DOMAIN
-kubectl create namespace cilium-secrets
+kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n dolphin create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n cilium-secrets create secret tls tls-ingress-secret --cert=bookinfo.cilium.rocks.pem --key=bookinfo.cilium.rocks-key.pem --dry-run=client -o yaml | kubectl apply -f -
 cd ..
