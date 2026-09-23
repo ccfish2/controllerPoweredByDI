@@ -45,6 +45,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_tls_backend_policy:
+        desciption: Run Network Gateway API TLS BackEnd Policy 
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -462,6 +467,16 @@ jobs:
           (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/gatewayapictl161parameterizedclas.sh
+
+      # ============================================================
+      # 22. Gateway API -- TLS Backend Policy
+      # ============================================================
+      - name: Run Network Gateway API TLS Backend Policy
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_backend_policy == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/tlsbackendpolicy/gwapi161tlsbackendpolicy.sh
 
       # ============================================================
       # 16. Cleanup

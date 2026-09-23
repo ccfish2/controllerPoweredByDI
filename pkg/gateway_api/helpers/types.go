@@ -15,6 +15,7 @@ const (
 	kindSecret        = "Secret"
 	kindService       = "Service"
 	kindServiceImport = "ServiceImport"
+	kindListenerSet   = "ListenerSet"
 
 	GatewayClassKind      string = "gatewayclasses"
 	GatewayKind           string = "gateways"
@@ -50,6 +51,15 @@ func GatewayV1GVK(kind string) schema.GroupVersionKind {
 func IsGateway(parent gatewayv1.ParentReference) bool {
 	return (parent.Kind == nil || *parent.Kind == kindGateway) && (parent.Group == nil || *parent.Group == gatewayv1.GroupName)
 }
+
+func IsListenerSet(parent gatewayv1.ParentReference) bool {
+	return parent.Kind != nil && *parent.Kind == kindListenerSet && (parent.Group == nil || *parent.Group == gatewayv1.GroupName)
+}
+
+func IsServiceTargetRef(tr gatewayv1.LocalPolicyTargetReferenceWithSectionName) bool {
+	return tr.Kind == kindService && tr.Group == corev1.GroupName
+}
+
 func IsGammaService(parent gatewayv1.ParentReference) bool {
 	return parent.Kind != nil && *parent.Kind == kindService &&
 		parent.Group != nil && (*parent.Group == corev1.GroupName || *parent.Group == "core")

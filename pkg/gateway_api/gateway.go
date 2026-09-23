@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	watchhandlers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/watch-handlers"
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 
@@ -154,6 +155,8 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			r.enqueueRequestForAllowedNamespace()).
 		// Watch for changes to Reference Grants
 		Watches(&gatewayv1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
+		// Watch for changes to BackendTLSPolicy
+		Watches(&gatewayv1.BackendTLSPolicy{}, watchhandlers.EnqueueRequestForBackendTLSPolicy(r.Client, r.logger, "dolphin")).
 		Watches(&corev1.Node{}, r.enqueueRequestForNodes(r.Client, r.logger, owningGatewayLabel)).
 		// Watch created and owned resources
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).

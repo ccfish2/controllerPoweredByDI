@@ -8,11 +8,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-const (
-	// Indexes GatewayClass objects by the DolphinGatewayClassConfig they reference.
-	GatewayClassDolphinGatewayClassConfigsIndex = "gatewayClassDolphinGatewayClassConfigsIndex"
-)
-
 // indexGatewayByImplementation adds a value of `dolphin` to the implementationGatewayIndex if
 // the Gateway has a GatewayClass that has the Dolphin `controllerName`.
 func GenerateIndexerGatewayByImplementation(c client.Client, controllerName gatewayv1.GatewayController) client.IndexerFunc {
