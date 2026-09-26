@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
+	mcsapiv1beta1 "sigs.k8s.io/mcs-api/pkg/apis/v1beta1"
 )
 
 const (
@@ -27,6 +28,10 @@ const (
 	ServiceImportKind     string = "serviceimports"
 	ServiceImportListKind string = "serviceimportlists"
 	BackendTLSPolicyKind  string = "backendtlspolicies"
+
+	TCPRouteKind    string = "tcproutes"
+	UDPRouteKind    string = "udproutes"
+	ListenerSetKind string = "listenersets"
 )
 
 var RequiredGVKs = []schema.GroupVersionKind{
@@ -37,6 +42,13 @@ var RequiredGVKs = []schema.GroupVersionKind{
 	GatewayV1GVK(TLSRouteKind),
 	GatewayV1GVK(ReferenceGrantKind),
 	GatewayV1GVK(BackendTLSPolicyKind),
+}
+
+var AllOptionalKinds = []schema.GroupVersionKind{
+	GatewayV1GVK(ListenerSetKind),
+	mcsapiv1beta1.SchemeGroupVersion.WithKind(ServiceImportKind),
+	GatewayV1GVK(TCPRouteKind),
+	GatewayV1GVK(UDPRouteKind),
 }
 
 // GatewayV1GVK returns the GroupVersionKind for a given Gateway API v1 kind.

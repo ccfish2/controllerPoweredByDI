@@ -25,6 +25,18 @@ func AddToScheme(scheme *runtime.Scheme) error {
 		}
 	}
 
+	for _, optionalKind := range helpers.AllOptionalKinds {
+		addToSchema[optionalKind] = func(s *runtime.Scheme) error {
+			s.AddKnownTypes(
+				optionalKind.GroupVersion(),
+				helpers.GetConcreteObject(optionalKind),
+				helpers.GetConcreteListObject(optionalKind),
+			)
+			metav1.AddToGroupVersion(s, optionalKind.GroupVersion())
+			return nil
+		}
+	}
+
 	// We can also safely install the v1beta1 resources, as these are legacy
 	// and also included in the Standard install
 	addToSchema[gatewayv1beta1.GroupVersion] = gatewayv1beta1.Install

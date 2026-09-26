@@ -117,7 +117,7 @@ func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logg
 	}
 
 	for {
-		installedKinds, err := checkCRDs(ctx, client, logger, helpers.RequiredGVKs, helpers.RequiredGVKs)
+		installedKinds, err := checkCRDs(ctx, client, logger, helpers.RequiredGVKs, helpers.AllOptionalKinds)
 		if err == nil {
 			// health.OK("Gateway API CRDs discovered")
 			return &gatewayAPIPreconditions{

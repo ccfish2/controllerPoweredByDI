@@ -122,6 +122,19 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 	}
 
+	var attachedListenerSets []gatewayv1.ListenerSet
+	if helpers.HasListenerSetSupport(r.Client.Scheme()) {
+		listenerSets, err := r.listenerSetsForGateway(ctx, gw)
+		if err != nil {
+			scopedLog.ErrorContext(ctx, "Unable to list ListenerSets", logfields.Error, err)
+			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+		}
+		attachedListenerSets = r.filterToAllowedListenerSets(ctx, scopedLog, gw, listenerSets)
+	}
+	conflictedListeners := conflictsAcrossSources(listenerContexts)
+	mergedListeners := filterOutConflictedListeners(listenerContexts, conflictedListeners)
+	mergedListeners = r.filterOutInvalidListeners(ctx, mergedListeners, grants.Items)
+
 	var namespaces []corev1.Namespace
 	if hasAllowedRoutesNamespaceSelector(gw) {
 		namespaceList := &corev1.NamespaceList{}
