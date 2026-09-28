@@ -239,6 +239,7 @@ rules:
   - grpcroutes
   - referencegrants
   - referencepolicies
+  - listenersets
   verbs:
   - get
   - list
@@ -251,6 +252,7 @@ rules:
   - httproutes
   - grpcroutes
   - tlsroutes
+  - listenersets
   verbs:
   - get
   - list
@@ -263,6 +265,7 @@ rules:
   - httproutes/status
   - grpcroutes/status
   - tlsroutes/status
+  - listenersets/status
   verbs:
   - update
   - patch

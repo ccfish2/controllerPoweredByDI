@@ -109,14 +109,14 @@ func GetConcreteObject(schemaType schema.GroupVersionKind) runtime.Object {
 		return &gatewayv1.ReferenceGrant{}
 	case BackendTLSPolicyKind:
 		return &gatewayv1.BackendTLSPolicy{}
-	// case TCPRouteKind:
-	// 	return &gatewayv1.TCPRoute{}
-	// case UDPRouteKind:
-	// 	return &gatewayv1.UDPRoute{}
-	// case ListenerSetKind:
-	// 	return &gatewayv1.ListenerSet{}
-	// case ServiceImportKind:
-	// 	return &mcsapiv1beta1.ServiceImport{}
+	case TCPRouteKind:
+		return &gatewayv1.TCPRoute{}
+	case UDPRouteKind:
+		return &gatewayv1.UDPRoute{}
+	case ListenerSetKind:
+		return &gatewayv1.ListenerSet{}
+	case ServiceImportKind:
+		return &mcsapiv1beta1.ServiceImport{}
 	default:
 		// panic is okay here because this is a progammer error
 		panic(fmt.Sprintf("Tried to get a concrete type that is not implemented, %s", schemaType.Kind))
@@ -143,14 +143,14 @@ func GetConcreteListObject(schemaType schema.GroupVersionKind) runtime.Object {
 		return &gatewayv1.ReferenceGrantList{}
 	case BackendTLSPolicyKind:
 		return &gatewayv1.BackendTLSPolicyList{}
-	// case TCPRouteKind:
-	// 	return &gatewayv1.TCPRouteList{}
-	// case UDPRouteKind:
-	// 	return &gatewayv1.UDPRouteList{}
-	// case ListenerSetKind:
-	// 	return &gatewayv1.ListenerSetList{}
-	// case ServiceImportKind:
-	// 	return &mcsapiv1beta1.ServiceImportList{}
+	case TCPRouteKind:
+		return &gatewayv1.TCPRouteList{}
+	case UDPRouteKind:
+		return &gatewayv1.UDPRouteList{}
+	case ListenerSetKind:
+		return &gatewayv1.ListenerSetList{}
+	case ServiceImportKind:
+		return &mcsapiv1beta1.ServiceImportList{}
 	default:
 		// panic is okay here because this is a progammer error
 		panic(fmt.Sprintf("Tried to get a concrete list type that is not implemented, %s", schemaType.Kind))

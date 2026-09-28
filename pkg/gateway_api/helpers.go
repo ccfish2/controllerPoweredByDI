@@ -34,6 +34,28 @@ const (
 	ServiceImportKind    string = "serviceimports"
 )
 
+func gatewayFQR(gw *gatewayv1.Gateway) model.FullyQualifiedResource {
+	return model.FullyQualifiedResource{
+		Name:      gw.GetName(),
+		Namespace: gw.GetNamespace(),
+		Group:     gatewayv1.GroupVersion.Group,
+		Version:   gatewayv1.GroupVersion.Version,
+		Kind:      "Gateway",
+		UID:       string(gw.GetUID()),
+	}
+}
+
+func listenerSetFQR(ls *gatewayv1.ListenerSet) model.FullyQualifiedResource {
+	return model.FullyQualifiedResource{
+		Name:      ls.GetName(),
+		Namespace: ls.GetNamespace(),
+		Group:     gatewayv1.GroupVersion.Group,
+		Version:   gatewayv1.GroupVersion.Version,
+		Kind:      "ListenerSet",
+		UID:       string(ls.GetUID()),
+	}
+}
+
 func GatewayAddressTypePtr(addr gatewayv1.AddressType) *gatewayv1.AddressType {
 	return &addr
 }
