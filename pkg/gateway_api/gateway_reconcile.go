@@ -136,6 +136,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		attachedListenerSets = r.filterToAllowedListenerSets(ctx, slogscopedLog, gw, listenerSets)
 	}
 	_ = r.mergeListeners(ctx, slogscopedLog, gw, attachedListenerSets)
+	// following features are applied to multitenancy environment
 	// conflictedListeners := conflictsAcrossSources(listenerContexts)
 	// mergedListeners := filterOutConflictedListeners(listenerContexts, conflictedListeners)
 	// mergedListeners = r.filterOutInvalidListeners(ctx, mergedListeners, grants.Items)
