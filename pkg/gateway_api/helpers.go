@@ -20,6 +20,7 @@ const (
 	kindTCPRoute  = "TCPRoute"
 	kindService   = "Service"
 	kindSecret    = "Secret"
+	kindGRPCRoute = "GRPCRoute"
 
 	GatewayClassKind     string = "gatewayclasses"
 	GatewayKind          string = "gateways"
@@ -53,6 +54,45 @@ func listenerSetFQR(ls *gatewayv1.ListenerSet) model.FullyQualifiedResource {
 		Version:   gatewayv1.GroupVersion.Version,
 		Kind:      "ListenerSet",
 		UID:       string(ls.GetUID()),
+	}
+}
+
+func getSupportedRouteKinds(protocol gatewayv1.ProtocolType) []gatewayv1.RouteGroupKind {
+	switch protocol {
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindHTTPRoute,
+			},
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindGRPCRoute,
+			},
+		}
+	case gatewayv1.TLSProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindTLSRoute,
+			},
+		}
+	case gatewayv1.TCPProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindTCPRoute,
+			},
+		}
+	case gatewayv1.UDPProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindUDPRoute,
+			},
+		}
+	default:
+		return nil
 	}
 }
 

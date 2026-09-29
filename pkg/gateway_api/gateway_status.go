@@ -82,6 +82,52 @@ func gwStsAcpCondition(gw *gatewayv1.Gateway, accepted bool, msg string) metav1.
 	}
 }
 
+func listenerAcceptedCondition(generation int64, ready bool, reason gatewayv1.ListenerConditionReason, msg string) metav1.Condition {
+	switch ready {
+	case true:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionAccepted),
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Reason:             string(reason),
+			Message:            msg,
+		}
+	default:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionAccepted),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(reason),
+			Message:            msg,
+			ObservedGeneration: generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+	}
+}
+
+func listenerProgrammedCondition(generation int64, ready bool, reason gatewayv1.ListenerConditionReason, msg string) metav1.Condition {
+	switch ready {
+	case true:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionProgrammed),
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+			Reason:             string(reason),
+			Message:            msg,
+		}
+	default:
+		return metav1.Condition{
+			Type:               string(gatewayv1.ListenerConditionProgrammed),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(reason),
+			Message:            msg,
+			ObservedGeneration: generation,
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		}
+	}
+}
+
 func setListenerSetAccepted(ls *gatewayv1.ListenerSet, accepted bool, msg string, reason gatewayv1.ListenerSetConditionReason) {
 	status := metav1.ConditionTrue
 	if !accepted {
