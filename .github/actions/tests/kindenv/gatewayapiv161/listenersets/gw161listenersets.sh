@@ -59,6 +59,10 @@ echo "  - Accepted: ${gateway_accepted}"
 echo "  - Programmed: ${gateway_programmed}"
 echo "  - Address: ${gateway_ip}"
 
+echo "Deploy cilium envoy configuration"
+kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/listenersets/listenersets-cec.yaml
+
+echo "Deploy echo-1 and echo-2 services"
 kubectl -n listenerset-demo apply -f https://raw.githubusercontent.com/cilium/cilium/v1.20/examples/kubernetes/gateway/echo-basic.yaml
 echo "Verify echo pods are up and running"
 NAMESPACE="listenerset-demo"
