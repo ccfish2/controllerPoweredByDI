@@ -2,9 +2,9 @@ package helpers
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/ccfish2/infra/pkg/logging/logfields"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -52,7 +52,7 @@ func IsListenerSetAllowed(
 	c client.Client,
 	gw *gatewayv1.Gateway,
 	ls *gatewayv1.ListenerSet,
-	logger *slog.Logger,
+	logger *logrus.Entry,
 ) bool {
 	if gw.Spec.AllowedListeners == nil {
 		return false
@@ -72,11 +72,11 @@ func IsListenerSetAllowed(
 		nsList := &corev1.NamespaceList{}
 		selector, err := metav1.LabelSelectorAsSelector(ns.Selector)
 		if err != nil {
-			logger.ErrorContext(ctx, "Unable to parse namespace selector", logfields.Error, err)
+			logger.Error(ctx, "Unable to parse namespace selector", logfields.Error, err)
 			return false
 		}
 		if err := c.List(ctx, nsList, client.MatchingLabelsSelector{Selector: selector}); err != nil {
-			logger.ErrorContext(ctx, "Unable to list namespaces", logfields.Error, err)
+			logger.Error(ctx, "Unable to list namespaces", logfields.Error, err)
 			return false
 		}
 		for _, n := range nsList.Items {

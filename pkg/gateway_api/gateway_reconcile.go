@@ -37,13 +37,11 @@ import (
 )
 
 func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	fmt.Println("?????")
 	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
 		logfields.Controller: gateway,
 		logfields.Resource:   req.NamespacedName,
 	})
 
-	slogscopedLog := slog.New(slog.Default().Handler())
 	scopedLog.Info("Reconciling Gateway")
 
 	// step 1: retrieve the gateway
@@ -127,15 +125,14 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	var attachedListenerSets []gatewayv1.ListenerSet
 	if helpers.HasListenerSetSupport(r.Client.Scheme()) {
-		fmt.Println("111111")
 		listenerSets, err := r.listenerSetsForGateway(ctx, gw)
 		if err != nil {
 			scopedLog.Error(ctx, "Unable to list ListenerSets", logfields.Error, err)
 			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 		}
-		attachedListenerSets = r.filterToAllowedListenerSets(ctx, slogscopedLog, gw, listenerSets)
+		attachedListenerSets = r.filterToAllowedListenerSets(ctx, scopedLog, gw, listenerSets)
 	}
-	_ = r.mergeListeners(ctx, slogscopedLog, gw, attachedListenerSets)
+	_ = r.mergeListeners(ctx, scopedLog, gw, attachedListenerSets)
 	// following features are applied to multitenancy environment
 	// conflictedListeners := conflictsAcrossSources(listenerContexts)
 	// mergedListeners := filterOutConflictedListeners(listenerContexts, conflictedListeners)
@@ -545,7 +542,7 @@ func sortListenerSets(sets []gatewayv1.ListenerSet) {
 
 func (r *gatewayReconciler) filterToAllowedListenerSets(
 	ctx context.Context,
-	scopedLog *slog.Logger,
+	scopedLog *logrus.Entry,
 	gw *gatewayv1.Gateway,
 	listenerSets []gatewayv1.ListenerSet,
 ) []gatewayv1.ListenerSet {
@@ -557,7 +554,7 @@ func (r *gatewayReconciler) filterToAllowedListenerSets(
 			setListenerSetAccepted(ls, false, "ListenerSet is not allowed by the Gateway's allowedListeners policy", gatewayv1.ListenerSetReasonNotAllowed)
 			setListenerSetProgrammed(ls, false, "ListenerSet is not allowed by the Gateway's allowedListeners policy", gatewayv1.ListenerSetReasonNotAllowed)
 			if err := r.updateListenerSetStatus(ctx, original, ls); err != nil {
-				scopedLog.ErrorContext(ctx, "Unable to update ListenerSet status", logfields.Error, err)
+				scopedLog.Error(ctx, "Unable to update ListenerSet status", logfields.Error, err)
 			}
 			continue
 		}
@@ -578,7 +575,7 @@ func (r *gatewayReconciler) updateListenerSetStatus(ctx context.Context, origina
 
 func (r *gatewayReconciler) mergeListeners(
 	ctx context.Context,
-	scopedLog *slog.Logger,
+	scopedLog *logrus.Entry,
 	gw *gatewayv1.Gateway,
 	listenerSets []gatewayv1.ListenerSet,
 ) []ingestion.ListenerWithContext {
@@ -612,7 +609,7 @@ func (r *gatewayReconciler) mergeListeners(
 
 // resolveAllowedNamespaces resolves a listener's allowedRoutes.namespaces policy
 // into a set of namespace names. Returns nil to indicate all namespaces are allowed.
-func resolveAllowedNamespaces(ctx context.Context, c client.Client, listenerNamespace string, listener gatewayv1.Listener, logger *slog.Logger) map[string]struct{} {
+func resolveAllowedNamespaces(ctx context.Context, c client.Client, listenerNamespace string, listener gatewayv1.Listener, logger *logrus.Entry) map[string]struct{} {
 	if listener.AllowedRoutes == nil || listener.AllowedRoutes.Namespaces == nil || listener.AllowedRoutes.Namespaces.From == nil {
 		return map[string]struct{}{listenerNamespace: {}}
 	}
@@ -625,7 +622,7 @@ func resolveAllowedNamespaces(ctx context.Context, c client.Client, listenerName
 		nsList := &corev1.NamespaceList{}
 		selector, _ := metav1.LabelSelectorAsSelector(listener.AllowedRoutes.Namespaces.Selector)
 		if err := c.List(ctx, nsList, client.MatchingLabelsSelector{Selector: selector}); err != nil {
-			logger.ErrorContext(ctx, "Unable to list namespaces for listener", logfields.Error, err)
+			logger.Error(ctx, "Unable to list namespaces for listener", logfields.Error, err)
 			return map[string]struct{}{listenerNamespace: {}}
 		}
 		allowed := make(map[string]struct{})
