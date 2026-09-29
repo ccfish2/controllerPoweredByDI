@@ -88,3 +88,22 @@ func IndexHTTPRouteByBackendServiceImport(rawObj client.Object) []string {
 	}
 	return backendServiceImports
 }
+
+// IndexHTTPRouteByListenerSet indexes HTTPRoutes by all ListenerSet parents
+// referenced in the object, returning ListenerSet full names (`namespace/name`).
+func IndexHTTPRouteByListenerSet(rawObj client.Object) []string {
+	hr := rawObj.(*gatewayv1.HTTPRoute)
+	var listenerSets []string
+	for _, parent := range hr.Spec.ParentRefs {
+		if !helpers.IsListenerSet(parent) {
+			continue
+		}
+		listenerSets = append(listenerSets,
+			types.NamespacedName{
+				Namespace: helpers.NamespaceDerefOr(parent.Namespace, hr.Namespace),
+				Name:      string(parent.Name),
+			}.String(),
+		)
+	}
+	return listenerSets
+}

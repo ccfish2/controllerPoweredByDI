@@ -16,6 +16,16 @@ import (
 	"github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 )
 
+type ListenerWithContext struct {
+	gatewayv1.Listener
+
+	Source           model.FullyQualifiedResource
+	SourceGeneration int64
+
+	// AllowedNamespaces is the set of namespaces allowed for Route attachment
+	AllowedNamespaces map[string]struct{}
+}
+
 func toHTTPHeaders(headers []gatewayv1.HTTPHeader) []model.Header {
 	res := make([]model.Header, 0, len(headers))
 	for _, header := range headers {

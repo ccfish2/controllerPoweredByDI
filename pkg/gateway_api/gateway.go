@@ -127,6 +127,37 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 	}
 
+	// Index ListenerSets by parent Gateway, and routes by ListenerSet parentRefs
+	// if listenerSetEnabled {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, indexers.ListenerSetGatewayIndex, indexers.IndexListenerSetByGateway); err != nil {
+		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ListenerSetGatewayIndex, err)
+	}
+
+	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, helpers.ListenerSetSecretIndex, indexers.IndexListenerSetBySecret); err != nil {
+	// 	return fmt.Errorf("failed to setup field indexer %q: %w", helpers.ListenerSetSecretIndex, err)
+	// }
+
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexers.HTTPRouteListenerSetIndex, indexers.IndexHTTPRouteByListenerSet); err != nil {
+		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.HTTPRouteListenerSetIndex, err)
+	}
+	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{}, indexers.GRPCRouteListenerSetIndex, indexers.IndexGRPCRouteByListenerSet); err != nil {
+	// 	return fmt.Errorf("failed to setup field indexer %q: %w", indexers.GRPCRouteListenerSetIndex, err)
+	// }
+	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexers.TLSRouteListenerSetIndex, indexers.IndexTLSRouteByListenerSet); err != nil {
+	// 	return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TLSRouteListenerSetIndex, err)
+	// }
+	// // if tcpRouteEnabled {
+	// 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TCPRoute{}, indexers.TCPRouteListenerSetIndex, indexers.IndexTCPRouteByListenerSet); err != nil {
+	// 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TCPRouteListenerSetIndex, err)
+	// 	}
+	// }
+	// // if udpRouteEnabled {
+	// 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.UDPRoute{}, indexers.UDPRouteListenerSetIndex, indexers.IndexUDPRouteByListenerSet); err != nil {
+	// 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.UDPRouteListenerSetIndex, err)
+	// 	}
+	// }
+	// }
+
 	hasMatchingControllerFn := hasMatchingController(context.Background(), r.Client, controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	gatewayBuilder := ctrl.NewControllerManagedBy(mgr).
 		// Watch its own resource

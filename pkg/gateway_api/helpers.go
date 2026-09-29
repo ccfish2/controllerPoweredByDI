@@ -20,6 +20,7 @@ const (
 	kindTCPRoute  = "TCPRoute"
 	kindService   = "Service"
 	kindSecret    = "Secret"
+	kindGRPCRoute = "GRPCRoute"
 
 	GatewayClassKind     string = "gatewayclasses"
 	GatewayKind          string = "gateways"
@@ -33,6 +34,67 @@ const (
 	ListenerSetKind      string = "listenersets"
 	ServiceImportKind    string = "serviceimports"
 )
+
+func gatewayFQR(gw *gatewayv1.Gateway) model.FullyQualifiedResource {
+	return model.FullyQualifiedResource{
+		Name:      gw.GetName(),
+		Namespace: gw.GetNamespace(),
+		Group:     gatewayv1.GroupVersion.Group,
+		Version:   gatewayv1.GroupVersion.Version,
+		Kind:      "Gateway",
+		UID:       string(gw.GetUID()),
+	}
+}
+
+func listenerSetFQR(ls *gatewayv1.ListenerSet) model.FullyQualifiedResource {
+	return model.FullyQualifiedResource{
+		Name:      ls.GetName(),
+		Namespace: ls.GetNamespace(),
+		Group:     gatewayv1.GroupVersion.Group,
+		Version:   gatewayv1.GroupVersion.Version,
+		Kind:      "ListenerSet",
+		UID:       string(ls.GetUID()),
+	}
+}
+
+func getSupportedRouteKinds(protocol gatewayv1.ProtocolType) []gatewayv1.RouteGroupKind {
+	switch protocol {
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindHTTPRoute,
+			},
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindGRPCRoute,
+			},
+		}
+	case gatewayv1.TLSProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindTLSRoute,
+			},
+		}
+	case gatewayv1.TCPProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindTCPRoute,
+			},
+		}
+	case gatewayv1.UDPProtocolType:
+		return []gatewayv1.RouteGroupKind{
+			{
+				Group: GroupPtr(gatewayv1.GroupName),
+				Kind:  kindUDPRoute,
+			},
+		}
+	default:
+		return nil
+	}
+}
 
 func GatewayAddressTypePtr(addr gatewayv1.AddressType) *gatewayv1.AddressType {
 	return &addr

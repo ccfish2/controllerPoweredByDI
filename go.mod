@@ -24,8 +24,10 @@ require (
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/mcs-api v0.1.1-0.20240529200349-2833f83cfbdc
+	sigs.k8s.io/mcs-api v0.5.2
 )
+
+require sigs.k8s.io/mcs-api/controllers v0.5.2 // indirect
 
 require (
 	cel.dev/expr v0.25.2 // indirect

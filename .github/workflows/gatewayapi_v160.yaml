@@ -50,6 +50,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_listener_set:
+        desciption: Run Network Gateway API Listener Sets 
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -479,7 +484,17 @@ jobs:
           bash .github/actions/tests/kindenv/gatewayapiv161/tlsbackendpolicy/gwapi161tlsbackendpolicy.sh
 
       # ============================================================
-      # 16. Cleanup
+      # 23. Gateway API -- ListenerSets
+      # ============================================================
+      - name: Run Network Gateway API ListenerSet
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_listener_set == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/listenersets/gw161listenersets.sh
+
+      # ============================================================
+      # 24. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.
