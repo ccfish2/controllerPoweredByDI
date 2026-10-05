@@ -93,6 +93,8 @@ wait_for_endpoints dolphin productpage || exit 1
 
 set -uo pipefail
 
+kubectl -n dolphin delete pod netshoot --wait=true --timeout=120s
+
 NAMESPACE="dolphin"
 POD="netshoot"
 HOST="bookinfo.cilium.rocks"
