@@ -55,6 +55,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_tls_termination_tests:
+        description: 'Run HTTPS Termination Tests'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -494,7 +499,17 @@ jobs:
           bash .github/actions/tests/kindenv/gatewayapiv161/listenersets/gw161listenersets.sh
 
       # ============================================================
-      # 24. Cleanup
+      # 24. Gateway API -- TLS Termination
+      # ============================================================
+      - name: Run Network Gateway API TLS Termination
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_termination_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/https-termination/gw161tls-termination.sh
+  
+      # ============================================================
+      # 25. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.
