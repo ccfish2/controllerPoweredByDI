@@ -49,8 +49,9 @@ type gatewayReconciler struct {
 	EnableIPv6         bool
 
 	// translator translation.Translator
-	logger        *slog.Logger
-	installedCRDs []schema.GroupVersionKind
+	logger             *slog.Logger
+	installedCRDs      []schema.GroupVersionKind
+	hostNetworkEnabled bool
 }
 
 func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeoutSeconds int, enableIpv4 bool, enableIpv6 bool, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) *gatewayReconciler {
@@ -198,6 +199,8 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Watch TLSRoute linked to Gateway
 		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TLSRoute{}, r.enqueueRequestForOwningTLSRoute(r.logger))
 	}
+
+	gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TCPRoute{}, watchhandlers.EnqueueRequestForOwningTCPRoute(r.Client, r.logger, "dolphin"))
 
 	if serviceImportEnabled {
 		// Watch for changes to Backend Service Imports

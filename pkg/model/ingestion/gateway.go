@@ -50,6 +50,8 @@ type Input struct {
 	HTTPRoutes      []gatewayv1.HTTPRoute
 	TLSRoutes       []gatewayv1.TLSRoute
 	GRPCRoutes      []gatewayv1.GRPCRoute
+	TCPRoutes       []gatewayv1.TCPRoute
+	UDPRoutes       []gatewayv1.UDPRoute
 	ReferenceGrants []gatewayv1.ReferenceGrant
 	Namespaces      []corev1.Namespace
 	Services        []corev1.Service

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -131,6 +132,14 @@ func (h *HTTPRouteInput) GetGateway(parent gatewayv1.ParentReference) (*gatewayv
 
 func (h *HTTPRouteInput) Log() *logrus.Entry {
 	return h.Logger
+}
+
+func (g *HTTPRouteInput) GetListenerOwner(parent gatewayv1.ParentReference) (ListenerOwner, error) {
+	return nil, nil
+}
+
+func (g *HTTPRouteInput) GetValidProtocols() []gatewayv1.ProtocolType {
+	return nil
 }
 
 // HTTPRouteRule is used to implement the GenericRule interface for TLSRoute

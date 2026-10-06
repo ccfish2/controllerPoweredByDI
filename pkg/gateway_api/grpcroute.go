@@ -125,6 +125,10 @@ func (g *GRPCRouteInput) GetHostnames() []gatewayv1.Hostname {
 	return g.GRPCRoute.Spec.Hostnames
 }
 
+func (g *GRPCRouteInput) GetValidProtocols() []gatewayv1.ProtocolType {
+	return nil
+}
+
 func (g *GRPCRouteInput) SetParentCondition(ref gatewayv1.ParentReference, condition metav1.Condition) {
 	condition.LastTransitionTime = metav1.NewTime(time.Now())
 	condition.ObservedGeneration = g.GRPCRoute.GetGeneration()
@@ -167,6 +171,10 @@ func (g *GRPCRouteInput) mergeStatusConditions(parentRef gatewayv1.ParentReferen
 		ControllerName: controllerName,
 		Conditions:     updates,
 	})
+}
+
+func (g *GRPCRouteInput) GetListenerOwner(parent gatewayv1.ParentReference) (routechecker.ListenerOwner, error) {
+	return nil, nil
 }
 
 func newGRPCRouteReconciler(mgr ctrl.Manager) *grpcrouteReconciler {

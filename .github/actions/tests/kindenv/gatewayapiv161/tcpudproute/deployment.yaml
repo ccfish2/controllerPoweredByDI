@@ -1,0 +1,127 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcp-backend
+  namespace: dolphin
+spec:
+  selector:
+    app: tcp-backend
+  ports:
+    - name: echo-tcp-plain
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+    - name: echo-tcp-tls
+      protocol: TCP
+      port: 8443
+      targetPort: 8443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcp-backend
+  namespace: dolphin
+  labels:
+    app: tcp-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tcp-backend
+  template:
+    metadata:
+      labels:
+        app: tcp-backend
+    spec:
+      containers:
+        - name: tcp-backend
+          image: gcr.io/k8s-staging-gateway-api/echo-basic:v20260204-monthly-2026.01-60-g28382302
+          resources:
+            requests:
+              cpu: 10m
+          volumeMounts:
+            - name: secret-volume
+              mountPath: /etc/secret-volume
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TLS_SERVER_CERT
+              value: /etc/secret-volume/crt
+            - name: TLS_SERVER_PRIV_KEY
+              value: /etc/secret-volume/key
+            - name: TCP_ECHO_SERVER
+              value: "1"
+      volumes:
+        - name: secret-volume
+          secret:
+            secretName: tls-passthrough-checks-certificate
+            items:
+              - key: tls.crt
+                path: crt
+              - key: tls.key
+                path: key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: infra-backend-v1
+  namespace: dolphin
+spec:
+  selector:
+    app: infra-backend-v1
+  ports:
+    - name: first-port
+      protocol: TCP
+      port: 8080
+      targetPort: 3000
+    - name: second-port
+      protocol: TCP
+      appProtocol: kubernetes.io/h2c
+      port: 8081
+      targetPort: 3001
+    - name: third-port
+      protocol: TCP
+      appProtocol: kubernetes.io/ws
+      port: 8082
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infra-backend-v1
+  namespace: dolphin
+  labels:
+    app: infra-backend-v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: infra-backend-v1
+  template:
+    metadata:
+      labels:
+        app: infra-backend-v1
+    spec:
+      containers:
+        - name: infra-backend-v1
+          # Originally from https://github.com/kubernetes-sigs/ingress-controller-conformance/tree/master/images/echoserver
+          image: gcr.io/k8s-staging-gateway-api/echo-basic:v20260204-monthly-2026.01-60-g28382302
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 10m
