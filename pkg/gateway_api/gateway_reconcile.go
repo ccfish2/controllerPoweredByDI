@@ -86,7 +86,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		scopedLog.WithFields(logrus.Fields{
 			"gatewayClassName": gw.Spec.GatewayClassName,
 			"error":            err,
-		}).Error("Unable to get GatewayClass")
+		}).Error("Unable to get GatewayClass Reconcile")
 
 		return controllerruntime.Success()
 	}

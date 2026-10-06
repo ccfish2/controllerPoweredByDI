@@ -28,7 +28,7 @@ func GatewayHasMatchingControllerFn(ctx context.Context, c client.Client, contro
 		gwc := &gatewayv1.GatewayClass{}
 		key := types.NamespacedName{Name: string(gw.Spec.GatewayClassName)}
 		if err := c.Get(ctx, key, gwc); err != nil {
-			scopedLog.ErrorContext(ctx, "Unable to get GatewayClass", logfields.Error, err)
+			scopedLog.ErrorContext(ctx, "Unable to get GatewayClass GatewayHasMatchingControllerFn", logfields.Error, err)
 			return false
 		}
 

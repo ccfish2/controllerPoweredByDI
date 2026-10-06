@@ -240,6 +240,8 @@ rules:
   - referencegrants
   - referencepolicies
   - listenersets
+  - tcproutes
+  - udproutes
   verbs:
   - get
   - list
@@ -253,6 +255,8 @@ rules:
   - grpcroutes
   - tlsroutes
   - listenersets
+  - tcproutes
+  - udproutes
   verbs:
   - get
   - list
@@ -266,6 +270,8 @@ rules:
   - grpcroutes/status
   - tlsroutes/status
   - listenersets/status
+  - tcproutes/status
+  - udproutes/status
   verbs:
   - update
   - patch

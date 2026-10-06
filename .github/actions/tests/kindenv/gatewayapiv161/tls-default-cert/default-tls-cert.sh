@@ -10,91 +10,6 @@ source ".github/actions/tests/kindenv/lib/metallb.sh"
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Install/upgrade Cilium Agent and Envoy"
-
-NAMESPACE="kube-system"
-CILIUM_VERSION="1.20.1"
-TIMEOUT=300
-INTERVAL=5
-
-echo "Installing/upgrading Cilium ${CILIUM_VERSION}..."
-helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
-helm repo update >/dev/null
-
-CILIUM_HELM_TIMEOUT=300
-if ! helm upgrade --install cilium cilium/cilium \
-    --version "${CILIUM_VERSION}" \
-    --namespace "${NAMESPACE}" \
-    --create-namespace \
-    --set kubeProxyReplacement=true \
-    --set gatewayAPI.enabled=true \
-    --wait \
-    --timeout "${CILIUM_HELM_TIMEOUT}s"
-then
-    echo "Cilium failed to become ready; collecting diagnostics..."
-
-    kubectl -n kube-system get pods -o wide || true
-
-    echo "----- Cilium DaemonSet -----"
-    kubectl -n kube-system get ds cilium -o wide || true
-    kubectl -n kube-system describe ds cilium || true
-
-    echo "----- Cilium pod descriptions -----"
-    kubectl -n kube-system describe pods \
-        -l k8s-app=cilium || true
-
-    echo "----- Cilium logs -----"
-    kubectl -n kube-system logs \
-        -l k8s-app=cilium \
-        --all-containers=true \
-        --tail=300 \
-        --prefix || true
-
-    echo "----- kube-system events -----"
-    kubectl get events -n kube-system \
-        --sort-by='.lastTimestamp' | tail -100 || true
-
-    echo "----- all nodes -----"
-    kubectl get nodes -o wide || true
-
-    echo "----- node conditions/resources -----"
-    kubectl describe nodes | \
-        grep -A10 -E "Conditions:|Allocated resources" || true
-
-    echo "----- Helm status -----"
-    helm status cilium -n kube-system || true
-    exit 1
-fi
-
-echo "Waiting for Cilium agent pods to be ready..."
-wait_for_pods "k8s-app=cilium" "cilium agent" || exit 1
-
-echo "Waiting for Cilium Envoy pods to be ready..."
-wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy" || exit 1
-
-echo "Ensuring Cilium Operator is not running..."
-
-# In case an older installation created the operator, remove it.
-if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
-    kubectl -n "${NAMESPACE}" delete deployment cilium-operator --ignore-not-found
-fi
-
-echo "Waiting for Cilium Operator deployment to disappear..."
-
-for ((elapsed=0; elapsed<TIMEOUT; elapsed+=INTERVAL)); do
-    if ! kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
-        echo "Cilium Operator is absent."
-        break
-    fi
-
-    sleep "${INTERVAL}"
-done
-
-kubectl -n "${NAMESPACE}" get pods -l k8s-app=cilium -o wide
-kubectl -n "${NAMESPACE}" get pods -l k8s-app=cilium-envoy -o wide
-
-echo "Cilium installation complete."
-
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
@@ -104,18 +19,6 @@ echo "Install the sample application and the Cilium Resources"
 kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 wait_for_endpoints dolphin details || exit 1
 wait_for_endpoints dolphin productpage || exit 1
-echo "Deploying gatewayclass and gateway"
-kubectl apply -f - <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: ${GATEWAY_CLASS}
-spec:
-  controllerName: io.dolphin/gateway-controller
-  description: The default Dolphin GatewayClass
-EOF
-
-wait_for_gatewayclass_accepted "${GATEWAY_CLASS}" 120 5
 
 echo "Install Certs using mkcert and generate tls secrets using the cert"
 DOMAIN="bookinfo.cilium.rocks"
