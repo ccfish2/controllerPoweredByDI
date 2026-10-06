@@ -1,9 +1,12 @@
 package gateway_api
 
 import (
+	"reflect"
+	"slices"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 func newCondition(conditionType string, status metav1.ConditionStatus, reason, msg string, lastTransitionTime time.Time, observedGeneration int64) metav1.Condition {
@@ -48,4 +51,16 @@ func conditionChanged(a, b metav1.Condition) bool {
 		a.Reason != b.Reason ||
 		a.Message != b.Message ||
 		a.ObservedGeneration != b.ObservedGeneration
+}
+
+func pruneRouteParentStatuses(parents []gatewayv1.RouteParentStatus, currentParentRefs []gatewayv1.ParentReference, controllerName string) []gatewayv1.RouteParentStatus {
+	filtered := parents[:0]
+	for _, parentStatus := range parents {
+		if string(parentStatus.ControllerName) != controllerName || slices.ContainsFunc(currentParentRefs, func(ref gatewayv1.ParentReference) bool {
+			return reflect.DeepEqual(ref, parentStatus.ParentRef)
+		}) {
+			filtered = append(filtered, parentStatus)
+		}
+	}
+	return filtered
 }

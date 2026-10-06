@@ -12,6 +12,8 @@ const (
 	gateway      = "gateway"
 	httpRoute    = "httpRoute"
 	grpcRoute    = "grpcRoute"
+	numRoutes    = "numRoutes"
+	tcpRoute     = "tcpRoute"
 )
 
 var log = logging.DefaultLoggerNoFile.WithField(logfields.LogSubsys, Subsys)

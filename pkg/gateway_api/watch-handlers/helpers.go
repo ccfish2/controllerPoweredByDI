@@ -2,9 +2,13 @@ package watchhandlers
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/indexers"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,4 +64,88 @@ func getAllGatewaysSetForController(ctx context.Context, c client.Client, contro
 	}
 
 	return allGatewaysSet, nil
+}
+
+func getGatewayReconcileRequestsForRoute(ctx context.Context, c client.Client, object metav1.Object, route gatewayv1.CommonRouteSpec,
+	logger *slog.Logger, controllerName string) []reconcile.Request {
+
+	var reqs []reconcile.Request
+	scopedLog := logger.With(
+		logfields.Resource, types.NamespacedName{
+			Namespace: object.GetNamespace(),
+			Name:      object.GetName(),
+		},
+	)
+
+	for _, parent := range route.ParentRefs {
+		var gwNN types.NamespacedName
+
+		switch {
+		case helpers.IsGateway(parent):
+			gwNN = types.NamespacedName{
+				Namespace: helpers.NamespaceDerefOr(parent.Namespace,
+					object.GetNamespace()),
+				Name: string(parent.Name),
+			}
+		case helpers.IsListenerSet(parent):
+			resolved := helpers.ResolveListenerSetToGateway(ctx, c, string(parent.Name), "ListenerSet")
+			if resolved == nil {
+				continue
+			}
+			gwNN = *resolved
+		default:
+			continue
+		}
+
+		gw := &gatewayv1.Gateway{}
+		if err := c.Get(ctx, gwNN, gw); err != nil {
+			if !k8serrors.IsNotFound(err) {
+
+			}
+		}
+
+		if err := c.Get(ctx, gwNN, gw); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				scopedLog.ErrorContext(ctx, "Failed to get Gateway", logfields.Error, err)
+			}
+		}
+
+		if !hasMatchingController(ctx, c, controllerName, logger)(gw) {
+			scopedLog.DebugContext(ctx, "Gateway does not have matching controller, skipping")
+			continue
+		}
+
+		scopedLog.InfoContext(ctx,
+			"Enqueued gateway for Route",
+			logfields.K8sNamespace, gwNN.Namespace,
+			logfields.ParentResource, gwNN.Name,
+			logfields.Route, object.GetName())
+
+		reqs = append(reqs, reconcile.Request{
+			NamespacedName: gwNN,
+		})
+	}
+
+	return reqs
+}
+
+func hasMatchingController(ctx context.Context, c client.Client, controllerName string, logger *slog.Logger) func(object client.Object) bool {
+	return func(object client.Object) bool {
+		scopedLog := logger.With(
+			logfields.Resource,
+			object.GetName(),
+		)
+		gw, ok := object.(*gatewayv1.Gateway)
+		if !ok {
+			return false
+		}
+
+		gwc := &gatewayv1.GatewayClass{}
+		key := types.NamespacedName{Name: string(gw.Spec.GatewayClassName)}
+		if err := c.Get(ctx, key, gwc); err != nil {
+			scopedLog.ErrorContext(ctx, "Unable to get GatewayClass", logfields.Error, err)
+			return false
+		}
+		return string(gwc.Spec.ControllerName) == controllerName
+	}
 }

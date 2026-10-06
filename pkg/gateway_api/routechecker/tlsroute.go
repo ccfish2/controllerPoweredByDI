@@ -141,3 +141,11 @@ func (t *TLSRouteInput) GetGateway(parent gatewayv1.ParentReference) (*gatewayv1
 func (t *TLSRouteInput) Log() *logrus.Entry {
 	return t.Logger
 }
+
+func (g *TLSRouteInput) GetListenerOwner(parent gatewayv1.ParentReference) (ListenerOwner, error) {
+	return nil, nil
+}
+
+func (g *TLSRouteInput) GetValidProtocols() []gatewayv1.ProtocolType {
+	return nil
+}

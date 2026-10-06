@@ -24,6 +24,8 @@ type Input interface {
 	GetGrants() []gatewayv1.ReferenceGrant
 	GetGateway(parent gatewayv1.ParentReference) (*gatewayv1.Gateway, error)
 	GetHostnames() []gatewayv1.Hostname
+	GetListenerOwner(parent gatewayv1.ParentReference) (ListenerOwner, error)
+	GetValidProtocols() []gatewayv1.ProtocolType
 
 	SetParentCondition(ref gatewayv1.ParentReference, condition metav1.Condition)
 	SetAllParentCondition(condition metav1.Condition)
@@ -36,3 +38,16 @@ type GenericRule interface {
 
 type CheckRuleFunc func(input Input) (bool, error)
 type CheckGatewayFunc func(input Input, ref gatewayv1.ParentReference) (bool, error)
+
+type ListenerOwner interface {
+	GetListeners() []gatewayv1.Listener
+	GetNamespace() string
+}
+
+type GatewayListenerOwner struct {
+	*gatewayv1.Gateway
+}
+
+type (
+	CheckWithParentFunc func(input Input, ref gatewayv1.ParentReference) (bool, error)
+)

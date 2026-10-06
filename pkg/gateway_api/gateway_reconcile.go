@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	routechecks "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/routechecker"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
@@ -125,6 +126,24 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 	}
 
+	tcpRouteList := &gatewayv1.TCPRouteList{}
+	if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
+		if err := r.Client.List(ctx, tcpRouteList);
+		// 	 &client.ListOptions{
+		// 	FieldSelector: fields.OneTermEqualSelector(indexers.GatewayTCPRouteIndex, client.ObjectKeyFromObject(original).String()),
+		// });
+		err != nil {
+			scopedLog.Error(ctx, "Unable to list TCPRoutes", logfields.Error, err)
+			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+		}
+	}
+
+	grants := &gatewayv1.ReferenceGrantList{}
+	if err := r.Client.List(ctx, grants); err != nil {
+		scopedLog.Error(ctx, "Unable to list ReferenceGrants", logfields.Error, err)
+		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+	}
+
 	var attachedListenerSets []gatewayv1.ListenerSet
 	if helpers.HasListenerSetSupport(r.Client.Scheme()) {
 		listenerSets, err := r.listenerSetsForGateway(ctx, gw)
@@ -135,10 +154,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		attachedListenerSets = r.filterToAllowedListenerSets(ctx, scopedLog, gw, listenerSets)
 	}
 	listenerContexts := r.mergeListeners(ctx, scopedLog, gw, attachedListenerSets)
-	// following features are applied to multitenancy environment
 	conflictedListeners := conflictsAcrossSources(listenerContexts)
-	// mergedListeners := filterOutConflictedListeners(listenerContexts, conflictedListeners)
-	// mergedListeners = r.filterOutInvalidListeners(ctx, mergedListeners, grants.Items)
 
 	var namespaces []corev1.Namespace
 	if hasAllowedRoutesNamespaceSelector(gw) {
@@ -152,6 +168,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
 	dgccfg := r.getGatewayClassConfig(ctx, gwc)
 	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items)
+	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
 	httpListeners, tlsListeners := ingestion.GatewayAPI(ingestion.Input{
 		GatewayClass:       *gwc,
 		Gateway:            *copy,
@@ -159,6 +176,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		HTTPRoutes:         HTTPRoutes,
 		TLSRoutes:          r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
 		GRPCRoutes:         r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
+		TCPRoutes:          tcpRoutes,
 		Services:           servicesList.Items,
 	})
 
@@ -180,6 +198,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		setGatewayAccepted(copy, false, "Unable to set listener status")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
+
+	// Run the TCPRoute route checks here and update the status accordingly.
+	if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
+		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
+			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
+			return controllerruntime.Fail(err)
+		}
+	}
+
 	setGatewayAccepted(copy, true, "Gateway successfully scheduled")
 
 	// ListenerSet status is reported independently from the parent Gateway's
@@ -194,7 +221,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		httpRouteList,
 		tlsRouteList,
 		grpcRouteList,
-		nil,
+		tcpRouteList,
 		nil,
 		namespaceLabels,
 	)
@@ -545,6 +572,16 @@ type listenerConflict struct {
 
 type listenerConflictsBySource map[model.FullyQualifiedResource]map[gatewayv1.SectionName]listenerConflict
 
+func (r *gatewayReconciler) filterTCPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.TCPRoute) []gatewayv1.TCPRoute {
+	var filtered []gatewayv1.TCPRoute
+	for _, route := range routes {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
 func (r *gatewayReconciler) setListenerSetStatuses(
 	ctx context.Context,
 	gw *gatewayv1.Gateway,
@@ -639,7 +676,7 @@ func (r *gatewayReconciler) setListenerSetStatuses(
 			attachedRoutes += int32(len(r.filterHTTPRoutesByListener(ctx, gw, &l, &lsSource, httpRoutes.Items, namespaceLabels, *ls)))
 			// attachedRoutes += int32(len(r.filterGRPCRoutesByListener(ctx, gw, &l, &lsSource, grpcRoutes.Items, namespaceLabels, *ls)))
 			// attachedRoutes += int32(len(r.filterTLSRoutesByListener(ctx, gw, &l, &lsSource, tlsRoutes.Items, namespaceLabels, *ls)))
-			// attachedRoutes += int32(len(r.filterTCPRoutesByListener(ctx, gw, &l, &lsSource, tcpRoutes.Items, namespaceLabels, *ls)))
+			attachedRoutes += int32(len(r.filterTCPRoutesByListener(ctx, gw, &l, &lsSource, tcpRoutes.Items, namespaceLabels, *ls)))
 			// attachedRoutes += int32(len(r.filterUDPRoutesByListener(ctx, gw, &l, &lsSource, udpRoutes.Items, namespaceLabels, *ls)))
 
 			listenerStatuses = append(listenerStatuses, gatewayv1.ListenerEntryStatus{
@@ -670,6 +707,183 @@ func (r *gatewayReconciler) setListenerSetStatuses(
 	if validAttachedCount > 0 {
 		gw.Status.AttachedListenerSets = &validAttachedCount
 	}
+}
+
+func (r *gatewayReconciler) setTCPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, tcpRoutes *gatewayv1.TCPRouteList, grants *gatewayv1.ReferenceGrantList) error {
+	scopedLog.Debug("Updating TCPRoute statuses for Gateway", numRoutes, len(tcpRoutes.Items))
+	for tcpRouteIndex, original := range tcpRoutes.Items {
+		tcpr := original.DeepCopy()
+		tcpr.Status.Parents = pruneRouteParentStatuses(tcpr.Status.Parents, tcpr.Spec.ParentRefs, "io.dolphin/gateway-controller")
+
+		i := &routechecks.TCPRouteInput{
+			Ctx:            ctx,
+			Logger:         log,
+			Client:         r.Client,
+			Grants:         grants,
+			TCPRoute:       tcpr,
+			ControllerName: "io.dolphin/gateway-controller",
+		}
+
+		if err := r.runCommonRouteChecks(ctx, i, tcpr.Spec.ParentRefs, tcpr.Namespace); err != nil {
+			return fmt.Errorf("failure during TCPRoute checks: %w", err)
+		}
+
+		if err := r.updateTCPRouteStatus(ctx, scopedLog, &original, tcpr); err != nil {
+			return fmt.Errorf("failed to update TCPRoute status: %w", err)
+		}
+
+		tcpRoutes.Items[tcpRouteIndex].Status = tcpr.Status
+	}
+
+	return nil
+}
+
+// runCommonRouteChecks runs all the checks that are common across all supported Route types.
+//
+// Uses the helpers.Input interface to ensure that this still applies as new types are added.
+func (r *gatewayReconciler) runCommonRouteChecks(ctx context.Context, input routechecks.Input, parentRefs []gatewayv1.ParentReference, objNamespace string) error {
+	for _, parent := range parentRefs {
+		if helpers.IsGateway(parent) {
+			if err := r.runGatewayRouteChecks(ctx, input, parent, objNamespace); err != nil {
+				return err
+			}
+		} else if helpers.IsListenerSet(parent) {
+			// if err := r.runListenerSetRouteChecks(ctx, input, parent, objNamespace); err != nil {
+			// 	return err
+			// }
+		}
+	}
+
+	return nil
+}
+
+func (r *gatewayReconciler) runGatewayRouteChecks(ctx context.Context, input routechecks.Input, parent gatewayv1.ParentReference, objNamespace string) error {
+	if !r.parentIsMatchingGateway(ctx, parent, objNamespace) {
+		return nil
+	}
+	if !r.checkRouteSupported(input, parent) {
+		return nil
+	}
+
+	setInitialRouteConditions(input, parent)
+	// if err := runCheckFuncs(input, parent, gatewayCheckFuncs, "Gateway"); err != nil {
+	// 	return err
+	// }
+	return nil
+	//return runCheckFuncs(input, parent, backendCheckFuncs, "Backend")
+}
+
+var gatewayCheckFuncs = []routechecks.CheckWithParentFunc{
+	routechecks.CheckGatewayMatchingProtocol,
+	routechecks.CheckGatewayRouteKindAllowed,
+	routechecks.CheckGatewayMatchingPorts,
+	routechecks.CheckGatewayMatchingHostnames,
+	routechecks.CheckGatewayMatchingSection,
+	routechecks.CheckGatewayAllowedForNamespace,
+}
+
+var backendCheckFuncs = []routechecks.CheckWithParentFunc{
+	routechecks.CheckAgainstCrossNamespaceBackendReferences_V2,
+	routechecks.CheckBackend,
+	routechecks.CheckHasServiceImportSupport,
+	routechecks.CheckBackendIsExistingService_V2,
+}
+
+func runCheckFuncs(input routechecks.Input, parent gatewayv1.ParentReference, fns []routechecks.CheckWithParentFunc, errPrefix string) error {
+	for _, fn := range fns {
+		continueCheck, err := fn(input, parent)
+		if err != nil {
+			return fmt.Errorf("failed to apply %s check: %w", errPrefix, err)
+		}
+		if !continueCheck {
+			break
+		}
+	}
+	return nil
+}
+func setInitialRouteConditions(input routechecks.Input, parent gatewayv1.ParentReference) {
+	input.SetParentCondition(parent, metav1.Condition{
+		Type:    string(gatewayv1.RouteConditionAccepted),
+		Status:  metav1.ConditionTrue,
+		Reason:  string(gatewayv1.RouteReasonAccepted),
+		Message: fmt.Sprintf("Accepted %s", input.GetGVK().Kind),
+	})
+	input.SetParentCondition(parent, metav1.Condition{
+		Type:    string(gatewayv1.RouteConditionResolvedRefs),
+		Status:  metav1.ConditionTrue,
+		Reason:  string(gatewayv1.RouteReasonResolvedRefs),
+		Message: "Service reference is valid",
+	})
+}
+
+// checkRouteSupported returns false when route validation should stop for this input.
+func (r *gatewayReconciler) checkRouteSupported(input routechecks.Input, parent gatewayv1.ParentReference) bool {
+	switch k := input.GetGVK().Kind; k {
+	case kindTCPRoute, kindUDPRoute:
+		if r.hostNetworkEnabled {
+			input.SetParentCondition(parent, metav1.Condition{
+				Type:    string(gatewayv1.RouteConditionAccepted),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(gatewayv1.RouteReasonUnsupportedValue),
+				Message: fmt.Sprintf("%s is not supported when Gateway API Host Network mode is enabled", k),
+			})
+			input.SetParentCondition(parent, metav1.Condition{
+				Type:    string(gatewayv1.RouteConditionResolvedRefs),
+				Status:  metav1.ConditionUnknown,
+				Reason:  string(gatewayv1.RouteReasonPending),
+				Message: "Backend references were not evaluated because this route type is not supported in Gateway API Host Network mode",
+			})
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *gatewayReconciler) parentIsMatchingGateway(ctx context.Context, parent gatewayv1.ParentReference, namespace string) bool {
+	hasMatchingControllerFn := helpers.GatewayHasMatchingControllerFn(ctx, r.Client, "io.dolphin/gateway-controller", r.logger)
+	if !helpers.IsGateway(parent) {
+		return false
+	}
+	gw := &gatewayv1.Gateway{}
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Namespace: helpers.NamespaceDerefOr(parent.Namespace, namespace),
+		Name:      string(parent.Name),
+	}, gw); err != nil {
+		return false
+	}
+	return hasMatchingControllerFn(gw)
+}
+
+func (r *gatewayReconciler) updateTCPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1.TCPRoute, new *gatewayv1.TCPRoute) error {
+	oldStatus := original.Status.DeepCopy()
+	newStatus := new.Status.DeepCopy()
+
+	if cmp.Equal(oldStatus, newStatus, cmpopts.IgnoreFields(metav1.Condition{}, lastTransitionTime)) {
+		return nil
+	}
+	scopedLog.Debug("Updating TCPRoute status", tcpRoute, types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
+	return r.Client.Status().Update(ctx, new)
+}
+
+func (r *gatewayReconciler) filterTCPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1.TCPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1.TCPRoute {
+	_ = listenerOwnerNamespace(gw, listenerSource)
+	var filtered []gatewayv1.TCPRoute
+	for _, route := range routes {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) &&
+			listenerisAllowed(gw, listener, &route, namespaceLabels) &&
+			parentRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
+func listenerOwnerNamespace(gw *gatewayv1.Gateway, listenerSource *model.FullyQualifiedResource) string {
+	if listenerSource != nil && listenerSource.Kind == "ListenerSet" {
+		return listenerSource.Namespace
+	}
+	return gw.GetNamespace()
 }
 
 // following three should be verified using local run

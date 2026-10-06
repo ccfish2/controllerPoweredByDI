@@ -3,6 +3,7 @@ package routechecker
 import (
 	//myself
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -361,5 +362,35 @@ func CheckGatewayAllowedForNamespace(input Input, parentRef gatewayv1.ParentRefe
 			Message: input.GetGVK().Kind + " is not allowed to attach to this Gateway due to namespace restrictions",
 		})
 	}
+	return false, nil
+}
+
+func CheckGatewayMatchingProtocol(input Input, parentRef gatewayv1.ParentReference) (bool, error) {
+	owner, err := input.GetListenerOwner(parentRef)
+	if err != nil {
+		input.SetParentCondition(parentRef, metav1.Condition{
+			Type:    string(gatewayv1.RouteConditionAccepted),
+			Status:  metav1.ConditionFalse,
+			Reason:  "Invalid" + input.GetGVK().Kind,
+			Message: err.Error(),
+		})
+
+		return false, nil
+	}
+
+	routeProtocols := input.GetValidProtocols()
+	for _, listener := range owner.GetListeners() {
+		if slices.Contains(routeProtocols, listener.Protocol) {
+			return true, nil
+		}
+	}
+
+	input.SetParentCondition(parentRef, metav1.Condition{
+		Type:    string(gatewayv1.RouteConditionAccepted),
+		Status:  metav1.ConditionFalse,
+		Reason:  string(gatewayv1.RouteReasonNotAllowedByListeners),
+		Message: fmt.Sprintf("No matching listener protocol; route requires one of: %v", routeProtocols),
+	})
+
 	return false, nil
 }
