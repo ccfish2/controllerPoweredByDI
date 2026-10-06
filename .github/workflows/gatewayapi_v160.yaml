@@ -508,8 +508,14 @@ jobs:
 
           echo "Cilium installation complete."
 
-          
-          echo "Deploying gatewayclass and gateway"
+      # ============================================================
+      # 14.2. Deploy GatewayClass
+      # ============================================================     
+      - name: Deploy GatewayClass
+        shell: bash
+        run: |
+          echo "Deploying GatewayClass"
+
           kubectl apply -f - <<EOF
           apiVersion: gateway.networking.k8s.io/v1
           kind: GatewayClass
@@ -520,31 +526,33 @@ jobs:
             description: The default Dolphin GatewayClass
           EOF
 
-          local gatewayclass_name=dolphin
-          local timeout="${2:-60}"   # default timeout 60 seconds
-          local interval="${3:-2}"   # default polling interval 2 seconds
-          local elapsed=0
+          gatewayclass_name="dolphin"
+          timeout=60
+          interval=2
+          elapsed=0
 
-          echo "⏳ Waiting for GatewayClass dolphin to be accepted..."
+          echo "⏳ Waiting for GatewayClass ${gatewayclass_name} to be accepted..."
+
           while true; do
-            local status
-            status=$(kubectl get gatewayclass "$gatewayclass_name" -o jsonpath="{.status.conditions[?(@.type=='Accepted')].status}" 2>/dev/null || echo "")
+            status=$(kubectl get gatewayclass "$gatewayclass_name" \
+              -o jsonpath="{.status.conditions[?(@.type=='Accepted')].status}" \
+              2>/dev/null || echo "")
 
             if [[ "$status" == "True" ]]; then
-              echo "✅ GatewayClass dolphin is accepted."
-              return 0
+              echo "✅ GatewayClass ${gatewayclass_name} is accepted."
+              break
             fi
 
             if (( elapsed >= timeout )); then
-              echo "❌ Timed out waiting for GatewayClass dolphin to be accepted."
-              return 1
+              echo "❌ Timed out waiting for GatewayClass ${gatewayclass_name} to be accepted."
+              exit 1
             fi
 
             sleep "$interval"
             ((elapsed += interval))
           done
 
-          kubectl delete gatewayclasses.gateway.networking.k8s.io cilium 
+          kubectl delete gatewayclasses.gateway.networking.k8s.io cilium
 
       # ============================================================
       # 15. Gateway API HTTP Test
