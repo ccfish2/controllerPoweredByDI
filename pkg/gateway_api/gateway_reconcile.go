@@ -40,6 +40,20 @@ import (
 )
 
 func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	reconcileStarted := time.Now()
+	diagnosticLogger := r.logger
+	if diagnosticLogger == nil {
+		diagnosticLogger = slog.Default()
+	}
+	diagnosticLogger.Info("Gateway reconcile started", "namespace", req.Namespace, "name", req.Name)
+	defer func() {
+		diagnosticLogger.Info("Gateway reconcile finished",
+			"namespace", req.Namespace,
+			"name", req.Name,
+			"duration", time.Since(reconcileStarted),
+		)
+	}()
+
 	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
 		logfields.Controller: gateway,
 		logfields.Resource:   req.NamespacedName,
@@ -127,7 +141,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	tcpRouteList := &gatewayv1.TCPRouteList{}
-	if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
+	if r.hasInstalledCRD(helpers.TCPRouteKind) {
 		if err := r.Client.List(ctx, tcpRouteList);
 		// 	 &client.ListOptions{
 		// 	FieldSelector: fields.OneTermEqualSelector(indexers.GatewayTCPRouteIndex, client.ObjectKeyFromObject(original).String()),
@@ -200,7 +214,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Run the TCPRoute route checks here and update the status accordingly.
-	if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
+	if r.hasInstalledCRD(helpers.TCPRouteKind) {
 		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
 			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
 			return controllerruntime.Fail(err)
@@ -674,10 +688,7 @@ func (r *gatewayReconciler) setListenerSetStatuses(
 
 			var attachedRoutes int32
 			attachedRoutes += int32(len(r.filterHTTPRoutesByListener(ctx, gw, &l, &lsSource, httpRoutes.Items, namespaceLabels, *ls)))
-			// attachedRoutes += int32(len(r.filterGRPCRoutesByListener(ctx, gw, &l, &lsSource, grpcRoutes.Items, namespaceLabels, *ls)))
-			// attachedRoutes += int32(len(r.filterTLSRoutesByListener(ctx, gw, &l, &lsSource, tlsRoutes.Items, namespaceLabels, *ls)))
 			attachedRoutes += int32(len(r.filterTCPRoutesByListener(ctx, gw, &l, &lsSource, tcpRoutes.Items, namespaceLabels, *ls)))
-			// attachedRoutes += int32(len(r.filterUDPRoutesByListener(ctx, gw, &l, &lsSource, udpRoutes.Items, namespaceLabels, *ls)))
 
 			listenerStatuses = append(listenerStatuses, gatewayv1.ListenerEntryStatus{
 				Name:           entry.Name,

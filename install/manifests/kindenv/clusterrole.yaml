@@ -239,6 +239,7 @@ rules:
   - grpcroutes
   - referencegrants
   - referencepolicies
+  - backendtlspolicies
   - listenersets
   - tcproutes
   - udproutes
@@ -254,6 +255,7 @@ rules:
   - httproutes
   - grpcroutes
   - tlsroutes
+  - backendtlspolicies
   - listenersets
   - tcproutes
   - udproutes
@@ -266,6 +268,7 @@ rules:
   resources:
   - gatewayclasses/status
   - gateways/status
+  - backendtlspolicies/status
   - httproutes/status
   - grpcroutes/status
   - tlsroutes/status

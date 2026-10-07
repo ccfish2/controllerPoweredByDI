@@ -102,7 +102,7 @@ func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logg
 	logger.Info(
 		"Checking for required and optional GatewayAPI resources",
 		logfields.RequiredGVK, helpers.RequiredGVKs,
-		logfields.OptionalGVK, helpers.RequiredGVKs,
+		logfields.OptionalGVK, helpers.AllOptionalKinds,
 	)
 
 	// Configure exponential backoff for CRD discovery.
@@ -335,6 +335,7 @@ func registerReconcilers(
 			mgr,
 			logger,
 			"io.dolphin/gateway-controller",
+			installedCRDs,
 		),
 		newGatewayReconciler(
 			mgr,

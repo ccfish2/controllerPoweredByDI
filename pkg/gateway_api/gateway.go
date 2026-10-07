@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	watchhandlers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/watch-handlers"
@@ -70,40 +71,57 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 }
 
 // sets up the controller with the Manager
-// The reconciler will be triggere by Gateway, or any dolphin-managed GatewayClass events
+// The reconciler will be triggered by Gateway and related resource events.
 // Endpoints
 func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	setupStarted := time.Now()
+	r.logger.Info("Gateway SetupWithManager started")
+	defer func() {
+		r.logger.Info("Gateway SetupWithManager finished", "duration", time.Since(setupStarted))
+	}()
+
 	// Determine which optional CRDs are enabled
-	var tlsRouteEnabled, serviceImportEnabled bool
+	var tlsRouteEnabled, tcpRouteEnabled, serviceImportEnabled, listenerSetEnabled bool
 
 	for _, gvk := range r.installedCRDs {
 		switch gvk.Kind {
 		case helpers.TLSRouteKind:
 			tlsRouteEnabled = true
+		case helpers.TCPRouteKind:
+			tcpRouteEnabled = true
 		case helpers.ServiceImportKind:
 			serviceImportEnabled = true
+		case helpers.ListenerSetKind:
+			listenerSetEnabled = true
 		}
 	}
+	r.logger.Info("Gateway optional resource configuration",
+		"tlsRouteEnabled", tlsRouteEnabled,
+		"tcpRouteEnabled", tcpRouteEnabled,
+		"serviceImportEnabled", serviceImportEnabled,
+		"listenerSetEnabled", listenerSetEnabled,
+		"installedCRDs", r.installedCRDs,
+	)
 
 	// Add field indexes for HTTPRoutes
 	for indexName, indexerFunc := range map[string]client.IndexerFunc{
 		backendServiceHTTPRouteIndex: indexers.GenerateIndexerHTTPRouteByBackendService(r.Client, r.logger),
 		gatewayHTTPRouteIndex:        indexers.IndexHTTPRouteByGateway,
 	} {
-		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexName, indexerFunc); err != nil {
+		if err := r.registerFieldIndex(mgr, &gatewayv1.HTTPRoute{}, indexName, indexerFunc); err != nil {
 			return fmt.Errorf("failed to setup HTTPRoutes field indexer %q: %w", indexName, err)
 		}
 	}
 
 	// Only index HTTPRoute by ServiceImport if ServiceImport is enabled
 	if serviceImportEnabled {
-		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, backendServiceImportHTTPRouteIndex, indexers.IndexHTTPRouteByBackendServiceImport); err != nil {
+		if err := r.registerFieldIndex(mgr, &gatewayv1.HTTPRoute{}, backendServiceImportHTTPRouteIndex, indexers.IndexHTTPRouteByBackendServiceImport); err != nil {
 			return fmt.Errorf("failed to setup HTTPRoute by ServiceImport field indexer %q: %w", backendServiceImportHTTPRouteIndex, err)
 		}
 	}
 
 	// Index Gateways by implementation (ie `dolphin`)
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, implementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, controllerName)); err != nil {
+	if err := r.registerFieldIndex(mgr, &gatewayv1.Gateway{}, implementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, controllerName)); err != nil {
 		return fmt.Errorf("failed to setup Gateways field indexer %q: %w", implementationGatewayIndex, err)
 	}
 
@@ -113,7 +131,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			backendServiceTLSRouteIndex: indexers.GenerateIndexerTLSRoutebyBackendService(r.Client, r.logger),
 			gatewayTLSRouteIndex:        indexers.IndexTLSRouteByGateway,
 		} {
-			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexName, indexerFunc); err != nil {
+			if err := r.registerFieldIndex(mgr, &gatewayv1.TLSRoute{}, indexName, indexerFunc); err != nil {
 				return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
 			}
 		}
@@ -124,18 +142,20 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		backendServiceGRPCRouteIndex: indexers.GenerateIndexerGRPCRoutebyBackendService(r.Client, r.logger),
 		gatewayGRPCRouteIndex:        indexers.IndexGRPCRouteByGateway,
 	} {
-		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{}, indexName, indexerFunc); err != nil {
+		if err := r.registerFieldIndex(mgr, &gatewayv1.GRPCRoute{}, indexName, indexerFunc); err != nil {
 			return fmt.Errorf("failed to setup TLSRoutes field indexer %q: %w", indexName, err)
 		}
 	}
 
 	// Index ListenerSets by parent Gateway, and routes by ListenerSet parentRefs
 	// if listenerSetEnabled {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, indexers.ListenerSetGatewayIndex, indexers.IndexListenerSetByGateway); err != nil {
-		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ListenerSetGatewayIndex, err)
+	if listenerSetEnabled {
+		if err := r.registerFieldIndex(mgr, &gatewayv1.ListenerSet{}, indexers.ListenerSetGatewayIndex, indexers.IndexListenerSetByGateway); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ListenerSetGatewayIndex, err)
+		}
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexers.HTTPRouteListenerSetIndex, indexers.IndexHTTPRouteByListenerSet); err != nil {
+	if err := r.registerFieldIndex(mgr, &gatewayv1.HTTPRoute{}, indexers.HTTPRouteListenerSetIndex, indexers.IndexHTTPRouteByListenerSet); err != nil {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.HTTPRouteListenerSetIndex, err)
 	}
 
@@ -143,28 +163,23 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	gatewayBuilder := ctrl.NewControllerManagedBy(mgr).
 		// Watch its own resource
 		For(&gatewayv1.Gateway{},
-			builder.WithPredicates(predicates.GatewayOwnedByController(hasMatchingControllerFn))).
-		// Watch related backend Service for status
-		// LB Services are handled by the Owns call later.
+			builder.WithPredicates(predicates.GatewayOwnedByController(hasMatchingControllerFn, r.logger)))
 
+	// Watch related backend services, routes, secrets, namespace policy changes,
+	// and controller-owned resources that can affect Gateway reconciliation.
+	gatewayBuilder = gatewayBuilder.
 		Watches(&corev1.Service{}, r.enqueueRequestForBackendService(tlsRouteEnabled)).
-		// Watch HTTPRoute linked to Gateway
 		Watches(&gatewayv1.HTTPRoute{}, r.enqueueRequestForOwningHTTPRoute(r.logger)).
-		// Watch GRPCRoute linked to Gateway
 		Watches(&gatewayv1.GRPCRoute{}, r.enqueueRequestForOwningGRPCRoute()).
-		// Watch related secrets used to configure TLS
-		Watches(&corev1.Secret{},
+		Watches(
+			&corev1.Secret{},
 			r.enqueueRequestForTLSSecret(),
-			builder.WithPredicates(predicate.NewPredicateFuncs(r.usedInGateway))).
-		// Watch related namespace in allowed namespaces
-		Watches(&corev1.Namespace{},
-			r.enqueueRequestForAllowedNamespace()).
-		// Watch for changes to Reference Grants
+			builder.WithPredicates(predicate.NewPredicateFuncs(r.usedInGateway)),
+		).
+		Watches(&corev1.Namespace{}, r.enqueueRequestForAllowedNamespace()).
 		Watches(&gatewayv1.ReferenceGrant{}, r.enqueueRequestForReferenceGrant()).
-		// Watch for changes to BackendTLSPolicy
 		Watches(&gatewayv1.BackendTLSPolicy{}, watchhandlers.EnqueueRequestForBackendTLSPolicy(r.Client, r.logger, "dolphin")).
 		Watches(&corev1.Node{}, r.enqueueRequestForNodes(r.Client, r.logger, owningGatewayLabel)).
-		// Watch created and owned resources
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
 		Owns(&corev1.Service{}).
 		Owns(&discoveryv1.EndpointSlice{})
@@ -174,22 +189,57 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TLSRoute{}, r.enqueueRequestForOwningTLSRoute(r.logger))
 	}
 
-	gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TCPRoute{}, watchhandlers.EnqueueRequestForOwningTCPRoute(r.Client, r.logger, "dolphin"))
+	if tcpRouteEnabled {
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TCPRoute{}, watchhandlers.EnqueueRequestForOwningTCPRoute(r.Client, r.logger, "dolphin"))
+	}
 
 	if serviceImportEnabled {
 		// Watch for changes to Backend Service Imports
 		gatewayBuilder = gatewayBuilder.Watches(&mcsapiv1alpha1.ServiceImport{}, r.enqueueRequestForBackendServiceImport())
 	}
 
+	r.logger.Info("Completing Gateway controller registration")
+	completeStarted := time.Now()
 	if err := gatewayBuilder.Complete(r); err != nil {
 		return fmt.Errorf("failed to complete Gateway controller: %w", err)
 	}
+	r.logger.Info("Gateway controller registration complete", "duration", time.Since(completeStarted))
 
+	return nil
+}
+
+func (r *gatewayReconciler) registerFieldIndex(mgr ctrl.Manager, obj client.Object, field string, indexer client.IndexerFunc) error {
+	started := time.Now()
+	objectType := fmt.Sprintf("%T", obj)
+	r.logger.Info("Registering Gateway cache field index", "objectType", objectType, "field", field)
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), obj, field, indexer); err != nil {
+		r.logger.Error("Gateway cache field index registration failed",
+			"objectType", objectType,
+			"field", field,
+			"duration", time.Since(started),
+			"error", err,
+		)
+		return err
+	}
+	r.logger.Info("Gateway cache field index registered",
+		"objectType", objectType,
+		"field", field,
+		"duration", time.Since(started),
+	)
 	return nil
 }
 
 func (r *gatewayReconciler) usedInGateway(obj client.Object) bool {
 	return len(getGatewaysForSecret(context.Background(), r.Client, obj, r.logger)) > 0
+}
+
+func (r *gatewayReconciler) hasInstalledCRD(kind string) bool {
+	for _, gvk := range r.installedCRDs {
+		if gvk.Kind == kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *gatewayReconciler) enqueueRequestForBackendServiceImport() handler.EventHandler {
@@ -451,40 +501,6 @@ func (r *gatewayReconciler) enqueueRequestForOwningGRPCRoute() handler.EventHand
 		}
 
 		return getGatewayReconcileRequestsForRoute(ctx, r.Client, a, gr.Spec.CommonRouteSpec, r.logger)
-	})
-}
-
-// return an event handler for all Gateway objects belonging to the given GatewayClass
-func (r *gatewayReconciler) enqueueRequestForOwningGatewayClass() handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-		scopedLog := log.WithFields(logrus.Fields{
-			logfields.Controller: gateway,
-			logfields.Resource:   a.GetName(),
-		})
-		var reqs []reconcile.Request
-		gwList := &gatewayv1.GatewayList{}
-		if err := r.Client.List(ctx, gwList); err != nil {
-			scopedLog.Error("Unable to list Gateways")
-			return nil
-		}
-
-		for _, gw := range gwList.Items {
-			if gw.Spec.GatewayClassName != gatewayv1.ObjectName(a.GetName()) {
-				continue
-			}
-			req := reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: gw.Namespace,
-					Name:      gw.Name,
-				},
-			}
-			reqs = append(reqs, req)
-			scopedLog.WithFields(logrus.Fields{
-				logfields.K8sNamespace: gw.GetNamespace(),
-				logfields.Resource:     gw.GetName(),
-			}).Info("Queueing gateway")
-		}
-		return reqs
 	})
 }
 

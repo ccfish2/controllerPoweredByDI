@@ -2,6 +2,7 @@ package gateway_api
 
 import (
 	"context"
+	"time"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
@@ -13,6 +14,13 @@ import (
 )
 
 func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	started := time.Now()
+	r.logger.Info("GatewayClass reconcile started", "name", req.Name)
+	defer func() {
+		r.logger.Info("GatewayClass reconcile finished", "name", req.Name, "duration", time.Since(started))
+	}()
+	r.logger.Info("GatewayClass worker entered Reconcile", "name", req.Name)
+
 	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
 		logfields.Controller: gateway,
 		logfields.Resource:   req.NamespacedName,
@@ -23,6 +31,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		"namespacedName", req.NamespacedName,
 	)
 	scopedLog.Info("Reconciling GatewayClass", " requestedName ", req.Name)
+	r.logger.Info("GatewayClass reconcile fetching object", "name", req.Name)
 	origin := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(ctx, req.NamespacedName, origin); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -32,6 +41,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		scopedLog.Error("Failed to get GatewayClass during reconcile")
 		return controllerruntime.Fail(err)
 	}
+	r.logger.Info("GatewayClass reconcile fetched object", "name", req.Name)
 
 	if origin.GetDeletionTimestamp() != nil {
 		scopedLog.Info("GatewayClass is being deleted; skipping reconcile")
@@ -56,10 +66,12 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	gwc := origin.DeepCopy()
 	setGatewayClassAccepted(gwc, true)
 	setGatewayClassSupportedFeatures(gwc)
+	r.logger.Info("GatewayClass reconcile patching status", "name", req.Name)
 	if err := r.ensureStatus(ctx, gwc, origin); err != nil {
 		scopedLog.Error("Failed to update GatewayClass status ", err.Error())
 		return controllerruntime.Fail(err)
 	}
+	r.logger.Info("GatewayClass reconcile status patched", "name", req.Name)
 
 	scopedLog.Info(" Successfully reconciled GatewayClass ")
 	return controllerruntime.Success()
