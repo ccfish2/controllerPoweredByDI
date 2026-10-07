@@ -33,6 +33,7 @@ import (
 	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/indexers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/predicates"
 )
 
 const (
@@ -134,42 +135,15 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ListenerSetGatewayIndex, err)
 	}
 
-	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, helpers.ListenerSetSecretIndex, indexers.IndexListenerSetBySecret); err != nil {
-	// 	return fmt.Errorf("failed to setup field indexer %q: %w", helpers.ListenerSetSecretIndex, err)
-	// }
-
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexers.HTTPRouteListenerSetIndex, indexers.IndexHTTPRouteByListenerSet); err != nil {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.HTTPRouteListenerSetIndex, err)
 	}
-	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{}, indexers.GRPCRouteListenerSetIndex, indexers.IndexGRPCRouteByListenerSet); err != nil {
-	// 	return fmt.Errorf("failed to setup field indexer %q: %w", indexers.GRPCRouteListenerSetIndex, err)
-	// }
-	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexers.TLSRouteListenerSetIndex, indexers.IndexTLSRouteByListenerSet); err != nil {
-	// 	return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TLSRouteListenerSetIndex, err)
-	// }
-	// // if tcpRouteEnabled {
-	// 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TCPRoute{}, indexers.TCPRouteListenerSetIndex, indexers.IndexTCPRouteByListenerSet); err != nil {
-	// 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TCPRouteListenerSetIndex, err)
-	// 	}
-	// }
-	// // if udpRouteEnabled {
-	// 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.UDPRoute{}, indexers.UDPRouteListenerSetIndex, indexers.IndexUDPRouteByListenerSet); err != nil {
-	// 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.UDPRouteListenerSetIndex, err)
-	// 	}
-	// }
-	// }
 
-	hasMatchingControllerFn := hasMatchingController(context.Background(), r.Client, controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	hasMatchingControllerFn := hasMatchingController(context.Background(), r.Client, controllerName, r.logger)
 	gatewayBuilder := ctrl.NewControllerManagedBy(mgr).
 		// Watch its own resource
 		For(&gatewayv1.Gateway{},
-			builder.WithPredicates(predicate.NewPredicateFuncs(hasMatchingControllerFn))).
-		// Watch GatewayClass resources, which are linked to Gateway
-		Watches(&gatewayv1.GatewayClass{},
-			r.enqueueRequestForOwningGatewayClass(),
-			builder.WithPredicates(predicate.NewPredicateFuncs(func(obj client.Object) bool {
-				return matchesControllerName(controllerName, r.logger, obj)
-			}))).
+			builder.WithPredicates(predicates.GatewayOwnedByController(hasMatchingControllerFn))).
 		// Watch related backend Service for status
 		// LB Services are handled by the Owns call later.
 

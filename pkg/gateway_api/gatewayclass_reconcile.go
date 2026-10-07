@@ -18,11 +18,11 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logfields.Resource:   req.NamespacedName,
 	})
 
-	scopedLog.Info("GatewayClass reconcile dequeued from queue",
+	scopedLog.Info(" GatewayClass reconcile dequeued from queue ",
 		"requestedName", req.Name,
 		"namespacedName", req.NamespacedName,
 	)
-	scopedLog.Info("Reconciling GatewayClass", "requestedName", req.Name)
+	scopedLog.Info("Reconciling GatewayClass", " requestedName ", req.Name)
 	origin := &gatewayv1.GatewayClass{}
 	if err := r.Client.Get(ctx, req.NamespacedName, origin); err != nil {
 		if k8serrors.IsNotFound(err) {
@@ -61,7 +61,7 @@ func (r *gatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return controllerruntime.Fail(err)
 	}
 
-	scopedLog.Info("Successfully reconciled GatewayClass")
+	scopedLog.Info(" Successfully reconciled GatewayClass ")
 	return controllerruntime.Success()
 }
 

@@ -298,7 +298,9 @@ func initGatewayAPIController(params gatewayAPIParams) (*GatewayAPIController, e
 	}
 
 	installedKinds := params.Preconditions.InstalledKinds
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 	reconcilers, err := registerReconcilers(
 		params.CtrlRuntimeManager,
 		params.Config.GatewayAPISecretsNamespace,
