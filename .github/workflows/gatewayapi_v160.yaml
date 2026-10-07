@@ -302,10 +302,6 @@ jobs:
             sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
 
-          # Deploy the StatefulSet separately because it contains
-          # the persistent storage configuration.
-          kubectl apply -f install/manifests/statefulset.yaml
-
       # ============================================================
       # 12. Wait for PersistentVolumeClaims
       # ============================================================
@@ -341,23 +337,6 @@ jobs:
                   echo "PVCs are still not in 'Bound' status after waiting."
                   exit 1
               fi
-          fi
-
-      # ============================================================
-      # 13. Wait for Dolphin operator to become Ready
-      # ============================================================
-      # The deployment phase is considered successful only after
-      # the Dolphin StatefulSet has successfully rolled out.
-      #
-      # This ensures the operator is running before functional
-      # tests are executed.
-      - name: Wait for Dolphin Operator to be Ready
-        run: |
-          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
-            echo "StatefulSet operator-dolphin rolled out successfully"
-          else
-            echo "StatefulSet operator-dolphin rollout failed or timed out"
-            exit 1
           fi
 
       # ============================================================
@@ -507,6 +486,26 @@ jobs:
             -o wide
 
           echo "Cilium installation complete."
+      
+      # ============================================================
+      # 14.2 Deploy Operator and  Wait for Dolphin operator to become Ready
+      # ============================================================
+      # The deployment phase is considered successful only after
+      # the Dolphin StatefulSet has successfully rolled out.
+      #
+      # This ensures the operator is running before functional
+      # tests are executed.
+      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
+        run: |
+          kubectl apply -f install/manifests/statefulset.yaml
+
+          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
+            echo "StatefulSet operator-dolphin rolled out successfully"
+          else
+            echo "StatefulSet operator-dolphin rollout failed or timed out"
+            exit 1
+          fi
+
 
       # ============================================================
       # 14.2. Deploy GatewayClass
