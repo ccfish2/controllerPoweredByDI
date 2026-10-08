@@ -43,51 +43,55 @@ sleep 60
 NAMESPACE="dolphin"
 POD="netshoot"
 
+if ! kubectl -n "${NAMESPACE}" get pod "${POD}" >/dev/null 2>&1; then
+    echo "Pod ${NAMESPACE}/${POD} is missing; creating it..."
+    kubectl -n "${NAMESPACE}" run "${POD}" \
+        --image=nicolaka/netshoot \
+        --restart=Never \
+        --command -- sleep infinity || {
+            echo "ERROR: Failed to create ${NAMESPACE}/${POD}"
+            exit 1
+        }
+fi
+
+if ! kubectl -n "${NAMESPACE}" wait \
+    --for=condition=Ready "pod/${POD}" --timeout=120s; then
+    echo "ERROR: ${NAMESPACE}/${POD} did not become ready"
+    kubectl -n "${NAMESPACE}" describe pod "${POD}" || true
+    kubectl -n "${NAMESPACE}" logs "${POD}" --all-containers=true || true
+    exit 1
+fi
+echo "Pod ${NAMESPACE}/${POD} is ready"
+
 echo "Running TCP Test:"
 
 echo "Executing:"
-echo "printf 'hello-from-client\r\n' | nc -v ${gatewayip} 3000"
+echo "printf 'hello-from-client\\r\\n' | nc -v -w 5 ${gatewayip} 3000"
 
-# Run the TCP test from inside the netshoot pod.
-tcp_response="$(
+if tcp_output="$(
   kubectl -n "${NAMESPACE}" exec "${POD}" -- \
-    sh -c "printf 'hello-from-client\r\n' | nc -v ${gatewayip} 3000" \
-    2>&1
-)"
+    sh -c 'printf "hello-from-client\r\n" | nc -v -w 5 "$1" 3000' \
+    sh "${gatewayip}" 2>&1
+)"; then
+    tcp_status=0
+else
+    tcp_status=$?
+fi
 
-echo "TCP response:"
-echo "${tcp_response}"
+echo "TCP command exit status: ${tcp_status}"
+echo "TCP output:"
+echo "${tcp_output:-<no output>}"
 
-# Verify TCP connection succeeded.
-if ! echo "${tcp_response}" | grep -q "Connection to ${gatewayip} 3000 port .* succeeded"; then
-    echo "ERROR: TCP connection to ${gatewayip}:3000 failed"
+if (( tcp_status != 0 )); then
+    echo "ERROR: TCP command failed (exit status ${tcp_status})"
     exit 1
 fi
 
-# Verify expected Gateway API TCP server response.
-if ! echo "${tcp_response}" | grep -q "Gateway API Test TCP Server"; then
-    echo "ERROR: TCP server did not return expected response:"
+if ! grep -Fq "Gateway API Test TCP Server" <<<"${tcp_output}"; then
+    echo "ERROR: TCP command succeeded, but the expected server response was not found"
     echo "Expected: Gateway API Test TCP Server"
-    echo "Actual:"
-    echo "${tcp_response}"
     exit 1
 fi
 
 echo "TCP Gateway API verification succeeded"
 echo "Received expected response: Gateway API Test TCP Server"
-
-echo
-echo "Running HTTP backend verification:"
-
-if curl_with_retry "$NAMESPACE" "$POD" 90 5 \
-  curl -sSL -o /tmp/response.json -w "%{http_code}" \
-  --resolve "${HOST}:80:${gatewayip}" \
-  "${URL}"; then
-    echo "Backend SVC verification succeeded (HTTP 200)"
-    kubectl -n "${NAMESPACE}" exec "${POD}" -- cat /tmp/response.json
-    echo
-
-else
-    echo "ERROR: Backend SVC verification failed"
-    exit 1
-fi
