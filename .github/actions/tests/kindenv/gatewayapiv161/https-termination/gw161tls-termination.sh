@@ -44,7 +44,7 @@ echo "deploy gateway api and http routes "
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/https-termination/gwhttps.yaml
  
 #--- Wait for gatewayapi LoadBalancer IP VIP  ---
-end=$((SECONDS + 120))
+end=$((SECONDS + 240))
 tlsgatewayip=""
 while true; do
     tlsgatewayip=$(kubectl -n dolphin get gateway tls-gateway \

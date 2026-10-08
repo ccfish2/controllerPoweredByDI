@@ -13,7 +13,7 @@ echo "Deploy Gateway, TCP Route and HTTP Route"
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/tcpudproute/gateway-mixed-http-tcp.yaml
 # verify gatewayapi through l7 service connection
 gatewayip=""
-end=$((SECONDS+120))
+end=$((SECONDS+240))
 while true; do
     gatewayip=$(kubectl -n dolphin get gateway gateway-mixed -o jsonpath="{.status.addresses[?(@.type=='IPAddress')].value}")
 

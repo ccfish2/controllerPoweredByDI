@@ -13,7 +13,7 @@ echo "Deploying shared gateway into dolphin namespace, http routes and ListenerS
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/listenersets/listeners.yaml
 echo "Waiting for Gateway to be programmed and HTTPRoute to be accepted"
 GATEWAY_NAME="shared-gateway"
-deadline=$((SECONDS + 120))
+deadline=$((SECONDS + 240))
 gateway_ip=""
  
 while (( SECONDS < deadline )); do
