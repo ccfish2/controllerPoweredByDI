@@ -646,6 +646,7 @@ jobs:
       # HTTPRoute and other supported Gateway API resources.
       #
       # This step can be skipped when manually triggering the workflow
+      # the echo image amd64 and arm64 does not match
       # by setting run_http_split_tests to false.
       - name: Run Network Gateway API HTTP Splitting functional Tests
         if: |

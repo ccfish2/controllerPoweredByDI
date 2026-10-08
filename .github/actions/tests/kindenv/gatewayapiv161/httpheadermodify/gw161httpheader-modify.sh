@@ -257,7 +257,7 @@ echo "✓ HTTPRoute backend references configured"
  
 
 echo "Deploy HTTP Route Splitting Cilium envoy config"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/httpmodify-header-cec.yaml
+kubectl -n dolphin apply -f ..github/actions/tests/kindenv/gatewayapiv161/httpheadermodify/httpmodify-header-cec.yaml
 sleep 10
 
 

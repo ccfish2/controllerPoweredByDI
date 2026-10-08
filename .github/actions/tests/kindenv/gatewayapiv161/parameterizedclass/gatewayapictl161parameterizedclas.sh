@@ -14,13 +14,14 @@ echo "Deploy test applications"
 kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
 
 echo "Deploy GatewayClass, DolphinGatewayClassConfig, Gateway, HTTPRoute"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/deploy.yaml
+# this request nodeport configuration 
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/deploy.yaml
 sleep 180
 
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Deploy Cilium Envoy Cnofig for Gateway and HTTP Route"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/parameterized-gatewayclass/nodeport-gateway-cec.yaml
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/nodeport-gateway-cec.yaml
 sleep 10
 
 echo "Deploying netshoot client"
