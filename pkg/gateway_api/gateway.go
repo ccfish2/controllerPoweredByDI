@@ -45,6 +45,7 @@ const (
 type gatewayReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
+	APIReader          client.Reader
 	SecretNamespace    string
 	IdleTimeoutSeconds int
 	EnableIPv4         bool
@@ -61,6 +62,7 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 
 	return &gatewayReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		IdleTimeoutSeconds: idleTimeoutSeconds,
 		EnableIPv4:         enableIpv4,
@@ -68,6 +70,25 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 		logger:             scopedLog,
 		installedCRDs:      installedCRDs,
 	}
+}
+
+func (r *gatewayReconciler) getBackendTLSCAConfigMap(
+	ctx context.Context,
+	namespace string,
+	name string,
+) (*corev1.ConfigMap, error) {
+	if r.APIReader == nil {
+		return nil, fmt.Errorf("API reader is not configured")
+	}
+
+	key := types.NamespacedName{Namespace: namespace, Name: name}
+	configMap := &corev1.ConfigMap{}
+
+	if err := r.APIReader.Get(ctx, key, configMap); err != nil {
+		return nil, fmt.Errorf("get BackendTLSPolicy CA ConfigMap %s: %w", key, err)
+	}
+
+	return configMap, nil
 }
 
 // sets up the controller with the Manager
@@ -79,6 +100,23 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	defer func() {
 		r.logger.Info("Gateway SetupWithManager finished", "duration", time.Since(setupStarted))
 	}()
+
+	if _, alreadyWrapped := r.Client.(*gatewayDiagnosticClient); !alreadyWrapped {
+		baseClient := r.Client
+		if baseClient == nil {
+			baseClient = mgr.GetClient()
+		}
+
+		diagnosticLogger := r.logger
+		if diagnosticLogger == nil {
+			diagnosticLogger = slog.Default()
+		}
+
+		r.Client = &gatewayDiagnosticClient{
+			Client: baseClient,
+			logger: diagnosticLogger,
+		}
+	}
 
 	// Determine which optional CRDs are enabled
 	var tlsRouteEnabled, tcpRouteEnabled, serviceImportEnabled, listenerSetEnabled bool

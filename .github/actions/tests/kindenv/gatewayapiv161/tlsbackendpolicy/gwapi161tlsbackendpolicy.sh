@@ -131,9 +131,6 @@ kubectl -n dolphin create secret tls example-cert \
   --cert=$CERT_FILE \
   --key=$KEY_FILE
 
-kubectl -n dolphin create configmap example-ca \
-  --from-file=ca.crt=$CERT_FILE \
-  --dry-run=client -o yaml | kubectl apply -f -
 # going back to parent folder
 cd ..
 

@@ -36,7 +36,7 @@ GATEWAY_CLASS="${GATEWAY_CLASS:-cilium}"
 CERT_DIR="$(mktemp -d)"
 trap 'rm -rf "${CERT_DIR}"' EXIT
 
-GATEWAY_NAME="tls-gateway"
+GATEWAY_NAME="grpc-gateway"
 ROUTE_NAME="grpc-route"
 SERVICE_NAME="grpc-echo"
 SERVICE_PORT=7070
@@ -163,7 +163,7 @@ dump_debug() {
 }
 
 echo "Deploy GRPC route cilium envoy config"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/gatewayapi/grpc-cec.yaml
+kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/161grpc/grpc-cec.yaml
 sleep 10
 
 echo "Preparing netshoot client"

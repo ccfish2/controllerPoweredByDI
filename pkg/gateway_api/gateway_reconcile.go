@@ -34,10 +34,93 @@ import (
 	translation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/gateway-api"
 
 	// dolphin
+	"sync/atomic"
+
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 )
+
+// Add near the package-level declarations:
+var activeGatewayReconciles atomic.Int64
+
+type gatewayDiagnosticContextKey struct{}
+
+type gatewayPhaseTracker struct {
+	logger *slog.Logger
+	name   string
+	start  time.Time
+}
+
+func (p *gatewayPhaseTracker) set(name string) {
+	now := time.Now()
+	if p.name != "" {
+		p.logger.Info("Gateway reconcile phase finished",
+			"phase", p.name,
+			"duration", now.Sub(p.start),
+		)
+	}
+	p.name = name
+	p.start = now
+	p.logger.Info("Gateway reconcile phase started", "phase", name)
+}
+
+func (p *gatewayPhaseTracker) finish() {
+	if p.name != "" {
+		p.logger.Info("Gateway reconcile phase finished",
+			"phase", p.name,
+			"duration", time.Since(p.start),
+		)
+	}
+}
+
+type gatewayDiagnosticClient struct {
+	client.Client
+	logger *slog.Logger
+}
+
+func (c *gatewayDiagnosticClient) Get(
+	ctx context.Context,
+	key client.ObjectKey,
+	obj client.Object,
+	opts ...client.GetOption,
+) error {
+	started := time.Now()
+	phase := "unknown"
+	if p, ok := ctx.Value(gatewayDiagnosticContextKey{}).(*gatewayPhaseTracker); ok && p.name != "" {
+		phase = p.name
+	}
+
+	c.logger.InfoContext(ctx, "Gateway client Get starting",
+		"phase", phase, "key", key.String(), "objectType", fmt.Sprintf("%T", obj))
+
+	err := c.Client.Get(ctx, key, obj, opts...)
+	c.logger.InfoContext(ctx, "Gateway client Get returned",
+		"phase", phase, "key", key.String(), "objectType", fmt.Sprintf("%T", obj),
+		"duration", time.Since(started), "error", err, "contextError", ctx.Err())
+	return err
+}
+
+func (c *gatewayDiagnosticClient) List(
+	ctx context.Context,
+	list client.ObjectList,
+	opts ...client.ListOption,
+) error {
+	started := time.Now()
+	phase := "unknown"
+	if p, ok := ctx.Value(gatewayDiagnosticContextKey{}).(*gatewayPhaseTracker); ok && p.name != "" {
+		phase = p.name
+	}
+
+	c.logger.InfoContext(ctx, "Gateway client List starting",
+		"phase", phase, "listType", fmt.Sprintf("%T", list))
+
+	err := c.Client.List(ctx, list, opts...)
+	c.logger.InfoContext(ctx, "Gateway client List returned",
+		"phase", phase, "listType", fmt.Sprintf("%T", list),
+		"duration", time.Since(started), "error", err, "contextError", ctx.Err())
+	return err
+}
 
 func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	reconcileStarted := time.Now()
@@ -46,13 +129,25 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		diagnosticLogger = slog.Default()
 	}
 	diagnosticLogger.Info("Gateway reconcile started", "namespace", req.Namespace, "name", req.Name)
+	active := activeGatewayReconciles.Add(1)
+	diagnosticLogger.Info("Gateway reconcile worker entered",
+		"namespace", req.Namespace,
+		"name", req.Name,
+		"activeGatewayReconciles", active,
+	)
 	defer func() {
+		active := activeGatewayReconciles.Add(-1)
 		diagnosticLogger.Info("Gateway reconcile finished",
 			"namespace", req.Namespace,
 			"name", req.Name,
 			"duration", time.Since(reconcileStarted),
+			"activeGatewayReconciles", active,
 		)
 	}()
+
+	tracker := &gatewayPhaseTracker{logger: diagnosticLogger}
+	ctx = context.WithValue(ctx, gatewayDiagnosticContextKey{}, tracker)
+	defer tracker.finish()
 
 	scopedLog := log.WithContext(ctx).WithFields(logrus.Fields{
 		logfields.Controller: gateway,
@@ -63,7 +158,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// step 1: retrieve the gateway
 	gw := &gatewayv1.Gateway{}
-
+	tracker.set("get Gateway")
 	err := r.Client.Get(ctx, req.NamespacedName, gw)
 	if err != nil {
 		if k8serros.IsNotFound(err) {
@@ -90,7 +185,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// step 2: Gather all required information for the ingestion model
 	gwc := &gatewayv1.GatewayClass{}
-
+	tracker.set("get GatewayClass")
 	err = r.Client.Get(ctx,
 		client.ObjectKey{Name: string(gw.Spec.GatewayClassName)},
 		gwc,
@@ -115,25 +210,28 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		scopedLog.Debug("GatewayClass does not have matching controller name, doing nothing")
 		return controllerruntime.Success()
 	}
-
+	tracker.set("list HTTPRoutes")
 	httpRouteList := &gatewayv1.HTTPRouteList{}
 	err = r.Client.List(ctx, httpRouteList)
 	if err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("list TLSRoutes")
 	tlsRouteList := &gatewayv1.TLSRouteList{}
 	err = r.Client.List(ctx, tlsRouteList)
 	if err != nil {
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("list Services")
 	servicesList := &corev1.ServiceList{}
 	if err := r.Client.List(ctx, servicesList); err != nil {
 		scopedLog.WithError(err).Error("Unable to list Services")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("list GRPCRoutes")
 	grpcRouteList := &gatewayv1.GRPCRouteList{}
 	if err := r.Client.List(ctx, grpcRouteList); err != nil {
 		scopedLog.Error(ctx, "Unable to list GRPCRoutes", logfields.Error, err)
@@ -142,6 +240,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	tcpRouteList := &gatewayv1.TCPRouteList{}
 	if r.hasInstalledCRD(helpers.TCPRouteKind) {
+		tracker.set("list TCPRoutes")
 		if err := r.Client.List(ctx, tcpRouteList);
 		// 	 &client.ListOptions{
 		// 	FieldSelector: fields.OneTermEqualSelector(indexers.GatewayTCPRouteIndex, client.ObjectKeyFromObject(original).String()),
@@ -153,6 +252,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	grants := &gatewayv1.ReferenceGrantList{}
+	tracker.set("list ReferenceGrantList")
 	if err := r.Client.List(ctx, grants); err != nil {
 		scopedLog.Error(ctx, "Unable to list ReferenceGrants", logfields.Error, err)
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
@@ -160,29 +260,35 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	var attachedListenerSets []gatewayv1.ListenerSet
 	if helpers.HasListenerSetSupport(r.Client.Scheme()) {
+		tracker.set("list ListenerSets")
 		listenerSets, err := r.listenerSetsForGateway(ctx, gw)
 		if err != nil {
 			scopedLog.Error(ctx, "Unable to list ListenerSets", logfields.Error, err)
 			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 		}
+		tracker.set("filter allowed ListenerSets")
 		attachedListenerSets = r.filterToAllowedListenerSets(ctx, scopedLog, gw, listenerSets)
 	}
+	tracker.set("merge listeners and find conflicts")
 	listenerContexts := r.mergeListeners(ctx, scopedLog, gw, attachedListenerSets)
 	conflictedListeners := conflictsAcrossSources(listenerContexts)
 
 	var namespaces []corev1.Namespace
 	if hasAllowedRoutesNamespaceSelector(gw) {
 		namespaceList := &corev1.NamespaceList{}
+		tracker.set("list Namespaces")
 		if err := r.Client.List(ctx, namespaceList); err != nil {
 			scopedLog.Error(ctx, "Unable to list Namespaces", logfields.Error, err)
 			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 		}
 		namespaces = namespaceList.Items
 	}
+	tracker.set("build namespace index and filter routes")
 	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
 	dgccfg := r.getGatewayClassConfig(ctx, gwc)
 	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items)
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
+	tracker.set("build ingestion model")
 	httpListeners, tlsListeners := ingestion.GatewayAPI(ingestion.Input{
 		GatewayClass:       *gwc,
 		Gateway:            *copy,
@@ -195,17 +301,21 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	})
 
 	btlspList := &gatewayv1.BackendTLSPolicyList{}
+	tracker.set("list BackendTLSPolicies")
 	if err := r.Client.List(ctx, btlspList); err != nil {
 		scopedLog.WithError(err).Error("Unable to list BackendTLSPolicies")
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 	}
 	if len(btlspList.Items) > 0 {
+		tracker.set("update BackendTLSPolicy statuses")
 		btlspMap := helpers.BuildBackendTLSPolicyLookup(btlspList)
 		if err := r.setBackendTLSPolicyStatuses(&slog.Logger{}, ctx, HTTPRoutes, btlspMap, req.NamespacedName); err != nil {
 			scopedLog.WithError(err).Error("Unable to update BackendTLSPolicy Status")
 			return controllerruntime.Fail(err)
 		}
 	}
+
+	tracker.set("update Gateway listener statuses")
 	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList, grpcRouteList, namespaceLabels)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to set listener status")
@@ -215,6 +325,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Run the TCPRoute route checks here and update the status accordingly.
 	if r.hasInstalledCRD(helpers.TCPRouteKind) {
+		tracker.set("update TCPRoute statuses")
 		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
 			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
 			return controllerruntime.Fail(err)
@@ -227,6 +338,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Accepted and Programmed conditions. Those Gateway conditions reflect the
 	// Gateway's local configuration, so valid ListenerSets do not make an
 	// otherwise invalid Gateway accepted or programmed.
+	tracker.set("update ListenerSet statuses")
 	r.setListenerSetStatuses(
 		ctx,
 		gw,
@@ -241,6 +353,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	)
 
 	// step 3: translate the listeners into dolphin model
+	tracker.set("translate listeners")
 	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
 	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners}, dgccfg)
 	if err != nil {
@@ -249,18 +362,21 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("ensure Service")
 	if err := r.ensureService(ctx, svc); err != nil {
 		scopedLog.WithError(err).Error("Unable to create Service")
 		setGatewayAccepted(gw, false, "Unable to create Service resource")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("ensure Endpoints")
 	if err := r.ensureEndpoints(ctx, ep); err != nil {
 		scopedLog.WithError(err).Error("Unable to ensure Endpoints")
 		setGatewayAccepted(gw, false, "Unable to ensure Endpoints resource")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("ensure DolphinEnvoyConfig")
 	if err := r.ensureEnvoyConfig(ctx, dec); err != nil {
 		scopedLog.WithError(err).Error("Unable to ensure DolphinEnvoyConfig")
 		setGatewayAccepted(gw, false, "Unable to ensure CEC resource")
@@ -268,12 +384,14 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// step 4: update the status of the gateway
+	tracker.set("set Gateway address")
 	if err := r.setAddressStatus(ctx, copy); err != nil {
 		scopedLog.WithError(err).Error("Address is not ready")
 		setGatewayProgrammed(gw, false, "Address is not ready")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
+	tracker.set("update Gateway status")
 	setGatewayProgrammed(copy, true, "reconciled successfully")
 	if err := r.updateStatus(ctx, gw, copy); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update Gateway status: %w", err)
@@ -1571,6 +1689,7 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 
 				input := &policychecks.BackendTLSPolicyInput{
 					Client:           r.Client,
+					APIReader:        r.APIReader,
 					BackendTLSPolicy: btlsp,
 					ControllerName:   "io.dolphin/gateway-controller",
 				}
@@ -1608,6 +1727,7 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 				}
 				input := &policychecks.BackendTLSPolicyInput{
 					Client:           r.Client,
+					APIReader:        r.APIReader,
 					BackendTLSPolicy: btlsp,
 					ControllerName:   "io.dolphin/gateway-controller",
 				}
@@ -1644,6 +1764,7 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 			input := &policychecks.BackendTLSPolicyInput{
 				Client:           r.Client,
 				BackendTLSPolicy: btlsp,
+				APIReader:        r.APIReader,
 				ControllerName:   "io.dolphin/gateway-controller",
 			}
 

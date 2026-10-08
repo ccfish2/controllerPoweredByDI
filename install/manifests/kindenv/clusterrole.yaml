@@ -308,6 +308,9 @@ rules:
   - get
   - update
   - patch
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
 - apiGroups: ["networking.k8s.io"]
   resources: ["ingresses"]
   verbs: ["get", "list", "watch"]

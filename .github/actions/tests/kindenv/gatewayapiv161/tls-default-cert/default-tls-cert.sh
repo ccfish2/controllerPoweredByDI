@@ -46,9 +46,9 @@ kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply
 kubectl -n cilium-secrets delete secret tls-default-secret --ignore-not-found
 kubectl -n cilium-secrets create secret tls tls-default-secret \
   --cert=$CERT_FILE \
-  --key=$KEY_FILE
+  --key=$KEY_FILE --dry-run=client -o yaml | kubectl apply -f -
 # for netshoot pod
-kubectl -n dolphin delete secret tls-default-secret --ignore-not-found
+kubectl -n dolphin delete secret tls-default-secret --ignore-not-found 
 kubectl -n dolphin create secret tls tls-default-secret \
   --cert=$CERT_FILE \
   --key=$KEY_FILE
@@ -129,6 +129,7 @@ echo "Deploying cilium envoy config"
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/tls-default-cert/cec-tls-gw.yaml
 
 set -uo pipefail
+kubectl -n dolphin delete pod netshoot --wait=true --ignore-not-found
 echo "deploying debug pod on the samenamespace mounted with the same secrets"
 NAMESPACE="dolphin"
 POD="netshoot"

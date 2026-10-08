@@ -22,6 +22,7 @@ type BackendTLSPolicyInput struct {
 	Client           client.Client
 	BackendTLSPolicy *gatewayv1.BackendTLSPolicy
 	ControllerName   string
+	APIReader        client.Reader
 }
 
 func (b *BackendTLSPolicyInput) SetAncestorCondition(parentRef gatewayv1.ParentReference, condition metav1.Condition) {
@@ -79,8 +80,7 @@ func (b *BackendTLSPolicyInput) ValidateSpec(ctx context.Context, scopedLog *slo
 		caCertRefKey := types.NamespacedName{Name: string(caCertRef.Name), Namespace: b.BackendTLSPolicy.Namespace}
 		caCert := &corev1.ConfigMap{}
 
-		err := b.Client.Get(ctx, caCertRefKey, caCert)
-		if err != nil {
+		if err := b.APIReader.Get(ctx, caCertRefKey, caCert); err != nil {
 			if k8serrors.IsNotFound(err) {
 				b.setRejectedConditions(ancestorRef, fmt.Sprintf("CA Certificate does not exist: %s", caCertRefKey),
 					string(gatewayv1.BackendTLSPolicyReasonNoValidCACertificate), string(gatewayv1.BackendTLSPolicyReasonInvalidCACertificateRef))

@@ -31,23 +31,25 @@ echo "create tls secret that guard gateway httproutes"
 kubectl create namespace cilium-secrets --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n cilium-secrets create secret tls ca \
   --cert=$CERT_FILE \
-  --key=$KEY_FILE
+  --key=$KEY_FILE --dry-run=client -o yaml | kubectl apply -f -
 
 # --- CA configmap for the in-cluster verification pod ---
 echo "create configmap that persist the cacert for accessing service"
-kubectl -n dolphin create configmap bookinfo-ca --from-file=bookinfo.cilium.rocks.pem=bookinfo.cilium.rocks.pem
+kubectl -n dolphin create configmap bookinfo-ca --from-file=bookinfo.cilium.rocks.pem=bookinfo.cilium.rocks.pem --dry-run=client -o yaml | kubectl apply -f -
 
 cd ..
 
 # --- Apply gateway and httproutes config ---
 echo "deploy gateway api and http routes "
+kubectl -n dolphin delete gateway tls-gateway --wait=true
+sleep 5
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/https-termination/gwhttps.yaml
  
 #--- Wait for gatewayapi LoadBalancer IP VIP  ---
 end=$((SECONDS + 240))
 tlsgatewayip=""
 while true; do
-    tlsgatewayip=$(kubectl -n dolphin get gateway tls-gateway \
+    tlsgatewayip=$(kubectl -n dolphin get gateway tls-termination-gateway \
       -o jsonpath="{.status.addresses[0].value}" 2>/dev/null || true)
  
     if [[ -n "$tlsgatewayip" ]]; then
@@ -66,7 +68,7 @@ done
  
 # External connectivity check — confirm this helper does SNI/Host to $DOMAIN, not a hardcoded name
 #verify_https_connectivity "$ingressip" "$DOMAIN" || exit 1
-echo "apply cilium envoy configure  for tls-gateway routing and TLS termination"
+echo "apply cilium envoy configure  for tls-termination-gateway routing and TLS termination"
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/https-termination/cec-tls-termination.yaml
 
 # --- In-cluster cert-validated verification via busybox pod ---

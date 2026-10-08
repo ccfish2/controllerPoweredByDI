@@ -15,11 +15,16 @@ on:
         required: false
         default: 'true'
         type: boolean
-      run_gwapi_basic_functional_tests:
-        description: 'Run Network Gateway API Functional tests'
+      run_tls_termination_tests:
+        description: 'Run HTTPS Termination Tests'
         required: false
         default: 'true'
         type: boolean
+      # run_gwapi_basic_functional_tests:
+      #   description: 'Run Network Gateway API Functional tests'
+      #   required: false
+      #   default: 'true'
+      #   type: boolean
       run_tls_passthrough_tests:
         description: 'Run HTTP/HTTPS/TLSROUTE Functional Tests'
         required: false
@@ -52,11 +57,6 @@ on:
         type: boolean
       run_listener_set:
         desciption: Run Network Gateway API Listener Sets 
-        required: false
-        default: 'true'
-        type: boolean
-      run_tls_termination_tests:
-        description: 'Run HTTPS Termination Tests'
         required: false
         default: 'true'
         type: boolean
@@ -571,9 +571,18 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/tls-default-cert/default-tls-cert.sh
 
+      # ============================================================
+      # 16. Gateway API -- TLS Termination
+      # ============================================================
+      - name: Run Network Gateway API TLS Termination
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_termination_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/https-termination/gw161tls-termination.sh
 
       # ============================================================
-      # 16. Gateway API Basic Functional Tests
+      # 16. Gateway API Basic Functional Tests Redundant
       # ============================================================
       # Validate Gateway API functionality provided by the operator.
       #
@@ -584,12 +593,12 @@ jobs:
       # This step can be skipped when manually triggering the workflow
       # by setting run_http_tests to false.
       # there are some overlapps between api-tests and default-tls-cert tests
-      - name: Run Network Gateway API Basic TLS Termination Functional Tests 
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
+      # - name: Run Network Gateway API Basic TLS Termination Functional Tests 
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
 
       # ============================================================
       # 17. Gateway API HTTP/HTTPS/TLSROUTE Functional Tests
@@ -686,15 +695,6 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/listenersets/gw161listenersets.sh
 
-      # ============================================================
-      # 24. Gateway API -- TLS Termination
-      # ============================================================
-      - name: Run Network Gateway API TLS Termination
-        if: |
-          github.event_name == 'workflow_run' || 
-          (github.event_name == 'workflow_dispatch' && inputs.run_tls_termination_tests == 'true')
-        run: |
-          bash .github/actions/tests/kindenv/gatewayapiv161/https-termination/gw161tls-termination.sh
       
       # ============================================================
       # 25. Gateway API -- TCP Route

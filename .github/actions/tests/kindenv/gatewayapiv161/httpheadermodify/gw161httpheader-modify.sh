@@ -128,7 +128,7 @@ kubectl -n "${NAMESPACE}" apply -f - <<EOF
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: dolphin-gw
+  name: httphdrmodify-gw
   namespace: dolphin
 spec:
   gatewayClassName: dolphin
@@ -147,7 +147,7 @@ metadata:
   namespace: dolphin
 spec:
   parentRefs:
-    - name: dolphin-gw
+    - name: httphdrmodify-gw
   rules:
     - matches:
         - path:
@@ -165,7 +165,7 @@ spec:
 EOF
 
 echo "Waiting for Gateway to be programmed and HTTPRoute to be accepted"
-GATEWAY_NAME="dolphin-gw"
+GATEWAY_NAME="httphdrmodify-gw"
 ROUTE_NAME="header-http-echo"
 deadline=$((SECONDS + 120))
 gateway_ip=""

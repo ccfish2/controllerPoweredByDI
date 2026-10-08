@@ -1,7 +1,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: tls-gateway
+  name: tls-termination-gateway
   namespace: dolphin
 spec:
   gatewayClassName: dolphin
@@ -30,7 +30,7 @@ metadata:
   namespace: dolphin
 spec:
   parentRefs:
-  - name: tls-gateway
+  - name: tls-termination-gateway
   hostnames:
   - "bookinfo.cilium.rocks"
   rules:
@@ -49,7 +49,7 @@ metadata:
   namespace: dolphin
 spec:
   parentRefs:
-  - name: tls-gateway
+  - name: tls-termination-gateway
   hostnames:
   - "hipstershop.cilium.rocks"
   rules:
