@@ -24,7 +24,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/routechecker"
-	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
 
 type GRPCRouteInput struct {
@@ -230,18 +229,7 @@ func (r *grpcrouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			r.enqueueRequestForGateway(),
 		)
 
-	if helpers.HasServiceImportSupport(r.Client.Scheme()) {
-		builder = builder.Watches(
-			&mcsapiv1alpha1.ServiceImport{},
-			r.enqueueRequestForBackendServiceImport(),
-		)
-	}
-
 	return builder.Complete(r)
-}
-
-func (r *grpcrouteReconciler) enqueueRequestForBackendServiceImport() handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(r.enqueueFromIndex(backendServiceImportIndex))
 }
 
 func getParentGatewayForGRPCRoute(rawObj client.Object) []string {

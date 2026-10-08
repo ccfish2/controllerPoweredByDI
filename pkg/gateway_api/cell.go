@@ -14,10 +14,14 @@ import (
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/cache"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	//myself
@@ -365,11 +369,152 @@ func registerReconcilers(
 		logger.Info("Gateway API reconciler setup complete", "index", i)
 	}
 
+	if err := instrumentGatewayClassInformer(mgr, logger); err != nil {
+		return nil, fmt.Errorf("failed to instrument GatewayClass informer: %w", err)
+	}
+
+	if err := mgr.Add(ctrlmanager.RunnableFunc(func(ctx context.Context) error {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
+		defer func() {
+			logger.Warn(
+				"GatewayClass diagnostic monitor exiting",
+				"contextError", ctx.Err())
+		}()
+
+		check := func() {
+			logger.Info("GatewayClass diagnostic cycle started", "contextError", ctx.Err())
+
+			apiCtx, cancelAPI := context.WithTimeout(ctx, 5*time.Second)
+			apiObject := &gatewayv1.GatewayClass{}
+			started := time.Now()
+			logger.Info("GatewayClass API reader read starting", "name", "dolphin")
+			apiErr := mgr.GetAPIReader().Get(
+				apiCtx,
+				ctrlclient.ObjectKey{Name: "dolphin"},
+				apiObject,
+			)
+			logger.Info(
+				"GatewayClass API reader read returned",
+				"name", "dolphin",
+				"duration", time.Since(started),
+				"contextError", apiCtx.Err(),
+				"error", apiErr,
+			)
+			cancelAPI()
+			logGatewayClassSnapshot(logger, "apiReader", apiObject, apiErr)
+
+			cacheCtx, cancelCache := context.WithTimeout(ctx, 5*time.Second)
+			cacheObject := &gatewayv1.GatewayClass{}
+			started = time.Now()
+			logger.Info("GatewayClass cache read starting", "name", "dolphin")
+			cacheErr := mgr.GetCache().Get(
+				cacheCtx,
+				ctrlclient.ObjectKey{Name: "dolphin"},
+				cacheObject,
+			)
+			logger.Info(
+				"GatewayClass cache read returned",
+				"name", "dolphin",
+				"duration", time.Since(started),
+				"contextError", cacheCtx.Err(),
+				"error", cacheErr,
+			)
+			cancelCache()
+			logGatewayClassSnapshot(logger, "sharedCache", cacheObject, cacheErr)
+		}
+		logger.Info("GatewayClass API/cache diagnostic monitor started", "interval", "15s")
+		check()
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Error(
+					"GatewayClass diagnostic monitor context canceled",
+					"contextError", ctx.Err(),
+					"cause", context.Cause(ctx),
+				)
+				return nil
+			case <-ticker.C:
+				check()
+			}
+		}
+	})); err != nil {
+		return nil, fmt.Errorf("failed to add GatewayClass diagnostic monitor: %w", err)
+	}
+
 	logger.Info("Gateway API controllers registered successfully")
 
 	return &GatewayAPIController{
 		reconcilers: reconcilers,
 	}, nil
+}
+
+func logGatewayClassSnapshot(
+	logger *slog.Logger,
+	source string,
+	obj *gatewayv1.GatewayClass,
+	err error,
+) {
+	if err != nil {
+		logger.Warn(
+			"GatewayClass diagnostic read failed",
+			"source", source,
+			"name", "dolphin",
+			"notFound", apierrors.IsNotFound(err),
+			"error", err,
+		)
+		return
+	}
+
+	logger.Info(
+		"GatewayClass diagnostic read succeeded",
+		"source", source,
+		"name", obj.Name,
+		"uid", obj.UID,
+		"resourceVersion", obj.ResourceVersion,
+		"acceptedConditions", obj.Status.Conditions,
+	)
+}
+
+func instrumentGatewayClassInformer(mgr ctrlRuntime.Manager, logger *slog.Logger) error {
+	informer, err := mgr.GetCache().GetInformer(
+		context.Background(),
+		&gatewayv1.GatewayClass{},
+	)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("GatewayClass informer diagnostic handler registered")
+
+	logEvent := func(event string, obj interface{}) {
+		key, keyErr := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+		if keyErr != nil {
+			key = fmt.Sprintf("%T", obj)
+		}
+
+		logger.Info(
+			"GatewayClass shared-cache delivered event",
+			"event", event,
+			"object", key,
+			"cacheSynced", informer.HasSynced(),
+		)
+	}
+
+	_, err = informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			logEvent("add", obj)
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			logEvent("update", newObj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			logEvent("delete", obj)
+		},
+	})
+	return err
 }
 
 func checkRequiredCRDs(ctx context.Context, clientset k8sClient.Clientset) error {

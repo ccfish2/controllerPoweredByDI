@@ -332,7 +332,10 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 			},
 			OnStoppedLeading: func() {
 				log.WithField("operator-id", operatorID).Info("Leader election lost")
-				// Cleanup everything here, and exit.
+				log.WithFields(logrus.Fields{
+					"source":     "leader-election-lost",
+					"operatorID": operatorID,
+				}).Warn("Requesting Hive shutdown")
 				shutdowner.Shutdown(hive.ShutdownWithError(errors.New("leader election lost")))
 			},
 			OnNewLeader: func(identity string) {

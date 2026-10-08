@@ -98,13 +98,32 @@ func NewManager(params mgrParams) (ctrlruntime.Manager, error) {
 	jobG.Add(job.OneShot("manager", func(ctx context.Context, health cell.HealthReporter) error {
 		params.Loggger.Info("🚀 Starting controller-runtime manager...")
 		fmt.Println("🚀 Starting controller-runtime manager...")
-		if err := mgr.Start(ctx); err != nil {
+
+		stopLog := context.AfterFunc(ctx, func() {
+			fmt.Println("manager job context canceled:",
+				"error=", ctx.Err(),
+				"cause=", context.Cause(ctx),
+			)
+		})
+		defer stopLog()
+
+		fmt.Println("calling mgr.Start")
+		err := mgr.Start(ctx)
+		params.Loggger.WithError(err).WithFields(logrus.Fields{
+			"jobContextError": ctx.Err(),
+			"jobContextCause": context.Cause(ctx),
+		}).Error("Controller-runtime manager stopped")
+		fmt.Println("mgr.Start returned:",
+			"error=", err,
+			"contextError=", ctx.Err(),
+			"contextCause=", context.Cause(ctx),
+		)
+		if err != nil {
 			params.Loggger.WithError(err).Error("❌ Manager crashed")
 			return err
 		}
 
 		params.Loggger.Info("✓ Manager running")
-		fmt.Println("✓ Manager running")
 		return nil
 	}))
 
