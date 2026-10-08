@@ -6,7 +6,7 @@ metadata:
   labels:
     component: dolphin-operator
 spec:
-  replicas: 2
+  replicas: 1
   serviceName: operator-dolphin
   selector:
     matchLabels:
