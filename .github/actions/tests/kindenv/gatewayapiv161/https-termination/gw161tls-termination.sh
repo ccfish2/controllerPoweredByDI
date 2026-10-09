@@ -41,7 +41,7 @@ cd ..
 
 # --- Apply gateway and httproutes config ---
 echo "deploy gateway api and http routes "
-kubectl -n dolphin delete gateway tls-gateway --wait=true
+kubectl -n dolphin delete gateway tls-gateway --wait=true --ignore-not-found
 sleep 5
 kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/https-termination/gwhttps.yaml
  

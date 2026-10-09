@@ -72,25 +72,6 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 	}
 }
 
-func (r *gatewayReconciler) getBackendTLSCAConfigMap(
-	ctx context.Context,
-	namespace string,
-	name string,
-) (*corev1.ConfigMap, error) {
-	if r.APIReader == nil {
-		return nil, fmt.Errorf("API reader is not configured")
-	}
-
-	key := types.NamespacedName{Namespace: namespace, Name: name}
-	configMap := &corev1.ConfigMap{}
-
-	if err := r.APIReader.Get(ctx, key, configMap); err != nil {
-		return nil, fmt.Errorf("get BackendTLSPolicy CA ConfigMap %s: %w", key, err)
-	}
-
-	return configMap, nil
-}
-
 // sets up the controller with the Manager
 // The reconciler will be triggered by Gateway and related resource events.
 // Endpoints

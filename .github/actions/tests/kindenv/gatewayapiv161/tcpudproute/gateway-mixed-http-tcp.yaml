@@ -6,14 +6,14 @@ metadata:
 spec:
   gatewayClassName: dolphin
   listeners:
-    - name: http
-      port: 80
-      protocol: HTTP
-      allowedRoutes:
-        namespaces:
-          from: Same
-        kinds:
-          - kind: HTTPRoute
+    # - name: http
+    #   port: 80
+    #   protocol: HTTP
+    #   allowedRoutes:
+    #     namespaces:
+    #       from: Same
+    #     kinds:
+    #       - kind: HTTPRoute
     - name: tcp
       port: 3000
       protocol: TCP

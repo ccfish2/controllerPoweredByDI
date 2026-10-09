@@ -6,7 +6,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-func IsBackendReferenceAllowed(originatingNamespace string, be gatewayv1.BackendRef, gvk schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {
+func IsBackendReferenceAllowed(originatingNamespace string, be gatewayv1.BackendObjectReference, gvk schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {
 	return isReferenceAllowed(originatingNamespace, string(be.Name), be.Namespace, gvk, corev1.SchemeGroupVersion.WithKind("Service"), grants)
 }
 func IsSecretReferenceAllowed(originatingNamespace string, sr gatewayv1.SecretObjectReference, gvk schema.GroupVersionKind, grants []gatewayv1.ReferenceGrant) bool {

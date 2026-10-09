@@ -258,6 +258,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 	}
 
+	// filterTCPRoutesByGateway reads TCPRoute status, so refresh it first.
+	if r.hasInstalledCRD(helpers.TCPRouteKind) {
+		tracker.set("update TCPRoute statuses")
+		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
+			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
+			return controllerruntime.Fail(err)
+		}
+	}
+
 	var attachedListenerSets []gatewayv1.ListenerSet
 	if helpers.HasListenerSetSupport(r.Client.Scheme()) {
 		tracker.set("list ListenerSets")
@@ -289,7 +298,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items)
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
 	tracker.set("build ingestion model")
-	httpListeners, tlsListeners := ingestion.GatewayAPI(ingestion.Input{
+	httpListeners, tlsListeners, tcpListeners := ingestion.GatewayAPI(ingestion.Input{
 		GatewayClass:       *gwc,
 		Gateway:            *copy,
 		GatewayClassConfig: dgccfg,
@@ -323,15 +332,6 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
-	// Run the TCPRoute route checks here and update the status accordingly.
-	if r.hasInstalledCRD(helpers.TCPRouteKind) {
-		tracker.set("update TCPRoute statuses")
-		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
-			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
-			return controllerruntime.Fail(err)
-		}
-	}
-
 	setGatewayAccepted(copy, true, "Gateway successfully scheduled")
 
 	// ListenerSet status is reported independently from the parent Gateway's
@@ -355,12 +355,25 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// step 3: translate the listeners into dolphin model
 	tracker.set("translate listeners")
 	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
-	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners}, dgccfg)
+	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners, TCP: tcpListeners}, dgccfg)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to translate resources")
 		setGatewayAccepted(gw, false, "Unable to translate resources")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
+
+	var translatedPorts []string
+	if svc != nil {
+		for _, port := range svc.Spec.Ports {
+			translatedPorts = append(translatedPorts,
+				fmt.Sprintf("%s:%d/%s", port.Name, port.Port, port.Protocol))
+		}
+	}
+	scopedLog.WithFields(logrus.Fields{
+		"httpListenerCount": len(httpListeners),
+		"tlsListenerCount":  len(tlsListeners),
+		"servicePorts":      translatedPorts,
+	}).Info("Gateway translation result")
 
 	tracker.set("ensure Service")
 	if err := r.ensureService(ctx, svc); err != nil {

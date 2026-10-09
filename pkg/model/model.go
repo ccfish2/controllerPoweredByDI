@@ -10,6 +10,7 @@ import (
 type Model struct {
 	HTTP []HTTPListener `json:"http,omitempty"`
 	TLS  []TLSListener  `json:"tls,omitempty"`
+	TCP  []TCPListener  `json:"tcp,omitempty"`
 }
 
 func (m *Model) GetListeners() []Listener {
@@ -292,4 +293,16 @@ func (r *HTTPRoute) GetMatchKey() string {
 	}
 
 	return sb.String()
+}
+
+type TCPListener struct {
+	Name           string                   `json:"name"`
+	Port           uint32                   `json:"port"`
+	Sources        []FullyQualifiedResource `json:"sources,omitempty"`
+	Routes         []TCPRoute               `json:"routes,omitempty"`
+	Infrastructure *Infrastructure          `json:"infrastructure,omitempty"`
+}
+
+type TCPRoute struct {
+	Backends []Backend `json:"backends,omitempty"`
 }

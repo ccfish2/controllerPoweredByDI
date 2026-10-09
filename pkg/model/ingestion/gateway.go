@@ -59,9 +59,10 @@ type Input struct {
 }
 
 // translate gateway resources into a model
-func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
+func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model.TCPListener) {
 	var resHTTP []model.HTTPListener
 	var resTLS []model.TLSListener
+	var resTCP []model.TCPListener
 
 	var labels, annotations map[string]string
 	if input.Gateway.Spec.Infrastructure != nil {
@@ -77,28 +78,40 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 		}
 	}
 
+	source := model.FullyQualifiedResource{
+		Name:      input.Gateway.GetName(),
+		Namespace: input.Gateway.GetNamespace(),
+		Group:     input.Gateway.GroupVersionKind().Group,
+		Version:   input.Gateway.GroupVersionKind().Version,
+		Kind:      input.Gateway.GroupVersionKind().Kind,
+		UID:       string(input.Gateway.GetUID()),
+	}
+
 	for _, l := range input.Gateway.Spec.Listeners {
+		if l.Protocol == gatewayv1.TCPProtocolType {
+			resTCP = append(resTCP, model.TCPListener{
+				Name:           string(l.Name),
+				Sources:        []model.FullyQualifiedResource{source},
+				Port:           uint32(l.Port),
+				Routes:         toTCPRoutes(l, input.TCPRoutes, input.Services, input.ReferenceGrants),
+				Infrastructure: infra,
+			})
+			continue
+		}
+
 		if l.Protocol != gatewayv1.HTTPProtocolType &&
 			l.Protocol != gatewayv1.HTTPSProtocolType &&
 			l.Protocol != gatewayv1.TLSProtocolType {
 			continue
 		}
 
-		var httpRoutes []model.HTTPRoute
-		httpRoutes = append(httpRoutes, toHTTPRoutes(l, input.HTTPRoutes, input.Services, input.ReferenceGrants)...)
-		httpRoutes = append(httpRoutes, toGRPCRoutes(l, input.GRPCRoutes, input.Services, input.ReferenceGrants)...)
+		httpRoutes := toHTTPRoutes(l, input.HTTPRoutes, input.Services, input.ReferenceGrants)
+		httpRoutes = append(httpRoutes,
+			toGRPCRoutes(l, input.GRPCRoutes, input.Services, input.ReferenceGrants)...)
+
 		resHTTP = append(resHTTP, model.HTTPListener{
-			Name: string(l.Name),
-			Sources: []model.FullyQualifiedResource{
-				{
-					Name:      input.Gateway.GetName(),
-					Namespace: input.Gateway.GetNamespace(),
-					Group:     input.Gateway.GroupVersionKind().Group,
-					Version:   input.Gateway.GroupVersionKind().Version,
-					Kind:      input.Gateway.GroupVersionKind().Kind,
-					UID:       string(input.Gateway.GetUID()),
-				},
-			},
+			Name:           string(l.Name),
+			Sources:        []model.FullyQualifiedResource{source},
 			Port:           uint32(l.Port),
 			Hostname:       toHostname(l.Hostname),
 			TLS:            toTLS(l.TLS, input.ReferenceGrants, input.Gateway.GetNamespace()),
@@ -107,17 +120,8 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 		})
 
 		resTLS = append(resTLS, model.TLSListener{
-			Name: string(l.Name),
-			Sources: []model.FullyQualifiedResource{
-				{
-					Name:      input.Gateway.GetName(),
-					Namespace: input.Gateway.GetNamespace(),
-					Group:     input.Gateway.GroupVersionKind().Group,
-					Version:   input.Gateway.GroupVersionKind().Version,
-					Kind:      input.Gateway.GroupVersionKind().Kind,
-					UID:       string(input.Gateway.GetUID()),
-				},
-			},
+			Name:           string(l.Name),
+			Sources:        []model.FullyQualifiedResource{source},
 			Port:           uint32(l.Port),
 			Hostname:       toHostname(l.Hostname),
 			Routes:         toTLSRoutes(l, input.TLSRoutes, input.Services, input.ReferenceGrants),
@@ -125,7 +129,63 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener) {
 		})
 	}
 
-	return resHTTP, resTLS
+	return resHTTP, resTLS, resTCP
+}
+
+func toTCPRoutes(
+	listener gatewayv1.Listener,
+	input []gatewayv1.TCPRoute,
+	services []corev1.Service,
+	grants []gatewayv1.ReferenceGrant,
+) []model.TCPRoute {
+	var routes []model.TCPRoute
+
+	for _, route := range input {
+		attachedToListener := false
+		for _, parent := range route.Spec.ParentRefs {
+			if parent.SectionName == nil || string(*parent.SectionName) == string(listener.Name) {
+				attachedToListener = true
+				break
+			}
+		}
+		if !attachedToListener {
+			continue
+		}
+
+		for _, rule := range route.Spec.Rules {
+			backends := make([]model.Backend, 0, len(rule.BackendRefs))
+			for _, backendRef := range rule.BackendRefs {
+				if backendRef.Kind != nil && *backendRef.Kind != "Service" {
+					continue
+				}
+				if backendRef.Group != nil && *backendRef.Group != corev1.GroupName {
+					continue
+				}
+				if backendRef.Port == nil {
+					continue
+				}
+				if !helpers.IsBackendReferenceAllowed(
+					route.GetNamespace(),
+					backendRef.BackendObjectReference,
+					gatewayv1beta1.SchemeGroupVersion.WithKind("TCPRoute"),
+					grants,
+				) {
+					continue
+				}
+
+				namespace := helpers.NamespaceDerefOr(backendRef.Namespace, route.GetNamespace())
+				if !serviceExists(string(backendRef.Name), namespace, services) {
+					continue
+				}
+
+				backends = append(backends, backendToModelBackend(backendRef, route.GetNamespace()))
+			}
+
+			routes = append(routes, model.TCPRoute{Backends: backends})
+		}
+	}
+
+	return routes
 }
 
 // automation
@@ -156,7 +216,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 			bes := make([]model.Backend, 0, len(rule.BackendRefs))
 
 			for _, be := range rule.BackendRefs {
-				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef, gatewayv1beta1.SchemeGroupVersion.WithKind("GrpcRoute"), grants) {
+				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef.BackendObjectReference, gatewayv1beta1.SchemeGroupVersion.WithKind("GrpcRoute"), grants) {
 					continue
 				}
 				if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
@@ -351,12 +411,11 @@ func toHeaderMatch(match gatewayv1.HTTPRouteMatch) []model.KeyValueMatch {
 
 func serviceExists(svcName, svcNamespace string, services []corev1.Service) bool {
 	for _, svc := range services {
-		if svc.Name == svcName && svc.GetNamespace() == svcNamespace {
-			continue
+		if svc.Name == svcName && svc.Namespace == svcNamespace {
+			return true
 		}
-		return false
 	}
-	return true
+	return false
 }
 
 func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant) []model.TLSRoute {
@@ -388,7 +447,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 			bes := make([]model.Backend, 0, len(rule.BackendRefs))
 
 			for _, be := range rule.BackendRefs {
-				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
+				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendObjectReference, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
 					continue
 				}
 				if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
@@ -428,7 +487,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 					bes := make([]model.Backend, 0, len(rule.BackendRefs))
 
 					for _, be := range rule.BackendRefs {
-						if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
+						if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendObjectReference, gatewayv1beta1.SchemeGroupVersion.WithKind("TLSRoute"), grants) {
 							continue
 						}
 						if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {
@@ -484,7 +543,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 			bes := make([]model.Backend, 0, len(rule.BackendRefs))
 
 			for _, be := range rule.BackendRefs {
-				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef, gatewayv1beta1.SchemeGroupVersion.WithKind("HttpRoute"), grants) {
+				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef.BackendObjectReference, gatewayv1beta1.SchemeGroupVersion.WithKind("HttpRoute"), grants) {
 					continue
 				}
 				if be.Kind != nil && (*be.Kind) != "Service" || be.Group != nil && (*be.Group) != corev1.GroupName {

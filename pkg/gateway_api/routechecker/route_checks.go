@@ -21,7 +21,7 @@ func CheckAgainstCrossNamespaceBackendReferences(input Input) (bool, error) {
 		for _, be := range rule.GetBackendRefs() {
 			ns := helpers.NamespaceDerefOr(be.Namespace, input.GetNamespace())
 
-			if ns != input.GetNamespace() && !helpers.IsBackendReferenceAllowed(input.GetNamespace(), be, input.GetGVK(), input.GetGrants()) {
+			if ns != input.GetNamespace() && !helpers.IsBackendReferenceAllowed(input.GetNamespace(), be.BackendObjectReference, input.GetGVK(), input.GetGrants()) {
 				// no reference grants, update the status for all the parents
 				input.SetAllParentCondition(metav1.Condition{
 					Type:    string(gatewayv1.RouteConditionResolvedRefs),
@@ -226,7 +226,7 @@ func CheckAgainstCrossNamespaceBackendReferences_V2(input Input, parentRef gatew
 		for _, be := range rule.GetBackendRefs() {
 			ns := helpers.NamespaceDerefOr(be.Namespace, input.GetNamespace())
 
-			if ns != input.GetNamespace() && !helpers.IsBackendReferenceAllowed(input.GetNamespace(), be, input.GetGVK(), input.GetGrants()) {
+			if ns != input.GetNamespace() && !helpers.IsBackendReferenceAllowed(input.GetNamespace(), be.BackendObjectReference, input.GetGVK(), input.GetGrants()) {
 				// no reference grants, update the status for all the parents
 				input.SetParentCondition(parentRef, metav1.Condition{
 					Type:    string(gatewayv1.RouteConditionResolvedRefs),
