@@ -5,6 +5,7 @@ source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 echo "Deploying UDP services"
 kubectl create ns gateway-conformance-infra --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/udp/deployment.yaml
 wait_for_endpoints gateway-conformance-infra udp-backend-host-networking || exit 1
 
 echo "Deploy Gateway, UDP Route"

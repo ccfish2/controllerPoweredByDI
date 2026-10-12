@@ -17,7 +17,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: coredns
+  name: udp-backend-host-networking
   namespace: gateway-conformance-infra
   labels:
     app: udp
