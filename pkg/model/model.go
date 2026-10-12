@@ -11,6 +11,7 @@ type Model struct {
 	HTTP []HTTPListener `json:"http,omitempty"`
 	TLS  []TLSListener  `json:"tls,omitempty"`
 	TCP  []TCPListener  `json:"tcp,omitempty"`
+	UDP  []UDPListener  `json:"tcp,omitempty"`
 }
 
 func (m *Model) GetListeners() []Listener {
@@ -304,5 +305,17 @@ type TCPListener struct {
 }
 
 type TCPRoute struct {
+	Backends []Backend `json:"backends,omitempty"`
+}
+
+type UDPListener struct {
+	Name           string                   `json:"name"`
+	Port           uint32                   `json:"port"`
+	Sources        []FullyQualifiedResource `json:"sources,omitempty"`
+	Routes         []UDPRoute               `json:"routes,omitempty"`
+	Infrastructure *Infrastructure          `json:"infrastructure,omitempty"`
+}
+
+type UDPRoute struct {
 	Backends []Backend `json:"backends,omitempty"`
 }

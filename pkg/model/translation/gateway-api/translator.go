@@ -72,6 +72,9 @@ func (t *translator) Translate(
 	for _, l := range m.TCP {
 		addListener(l.Sources, l.Port, l.Infrastructure)
 	}
+	for _, l := range m.UDP {
+		addListener(l.Sources, l.Port, l.Infrastructure)
+	}
 
 	if source == nil {
 		return nil, nil, nil, fmt.Errorf("model source can't be empty")

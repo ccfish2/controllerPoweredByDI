@@ -251,6 +251,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
+	udpRouteList := &gatewayv1.UDPRouteList{}
+	if r.hasInstalledCRD(helpers.UDPRouteKind) {
+		tracker.set("list UDPRoutes")
+		if err := r.Client.List(ctx, udpRouteList); err != nil {
+			scopedLog.Error(ctx, "Unable to list UDPRoutes", logfields.Error, err)
+			return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
+		}
+	}
+
 	grants := &gatewayv1.ReferenceGrantList{}
 	tracker.set("list ReferenceGrantList")
 	if err := r.Client.List(ctx, grants); err != nil {
@@ -263,6 +272,14 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		tracker.set("update TCPRoute statuses")
 		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
 			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
+			return controllerruntime.Fail(err)
+		}
+	}
+
+	// Run the UDPRoute route checks here and update the status accordingly.
+	if r.hasInstalledCRD(helpers.UDPRouteKind) {
+		if err := r.setUDPRouteStatuses(r.logger, ctx, udpRouteList, grants); err != nil {
+			scopedLog.Error(ctx, "Unable to update UDPRoute Status", logfields.Error, err)
 			return controllerruntime.Fail(err)
 		}
 	}
@@ -297,8 +314,9 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	dgccfg := r.getGatewayClassConfig(ctx, gwc)
 	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items)
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
+	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items)
 	tracker.set("build ingestion model")
-	httpListeners, tlsListeners, tcpListeners := ingestion.GatewayAPI(ingestion.Input{
+	httpListeners, tlsListeners, tcpListeners, udpListeners := ingestion.GatewayAPI(ingestion.Input{
 		GatewayClass:       *gwc,
 		Gateway:            *copy,
 		GatewayClassConfig: dgccfg,
@@ -306,6 +324,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		TLSRoutes:          r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
 		GRPCRoutes:         r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
 		TCPRoutes:          tcpRoutes,
+		UDPRoutes:          udpRoutes,
 		Services:           servicesList.Items,
 	})
 
@@ -348,14 +367,14 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		tlsRouteList,
 		grpcRouteList,
 		tcpRouteList,
-		nil,
+		udpRouteList,
 		namespaceLabels,
 	)
 
 	// step 3: translate the listeners into dolphin model
 	tracker.set("translate listeners")
 	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
-	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners, TCP: tcpListeners}, dgccfg)
+	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners, TCP: tcpListeners, UDP: udpListeners}, dgccfg)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to translate resources")
 		setGatewayAccepted(gw, false, "Unable to translate resources")
@@ -727,6 +746,16 @@ func (r *gatewayReconciler) filterTCPRoutesByGateway(ctx context.Context, gw *ga
 	return filtered
 }
 
+func (r *gatewayReconciler) filterUDPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.UDPRoute) []gatewayv1.UDPRoute {
+	var filtered []gatewayv1.UDPRoute
+	for _, route := range routes {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
 func (r *gatewayReconciler) setListenerSetStatuses(
 	ctx context.Context,
 	gw *gatewayv1.Gateway,
@@ -880,6 +909,36 @@ func (r *gatewayReconciler) setTCPRouteStatuses(scopedLog *slog.Logger, ctx cont
 	return nil
 }
 
+func (r *gatewayReconciler) setUDPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, udpRoutes *gatewayv1.UDPRouteList, grants *gatewayv1.ReferenceGrantList) error {
+	scopedLog.Debug("Updating UDPRoute statuses for Gateway", numRoutes, len(udpRoutes.Items))
+	for udpRouteIndex, original := range udpRoutes.Items {
+
+		udpr := original.DeepCopy()
+		udpr.Status.Parents = pruneRouteParentStatuses(udpr.Status.Parents, udpr.Spec.ParentRefs, "io.dolphin/gateway-controller")
+
+		i := &routechecks.UDPRouteInput{
+			Ctx:            ctx,
+			Logger:         log,
+			Client:         r.Client,
+			Grants:         grants,
+			UDPRoute:       udpr,
+			ControllerName: "io.dolphin/gateway-controller",
+		}
+
+		if err := r.runCommonRouteChecks(ctx, i, udpr.Spec.ParentRefs, udpr.Namespace); err != nil {
+			return fmt.Errorf("failure during UDPRoute checks: %w", err)
+		}
+
+		if err := r.updateUDPRouteStatus(ctx, scopedLog, &original, udpr); err != nil {
+			return fmt.Errorf("failed to update UDPRoute status: %w", err)
+		}
+
+		udpRoutes.Items[udpRouteIndex].Status = udpr.Status
+	}
+
+	return nil
+}
+
 // runCommonRouteChecks runs all the checks that are common across all supported Route types.
 //
 // Uses the helpers.Input interface to ensure that this still applies as new types are added.
@@ -1005,6 +1064,17 @@ func (r *gatewayReconciler) updateTCPRouteStatus(ctx context.Context, scopedLog 
 		return nil
 	}
 	scopedLog.Debug("Updating TCPRoute status", tcpRoute, types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
+	return r.Client.Status().Update(ctx, new)
+}
+
+func (r *gatewayReconciler) updateUDPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1.UDPRoute, new *gatewayv1.UDPRoute) error {
+	oldStatus := original.Status.DeepCopy()
+	newStatus := new.Status.DeepCopy()
+
+	if cmp.Equal(oldStatus, newStatus, cmpopts.IgnoreFields(metav1.Condition{}, lastTransitionTime)) {
+		return nil
+	}
+	scopedLog.Debug("Updating UDPRoute status", udpRoute, types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
 	return r.Client.Status().Update(ctx, new)
 }
 

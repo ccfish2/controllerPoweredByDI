@@ -19,3 +19,13 @@ func EnqueueRequestForOwningTCPRoute(c client.Client, logger *slog.Logger, contr
 		return getGatewayReconcileRequestsForRoute(context.Background(), c, a, tr.Spec.CommonRouteSpec, logger, controllerName)
 	})
 }
+
+func EnqueueRequestForOwningUDPRoute(c client.Client, logger *slog.Logger, controllerName string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+		tr, ok := a.(*gatewayv1.UDPRoute)
+		if !ok {
+			return nil
+		}
+		return getGatewayReconcileRequestsForRoute(context.Background(), c, a, tr.Spec.CommonRouteSpec, logger, controllerName)
+	})
+}
