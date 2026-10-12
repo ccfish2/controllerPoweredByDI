@@ -59,10 +59,11 @@ type Input struct {
 }
 
 // translate gateway resources into a model
-func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model.TCPListener) {
+func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model.TCPListener, []model.UDPListener) {
 	var resHTTP []model.HTTPListener
 	var resTLS []model.TLSListener
 	var resTCP []model.TCPListener
+	var resUDP []model.UDPListener
 
 	var labels, annotations map[string]string
 	if input.Gateway.Spec.Infrastructure != nil {
@@ -88,6 +89,16 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 	}
 
 	for _, l := range input.Gateway.Spec.Listeners {
+		if l.Protocol == gatewayv1.UDPProtocolType {
+			resUDP = append(resUDP, model.UDPListener{
+				Name:           string(l.Name),
+				Sources:        []model.FullyQualifiedResource{source},
+				Port:           uint32(l.Port),
+				Routes:         toUDPRoutes(l, input.UDPRoutes, input.Services, input.ReferenceGrants),
+				Infrastructure: infra,
+			})
+			continue
+		}
 		if l.Protocol == gatewayv1.TCPProtocolType {
 			resTCP = append(resTCP, model.TCPListener{
 				Name:           string(l.Name),
@@ -129,7 +140,63 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 		})
 	}
 
-	return resHTTP, resTLS, resTCP
+	return resHTTP, resTLS, resTCP, resUDP
+}
+
+func toUDPRoutes(
+	listener gatewayv1.Listener,
+	input []gatewayv1.UDPRoute,
+	services []corev1.Service,
+	grants []gatewayv1.ReferenceGrant,
+) []model.UDPRoute {
+	var routes []model.UDPRoute
+
+	for _, route := range input {
+		attachedToListener := false
+		for _, parent := range route.Spec.ParentRefs {
+			if parent.SectionName == nil || string(*parent.SectionName) == string(listener.Name) {
+				attachedToListener = true
+				break
+			}
+		}
+		if !attachedToListener {
+			continue
+		}
+
+		for _, rule := range route.Spec.Rules {
+			backends := make([]model.Backend, 0, len(rule.BackendRefs))
+			for _, backendRef := range rule.BackendRefs {
+				if backendRef.Kind != nil && *backendRef.Kind != "Service" {
+					continue
+				}
+				if backendRef.Group != nil && *backendRef.Group != corev1.GroupName {
+					continue
+				}
+				if backendRef.Port == nil {
+					continue
+				}
+				if !helpers.IsBackendReferenceAllowed(
+					route.GetNamespace(),
+					backendRef.BackendObjectReference,
+					gatewayv1beta1.SchemeGroupVersion.WithKind("UDPRoute"),
+					grants,
+				) {
+					continue
+				}
+
+				namespace := helpers.NamespaceDerefOr(backendRef.Namespace, route.GetNamespace())
+				if !serviceExists(string(backendRef.Name), namespace, services) {
+					continue
+				}
+
+				backends = append(backends, backendToModelBackend(backendRef, route.GetNamespace()))
+			}
+
+			routes = append(routes, model.UDPRoute{Backends: backends})
+		}
+	}
+
+	return routes
 }
 
 func toTCPRoutes(

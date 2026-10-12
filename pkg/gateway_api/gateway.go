@@ -100,7 +100,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// Determine which optional CRDs are enabled
-	var tlsRouteEnabled, tcpRouteEnabled, serviceImportEnabled, listenerSetEnabled bool
+	var tlsRouteEnabled, tcpRouteEnabled, udpRouteEnabled, serviceImportEnabled, listenerSetEnabled bool
 
 	for _, gvk := range r.installedCRDs {
 		switch gvk.Kind {
@@ -108,6 +108,8 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			tlsRouteEnabled = true
 		case helpers.TCPRouteKind:
 			tcpRouteEnabled = true
+		case helpers.UDPRouteKind:
+			udpRouteEnabled = true
 		case helpers.ServiceImportKind:
 			serviceImportEnabled = true
 		case helpers.ListenerSetKind:
@@ -117,6 +119,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.logger.Info("Gateway optional resource configuration",
 		"tlsRouteEnabled", tlsRouteEnabled,
 		"tcpRouteEnabled", tcpRouteEnabled,
+		"udpRouteEnabled", udpRouteEnabled,
 		"serviceImportEnabled", serviceImportEnabled,
 		"listenerSetEnabled", listenerSetEnabled,
 		"installedCRDs", r.installedCRDs,
@@ -210,6 +213,10 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if tcpRouteEnabled {
 		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.TCPRoute{}, watchhandlers.EnqueueRequestForOwningTCPRoute(r.Client, r.logger, "dolphin"))
+	}
+
+	if udpRouteEnabled {
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.UDPRoute{}, watchhandlers.EnqueueRequestForOwningUDPRoute(r.Client, r.logger, "dolphin"))
 	}
 
 	if serviceImportEnabled {

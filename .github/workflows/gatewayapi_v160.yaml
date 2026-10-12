@@ -65,6 +65,11 @@ on:
         required: false
         default: 'true'
         type: boolean
+      run_udp_route_tests:
+        description: 'Run UDP Route Tests'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   deploy-and-functional-test:
@@ -708,7 +713,17 @@ jobs:
           bash .github/actions/tests/kindenv/gatewayapiv161/tcpudproute/gw161tcproutes.sh
   
       # ============================================================
-      # 26. Cleanup
+      # 26. Gateway API -- UDP Route
+      # ============================================================
+      - name: Run Network Gateway API UDP Route
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_udp_route_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/udp/gw161udproutes.sh
+
+      # ============================================================
+      # 27. Cleanup
       # ============================================================
       # Always delete the Kind cluster, including when deployment
       # or any functional test fails.
