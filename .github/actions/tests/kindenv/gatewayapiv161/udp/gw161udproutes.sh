@@ -80,11 +80,11 @@ if (( udp_status != 0 )); then
     exit 1
 fi
 
-if ! grep -Fq "Gateway API Test UDPServer" <<<"${udp_output}"; then
+if ! grep -Fq "Connection to ${gatewayip} 53 port [udp/domain] succeeded!" <<<"${udp_output}"; then
     echo "ERROR: UDPcommand succeeded, but the expected server response was not found"
-    echo "Expected: Gateway API Test UDPServer"
+    echo "Expected: Connection to ${gatewayip} 53 port [udp/domain] succeeded!"
     exit 1
 fi
 
 echo "UDPGateway API verification succeeded"
-echo "Received expected response: Gateway API Test UDPServer"
+echo "Received expected response: Connection to ${gatewayip} 53 port [udp/domain] succeeded!"
