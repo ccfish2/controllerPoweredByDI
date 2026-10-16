@@ -76,7 +76,7 @@ type preconditionParams struct {
 // the result. This includes config checks, kube-proxy-replacement check,
 // external traffic policy validation, and CRD discovery with retry logic.
 func newGatewayAPIPreconditions(params preconditionParams) (*gatewayAPIPreconditions, error) {
-	if !operatorOption.Config.EnableGatewayAPI {
+	if !params.GatewayApiConfig.EnableGatewayAPI {
 		return &gatewayAPIPreconditions{Enabled: false}, nil
 	}
 
@@ -207,7 +207,7 @@ func checkCRD(ctx context.Context, clientset k8sClient.Clientset, gvk schema.Gro
 
 	found := false
 	for _, v := range crd.Spec.Versions {
-		if v.Name == gvk.Version {
+		if v.Name == gvk.Version && v.Served {
 			found = true
 			break
 		}
@@ -331,6 +331,9 @@ func registerReconcilers(
 	logger *slog.Logger,
 	installedCRDs []schema.GroupVersionKind,
 ) (*GatewayAPIController, error) {
+	if mgr == nil {
+		return nil, errors.New("controller-runtime manager is nil")
+	}
 
 	reconcilers := []interface {
 		SetupWithManager(mgr ctrlRuntime.Manager) error
