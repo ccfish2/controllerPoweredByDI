@@ -267,6 +267,15 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, copy, gw)
 	}
 
+	// Check HTTPRoute  here and update the status accordingly.
+	tracker.set("update HTTPRoute statuses")
+	if err := r.routeStatusManager.SetRouteStatuses(ctx, r.logger, RouteStatusInputs{
+		HttpRoutes:     httpRouteList.Items,
+		ReferenceGrant: grants.Items,
+	}); err != nil {
+		return controllerruntime.Fail(fmt.Errorf("failed to update http route status: %w", err))
+	}
+
 	// filterTCPRoutesByGateway reads TCPRoute status, so refresh it first.
 	if r.hasInstalledCRD(helpers.TCPRouteKind) {
 		tracker.set("update TCPRoute statuses")
@@ -958,6 +967,7 @@ func (r *gatewayReconciler) runCommonRouteChecks(ctx context.Context, input rout
 	return nil
 }
 
+// consolidate this into routestatus gateway
 func (r *gatewayReconciler) runGatewayRouteChecks(ctx context.Context, input routechecks.Input, parent gatewayv1.ParentReference, objNamespace string) error {
 	if !r.parentIsMatchingGateway(ctx, parent, objNamespace) {
 		return nil

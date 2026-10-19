@@ -353,7 +353,6 @@ func registerReconcilers(
 			logger,
 			installedCRDs,
 		),
-		newhttpRouteReconciler(mgr),
 		newGRPCRouteReconciler(mgr),
 		newtlsrouteReconciler(mgr),
 	}

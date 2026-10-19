@@ -10,6 +10,17 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
+func EnqueueRequestForOwningHTTPRoute(c client.Client, logger *slog.Logger, controllerName string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
+		hr, ok := a.(*gatewayv1.HTTPRoute)
+		if !ok {
+			return nil
+		}
+
+		return getGatewayReconcileRequestsForRoute(context.Background(), c, a, hr.Spec.CommonRouteSpec, logger, controllerName)
+	})
+}
+
 func EnqueueRequestForOwningTCPRoute(c client.Client, logger *slog.Logger, controllerName string) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 		tr, ok := a.(*gatewayv1.TCPRoute)

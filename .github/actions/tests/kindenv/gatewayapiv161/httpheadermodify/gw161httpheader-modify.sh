@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-
 source ".github/actions/tests/kindenv/gatewayapi_setup.sh"
 source ".github/actions/tests/kindenv/lib/helper.sh"
 source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 NAMESPACE="dolphin"
-GATEWAY_CLASS="dolphin"
 
 echo "Deploy echo application"
-# From https://raw.githubusercontent.com/cilium/cilium/1.20.1/examples/kubernetes/gateway/echo-basic.yaml
 kubectl -n "${NAMESPACE}" apply -f - <<EOF
 ---
 apiVersion: v1
@@ -113,8 +109,6 @@ EOF
 
 echo "Verify echo pods are up and running"
 NAMESPACE="dolphin"
-TIMEOUT=120
-INTERVAL=5
 wait_for_pods "app=echo-1" "echo-1 pod" || exit 1
 wait_for_pods "app=echo-2" "echo-2 pod" || exit 1
 echo "✓ Echo pods are running"
@@ -254,12 +248,9 @@ if [[ -z "${backend_refs}" ]]; then
 fi
  
 echo "✓ HTTPRoute backend references configured"
- 
-
 echo "Deploy HTTP Route Splitting Cilium envoy config"
 kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/httpheadermodify/httpmodify-header-cec.yaml
 sleep 10
-
 
 echo "Deploying netshoot client"
 # grpcurl installed alongside curl/openssl in the netshoot image.

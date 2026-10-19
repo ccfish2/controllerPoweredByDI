@@ -55,12 +55,14 @@ type gatewayReconciler struct {
 	logger             *slog.Logger
 	installedCRDs      []schema.GroupVersionKind
 	hostNetworkEnabled bool
+
+	routeStatusManager *RoutesStsMgr
+	controllerName     string
 }
 
 func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeoutSeconds int, enableIpv4 bool, enableIpv6 bool, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) *gatewayReconciler {
 	scopedLog := logger.With(logfields.Controller, gateway)
-
-	return &gatewayReconciler{
+	reconciler := &gatewayReconciler{
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
@@ -69,7 +71,14 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 		EnableIPv6:         enableIpv6,
 		logger:             scopedLog,
 		installedCRDs:      installedCRDs,
+		controllerName:     "io.dolphin/gateway-controller",
 	}
+	reconciler.routeStatusManager = NewRouteStatusManager(
+		mgr.GetClient(),
+		scopedLog,
+		controllerName,
+	)
+	return reconciler
 }
 
 // sets up the controller with the Manager
@@ -191,7 +200,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// and controller-owned resources that can affect Gateway reconciliation.
 	gatewayBuilder = gatewayBuilder.
 		Watches(&corev1.Service{}, r.enqueueRequestForBackendService(tlsRouteEnabled)).
-		Watches(&gatewayv1.HTTPRoute{}, r.enqueueRequestForOwningHTTPRoute(r.logger)).
+		Watches(&gatewayv1.HTTPRoute{}, watchhandlers.EnqueueRequestForOwningHTTPRoute(r.Client, r.logger, r.controllerName)).
 		Watches(&gatewayv1.GRPCRoute{}, r.enqueueRequestForOwningGRPCRoute()).
 		Watches(
 			&corev1.Secret{},
