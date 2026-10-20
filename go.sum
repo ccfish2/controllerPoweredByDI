@@ -54,6 +54,10 @@ github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5 h1:/Gnwj2ozOAKFRWd
 github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/infra v0.0.0-20260908162859-a2adbae69f6a h1:gNJbFYFs2gA4ES2fKnSjMAO72X7TlsWjtNMtGwOBD1I=
 github.com/ccfish2/infra v0.0.0-20260908162859-a2adbae69f6a/go.mod h1:n9xIzRXBbCy+axq5oSHTO22oscAD0zwk8enM4PT8clM=
+github.com/ccfish2/infra v0.0.0-20261020225925-7891e8ebd2b8 h1:E9vNJrIdc6WTD7IOaXk+otizfc7M9TjcabUdkJ5HGPA=
+github.com/ccfish2/infra v0.0.0-20261020225925-7891e8ebd2b8/go.mod h1:0Wp+HyITvgx8E0CGeBaVVeg6iKMQ3W+IQaCIca2kNso=
+github.com/ccfish2/infra v0.0.0-20261020231111-c787be235390 h1:DSXyUCzsdIqVLI6hfJDyaxV0aA2whEX/vt/PERUkG6g=
+github.com/ccfish2/infra v0.0.0-20261020231111-c787be235390/go.mod h1:0Wp+HyITvgx8E0CGeBaVVeg6iKMQ3W+IQaCIca2kNso=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889/go.mod h1:tjRfsxyC0TvfKTP7XLCjNpGhGk00OHvelQn9SoTVMOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
@@ -74,8 +78,7 @@ github.com/emicklei/go-restful/v3 v3.13.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRr
 github.com/envoyproxy/protoc-gen-validate v1.3.3 h1:MVQghNeW+LZcmXe7SY1V36Z+WFMDjpqGAGacLe2T0ds=
 github.com/envoyproxy/protoc-gen-validate v1.3.3/go.mod h1:TsndJ/ngyIdQRhMcVVGDDHINPLWB7C82oDArY51KfB0=
 github.com/evanphx/json-patch v0.5.2 h1:xVCHIVMUu1wtM/VkR9jVZ45N3FhZfYMMYGorLCR8P3k=
-github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH5pOlLGNtQ5lPWQu84=
-github.com/evanphx/json-patch v4.12.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
+github.com/evanphx/json-patch v0.5.2/go.mod h1:ZWS5hhDbVDyob71nXKNL0+PWn6ToqBHMikGIFbs31qQ=
 github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjTM0wiaDU=
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
@@ -374,8 +377,6 @@ sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5E
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
 sigs.k8s.io/kind v0.23.0 h1:8fyDGWbWTeCcCTwA04v4Nfr45KKxbSPH1WO9K+jVrBg=
 sigs.k8s.io/kind v0.23.0/go.mod h1:ZQ1iZuJLh3T+O8fzhdi3VWcFTzsdXtNv2ppsHc8JQ7s=
-sigs.k8s.io/mcs-api v0.1.1-0.20240529200349-2833f83cfbdc h1:P/MgOBX9fb+WieZDg06JJjwmiYgkmiUdsXVzRUm1UHk=
-sigs.k8s.io/mcs-api v0.1.1-0.20240529200349-2833f83cfbdc/go.mod h1:DPFniRsBzCeLB4ANjlPEvQQt9QGIX489d1faK+GPvI4=
 sigs.k8s.io/mcs-api v0.5.2 h1:N+vrRiCIb0WJ0dxbBo7VfNv2WJigOHEo4gsLXpffVs8=
 sigs.k8s.io/mcs-api v0.5.2/go.mod h1:zZ5CK8uS6HaLkxY4HqsmcBHfzHuNMrY2uJy8T7jffK4=
 sigs.k8s.io/mcs-api/controllers v0.5.2 h1:IM40lf/HaV80rj6Cm/y1q0xEWVo6AYT4YrfMQf9XO3E=
