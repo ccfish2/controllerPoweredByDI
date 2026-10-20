@@ -245,25 +245,48 @@ jobs:
       #
       # TLSRoute is installed from the Gateway API experimental
       # CRD directory.
+      # - name: Deploy the CRD YAMLs
+      #   run: |
+      #     # Install Dolphin-specific CRDs.
+      #     kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
+
+      #     # Install Gateway API standard CRDs.
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_backendtlspolicies.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_tlsroutes.yaml
+         
+      #     # Install the set of optional CRDs
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_listenersets.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_tcproutes.yaml
+      #     kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_udproutes.yaml
+
+      # ============================================================
+      # 9. Install Gateway API CRDs v1.7.0-rc.1
+      # ============================================================
+      # CRDs must be installed before the operator can create or
+      # manage the corresponding custom resources.
+      #
+      # This installs:
+      #
+      #   Dolphin CRDs
+      #   GatewayClass
+      #   Gateway
+      #   HTTPRoute
+      #   ReferenceGrant
+      #   GRPCRoute
+      #   TLSRoute
+      #
+      # TLSRoute is installed from the Gateway API experimental
+      # CRD directory.
       - name: Deploy the CRD YAMLs
         run: |
           # Install Dolphin-specific CRDs.
           kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
-
-          # Install Gateway API standard CRDs.
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_backendtlspolicies.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_tlsroutes.yaml
-         
-          # Install the set of optional CRDs
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_listenersets.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_tcproutes.yaml
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_udproutes.yaml
-
+          kubectl apply -f .github/actions/tests/gwapi17rc1
       # ============================================================
       # 10. Create namespace and Quay image pull secret
       # ============================================================
