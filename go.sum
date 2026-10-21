@@ -60,6 +60,8 @@ github.com/ccfish2/infra v0.0.0-20261020231111-c787be235390 h1:DSXyUCzsdIqVLI6hf
 github.com/ccfish2/infra v0.0.0-20261020231111-c787be235390/go.mod h1:0Wp+HyITvgx8E0CGeBaVVeg6iKMQ3W+IQaCIca2kNso=
 github.com/ccfish2/infra v0.0.0-20261021024904-752d4dae80bf h1:BpTT6xeG8weoE42JppVq8UzQffgc1uMv6w1A1fcoFKo=
 github.com/ccfish2/infra v0.0.0-20261021024904-752d4dae80bf/go.mod h1:0Wp+HyITvgx8E0CGeBaVVeg6iKMQ3W+IQaCIca2kNso=
+github.com/ccfish2/infra v0.0.0-20261021195336-aecbb73fe60d h1:T3hAO1gl0G1FOS5FTEgqdQnEy8mWGztyXDb0GHyp1+I=
+github.com/ccfish2/infra v0.0.0-20261021195336-aecbb73fe60d/go.mod h1:0Wp+HyITvgx8E0CGeBaVVeg6iKMQ3W+IQaCIca2kNso=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889 h1:mT0MJ+PeY78yTWfLqP0o9BXFdC1x7k+3ebGoBPihiIg=
 github.com/ccfish2/metalb0110 v0.0.0-20250321174246-23e019406889/go.mod h1:tjRfsxyC0TvfKTP7XLCjNpGhGk00OHvelQn9SoTVMOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
