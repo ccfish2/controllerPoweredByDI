@@ -39,6 +39,8 @@ import (
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
 	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
+
+	"runtime/debug"
 )
 
 // Add near the package-level declarations:
@@ -143,6 +145,18 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			"duration", time.Since(reconcileStarted),
 			"activeGatewayReconciles", active,
 		)
+	}()
+	// in case short-lived function make reconcile thread die
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			r.logger.ErrorContext(
+				ctx,
+				"PANIC in Gateway reconciliation",
+				"panic", recovered,
+				"stack", string(debug.Stack()),
+			)
+			panic(recovered)
+		}
 	}()
 
 	tracker := &gatewayPhaseTracker{logger: diagnosticLogger}
@@ -269,20 +283,38 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Check HTTPRoute  here and update the status accordingly.
 	tracker.set("update HTTPRoute statuses")
-	if err := r.routeStatusManager.SetRouteStatuses(ctx, r.logger, RouteStatusInputs{
-		HttpRoutes:     httpRouteList.Items,
-		ReferenceGrant: grants.Items,
-	}); err != nil {
-		return controllerruntime.Fail(fmt.Errorf("failed to update http route status: %w", err))
+	err = r.routeStatusManager.SetRouteStatuses(
+		ctx,
+		r.logger,
+		RouteStatusInputs{
+			HttpRoutes:     httpRouteList.Items,
+			ReferenceGrant: grants.Items,
+		},
+	)
+	if err != nil {
+		return controllerruntime.Fail(
+			fmt.Errorf("failed to update HTTPRoute status: %w", err),
+		)
 	}
 
 	// filterTCPRoutesByGateway reads TCPRoute status, so refresh it first.
-	if r.hasInstalledCRD(helpers.TCPRouteKind) {
+	tcpInstalled := r.hasInstalledCRD(helpers.TCPRouteKind)
+	r.logger.InfoContext(
+		ctx,
+		"Checking TCPRoute CRD availability",
+		"installed", tcpInstalled,
+	)
+	if tcpInstalled {
 		tracker.set("update TCPRoute statuses")
 		if err := r.setTCPRouteStatuses(r.logger, ctx, tcpRouteList, grants); err != nil {
 			scopedLog.Error(ctx, "Unable to update TCPRoute Status", logfields.Error, err)
 			return controllerruntime.Fail(err)
 		}
+	} else {
+		r.logger.WarnContext(
+			ctx,
+			"Skipping TCPRoute status reconciliation because its CRD is unavailable",
+		)
 	}
 
 	// Run the UDPRoute route checks here and update the status accordingly.

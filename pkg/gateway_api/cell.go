@@ -171,52 +171,120 @@ func discoverCRDsWithRetry(ctx context.Context, client k8sClient.Clientset, logg
 // checkCRDs checks if required and optional CRDs are present in the cluster,
 // returns an error if the required CRDs are not installed, and returns the
 // schema.GroupVersionKind of any optional CRDs that are installed.
-func checkCRDs(ctx context.Context, clientset k8sClient.Clientset, logger *slog.Logger, requiredGVKs, optionalGVKs []schema.GroupVersionKind) ([]schema.GroupVersionKind, error) {
+
+// checkCRDs checks if required and optional CRDs are present in the cluster.
+// It returns an error if required CRDs are missing and returns the GVKs
+// of optional CRDs that are installed.
+func checkCRDs(
+	ctx context.Context,
+	clientset k8sClient.Clientset,
+	logger *slog.Logger,
+	requiredGVKs, optionalGVKs []schema.GroupVersionKind,
+) ([]schema.GroupVersionKind, error) {
 	var res error
 	var presentGVKs []schema.GroupVersionKind
 
 	for _, gvk := range requiredGVKs {
 		if err := checkCRD(ctx, clientset, gvk); err != nil {
+			logger.ErrorContext(
+				ctx,
+				"Required CRD check failed",
+				"group", gvk.Group,
+				"version", gvk.Version,
+				"kind", gvk.Kind,
+				"error", err,
+			)
 			res = errors.Join(res, err)
 		}
 	}
 
-	for _, optionalGVK := range optionalGVKs {
-		if err := checkCRD(ctx, clientset, optionalGVK); err != nil {
-			logger.DebugContext(ctx, "CRD is not present, will not handle it", logfields.OptionalGVK, optionalGVK)
+	for _, gvk := range optionalGVKs {
+		if err := checkCRD(ctx, clientset, gvk); err != nil {
+			logger.DebugContext(
+				ctx,
+				"Optional CRD is not present; resource will not be handled",
+				"group", gvk.Group,
+				"version", gvk.Version,
+				"kind", gvk.Kind,
+				"error", err,
+			)
 			continue
 		}
-		// note that the .Kind field contains the _resource_ name -
-		// the plural, lowercase version of the name.
-		presentGVKs = append(presentGVKs, optionalGVK)
+
+		presentGVKs = append(presentGVKs, gvk)
 	}
+
+	logger.InfoContext(
+		ctx,
+		"Gateway API CRD detection completed",
+		"requiredGVKs", len(requiredGVKs),
+		"optionalGVKs", len(optionalGVKs),
+		"presentOptionalGVKs", presentGVKs,
+	)
 
 	return presentGVKs, res
 }
 
-func checkCRD(ctx context.Context, clientset k8sClient.Clientset, gvk schema.GroupVersionKind) error {
+func checkCRD(
+	ctx context.Context,
+	clientset k8sClient.Clientset,
+	gvk schema.GroupVersionKind,
+) error {
 	if !clientset.IsEnabled() {
 		return nil
 	}
 
+	// gvk.Kind already contains the plural, lowercase resource name.
 	crdName := fmt.Sprintf("%s.%s", gvk.Kind, gvk.Group)
-	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
+
+	crd, err := clientset.ApiextensionsV1().
+		CustomResourceDefinitions().
+		Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("get CRD %q: %w", crdName, err)
 	}
 
-	found := false
-	for _, v := range crd.Spec.Versions {
-		if v.Name == gvk.Version && v.Served {
-			found = true
-			break
+	// Accept the CRD if at least one version is served.
+	for _, version := range crd.Spec.Versions {
+		if version.Served {
+			return nil
 		}
 	}
-	if !found {
-		return fmt.Errorf("CRD %q does not have version %q", crdName, gvk.Version)
+
+	return fmt.Errorf(
+		"CRD %q does not serve any API versions",
+		crdName,
+	)
+}
+
+func crdNameForGVK(gvk schema.GroupVersionKind) (string, error) {
+	if gvk.Group != "gateway.networking.k8s.io" {
+		return "", fmt.Errorf(
+			"unsupported CRD group %q for kind %q",
+			gvk.Group,
+			gvk.Kind,
+		)
 	}
 
-	return nil
+	resources := map[string]string{
+		"GatewayClass":     "gatewayclasses",
+		"Gateway":          "gateways",
+		"HTTPRoute":        "httproutes",
+		"GRPCRoute":        "grpcroutes",
+		"TLSRoute":         "tlsroutes",
+		"TCPRoute":         "tcproutes",
+		"UDPRoute":         "udproutes",
+		"ReferenceGrant":   "referencegrants",
+		"BackendTLSPolicy": "backendtlspolicies",
+		"ListenerSet":      "listenersets",
+	}
+
+	resource, ok := resources[gvk.Kind]
+	if !ok {
+		return "", fmt.Errorf("unknown Gateway API kind %q", gvk.Kind)
+	}
+
+	return fmt.Sprintf("%s.%s", resource, gvk.Group), nil
 }
 
 func isTransientError(err error) bool {
