@@ -9,10 +9,8 @@ services:
     container_name: dolphin-operator-local
     working_dir: /
     command:
-      - /usr/bin/dolphin-operator
       - --k8s-kubeconfig-path
       - /root/.kube/config
-      - --enable-gateway-api=true
     environment:
       KUBECONFIG: /root/.kube/config
     volumes:
