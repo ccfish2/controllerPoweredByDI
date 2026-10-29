@@ -635,12 +635,12 @@ func registerSecretSync(params gatewayAPIParams) secretsync.SecretSyncRegistrati
 	if !params.Config.EnableGatewayAPI || !params.Config.EnableGatewayAPISecretsSync {
 		return secretsync.SecretSyncRegistrationOut{}
 	}
-
+	handler := NewSecretSyncHandler(params.CtrlRuntimeManager.GetClient(), slog.New(slog.Default().Handler()), defaultControllerName)
 	return secretsync.SecretSyncRegistrationOut{
 		SecretSyncRegistration: &secretsync.SecretSyncRegistration{
 			RefObject:            &gatewayv1.Gateway{},
-			RefObjectEnqueueFunc: EnqueueTLSSecrets(params.CtrlRuntimeManager.GetClient(), params.Logger),
-			RefObjectCheckFunc:   IsReferencedByDolphinGateway,
+			RefObjectEnqueueFunc: handler.EnqueueTLSSecrets(params.CtrlRuntimeManager.GetClient(), params.Logger),
+			RefObjectCheckFunc:   handler.IsReferencedByDolphinGateway,
 			SecretsNamespace:     params.Config.GatewayAPISecretsNamespace,
 		},
 	}

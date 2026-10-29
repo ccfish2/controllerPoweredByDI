@@ -32,6 +32,8 @@ const (
 	TCPRouteKind    string = "tcproutes"
 	UDPRouteKind    string = "udproutes"
 	ListenerSetKind string = "listenersets"
+
+	kindConfigMap = "ConfigMap"
 )
 
 var RequiredGVKs = []schema.GroupVersionKind{

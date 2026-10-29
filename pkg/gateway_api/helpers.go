@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -21,6 +23,7 @@ const (
 	kindService   = "Service"
 	kindSecret    = "Secret"
 	kindGRPCRoute = "GRPCRoute"
+	kindConfigMap = "ConfigMap"
 
 	GatewayClassKind     string = "gatewayclasses"
 	GatewayKind          string = "gateways"
@@ -33,6 +36,8 @@ const (
 	UDPRouteKind         string = "udproutes"
 	ListenerSetKind      string = "listenersets"
 	ServiceImportKind    string = "serviceimports"
+
+	defaultControllerName = "io.dolphin/gateway-controller"
 )
 
 func gatewayFQR(gw *gatewayv1.Gateway) model.FullyQualifiedResource {
@@ -246,4 +251,8 @@ func getAllDolphinGatewaysSet(ctx context.Context, c client.Client) (map[string]
 	}
 
 	return allDolphinGatewaysSet, nil
+}
+
+func IsConfigMap(certRef gatewayv1.LocalObjectReference) bool {
+	return certRef.Kind == kindConfigMap && certRef.Group == corev1.GroupName
 }
