@@ -7,17 +7,16 @@ import (
 	"strings"
 	"time"
 
-	helpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/indexers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/predicates"
 	watchhandlers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/watch-handlers"
-	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
-	dolphinv2alpha1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
-	corev1 "k8s.io/api/core/v1"
-	discoveryv1 "k8s.io/api/discovery/v1"
+	"github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v2alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -26,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	mcsapiv1alpha1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
 
 type gatewayClassReconciler struct {
@@ -35,69 +33,33 @@ type gatewayClassReconciler struct {
 
 	controllerName   string
 	logger           *slog.Logger
-	cache            cache.Cache
 	monitoredObjects []client.Object
 }
 
 func newGatewayClassReconciler(mgr ctrl.Manager, logger *slog.Logger, controllerName string, installedCRDs []schema.GroupVersionKind) *gatewayClassReconciler {
-	monitoredObjects := []client.Object{
-		&gatewayv1.GatewayClass{}, &dolphinv2alpha1.DolphinGatewayClassConfig{},
-		&gatewayv1.Gateway{}, &gatewayv1.HTTPRoute{}, &gatewayv1.GRPCRoute{},
-		&gatewayv1.ReferenceGrant{}, &gatewayv1.BackendTLSPolicy{},
-		&corev1.Service{}, &corev1.Secret{}, &corev1.Namespace{}, &corev1.Node{},
-		&discoveryv1.EndpointSlice{}, &dolphinv1.DolphinEnvoyConfig{},
-	}
-	for _, gvk := range installedCRDs {
-		switch gvk.Kind {
-		case helpers.TLSRouteKind:
-			monitoredObjects = append(monitoredObjects, &gatewayv1.TLSRoute{})
-		case helpers.TCPRouteKind:
-			monitoredObjects = append(monitoredObjects, &gatewayv1.TCPRoute{})
-		case helpers.ListenerSetKind:
-			monitoredObjects = append(monitoredObjects, &gatewayv1.ListenerSet{})
-		case helpers.ServiceImportKind:
-			monitoredObjects = append(monitoredObjects, &mcsapiv1alpha1.ServiceImport{})
-		}
-	}
 	return &gatewayClassReconciler{
-		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), controllerName: controllerName,
-		logger: logger, cache: mgr.GetCache(), monitoredObjects: monitoredObjects,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		controllerName: controllerName,
+		logger:         logger,
 	}
 }
 
 func (r *gatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	setupStarted := time.Now()
-	r.logger.Info("Registering GatewayClass controller with manager",
-		slog.String("controllerName", r.controllerName),
-		slog.String("watchKind", "GatewayClass"),
-	)
-
-	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
-		Named("gatewayclass").
-		WatchesRawSource(&loggedGatewayClassSource{
-			name: "GatewayClass", logger: r.logger, cache: r.cache, monitoredObjects: r.monitoredObjects,
-			source: source.TypedKind(mgr.GetCache(), &gatewayv1.GatewayClass{},
-				&typedEventHandlerAdapter[*gatewayv1.GatewayClass]{delegate: &gatewayClassQueueEventHandler{
-					logger:    r.logger,
-					predicate: gatewayClassDebugPredicate(r.controllerName, r.logger),
-				}}),
-		}).
-		WatchesRawSource(&loggedGatewayClassSource{
-			name: "DolphinGatewayClassConfig", logger: r.logger, cache: r.cache, monitoredObjects: r.monitoredObjects,
-			source: source.TypedKind(mgr.GetCache(), &dolphinv2alpha1.DolphinGatewayClassConfig{},
-				&typedEventHandlerAdapter[*dolphinv2alpha1.DolphinGatewayClassConfig]{delegate: watchhandlers.EnqueueRequestForDolphinGatewayClassConfig(r.Client, r.logger)}),
-		})
-
-	if err := controllerBuilder.Complete(r); err != nil {
-		r.logger.Error("GatewayClass controller setup FAILED", "error", err)
-		return err
+	for indexName, indexerFunc := range map[string]client.IndexerFunc{
+		// Index GatewayClass objects by the referenced DolphinGatewayClassConfig.
+		indexers.GatewayClassDolphinGatewayClassConfigsIndex: indexers.IndexGatewayClassByDolphinGatewayClassConfig(gatewayv1.GatewayController(r.controllerName)),
+	} {
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GatewayClass{}, indexName, indexerFunc); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+		}
 	}
-	r.logger.Info("GatewayClass controller registration complete",
-		"controllerName", r.controllerName,
-		"watchKind", "GatewayClass",
-		"duration", time.Since(setupStarted),
-	)
-	return nil
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&gatewayv1.GatewayClass{},
+			builder.WithPredicates(predicates.GatewayClassOwnedByController(r.controllerName))).
+		Watches(&v2alpha1.DolphinGatewayClassConfig{}, watchhandlers.EnqueueRequestForDolphinGatewayClassConfig(r.Client, r.logger)).
+		Complete(r)
 }
 
 type typedEventHandlerAdapter[T client.Object] struct {
