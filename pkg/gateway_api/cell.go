@@ -27,10 +27,10 @@ import (
 	//myself
 	operatorOption "github.com/ccfish2/controllerPoweredByDI/option"
 	helpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
+	"github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/scheme"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 
 	// dolphin
-
 	k8sClient "github.com/ccfish2/infra/pkg/k8s/client"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -363,6 +363,7 @@ func initGatewayAPIController(params gatewayAPIParams) (*GatewayAPIController, e
 
 	params.Logger.WithField("RequiredGVKs", helpers.RequiredGVKs).Info("checking for required GatewayAPI resources")
 	params.Logger.WithField("InstalledKinds", params.Preconditions.InstalledKinds).Info("Gateway API preconditions passed; registering controllers")
+	scheme.AddToScheme(params.Scheme)
 
 	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
