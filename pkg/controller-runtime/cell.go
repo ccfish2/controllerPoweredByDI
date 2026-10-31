@@ -3,7 +3,6 @@ package controllerruntime
 import (
 	"context"
 	"fmt"
-	"runtime/pprof"
 
 	logrusr "github.com/bombsimon/logrusr/v4"
 	"github.com/ccfish2/infra/pkg/hive/cell"
@@ -25,6 +24,7 @@ import (
 var Cell = cell.Module(
 	"controller-runtime",
 	"Manages the controller-runtime integration and its components",
+
 	cell.Provide(NewScheme),
 	cell.Provide(NewManager),
 )
@@ -58,6 +58,7 @@ type mgrParams struct {
 	Lifecycle   cell.Lifecycle
 	JobRegistry job.Registry
 	Scope       cell.Scope
+	Health      cell.Health
 
 	K8sClient k8sclient.Clientset
 	Scheme    *runtime.Scheme
@@ -83,46 +84,40 @@ func NewManager(params mgrParams) (ctrlruntime.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initial manager %v", err)
 	}
+	group := params.JobRegistry.NewGroup(params.Health)
 
-	jobG := params.JobRegistry.NewGroup(
-		params.Scope,
-		job.WithLogger(params.Loggger),
-		job.WithPprofLabels(pprof.Labels("cells", "controller-runtime")),
-	)
+	group.Add(
+		job.OneShot("manager", func(ctx context.Context, health cell.HealthReporter) error {
+			params.Loggger.Info("🚀 Starting controller-runtime manager...")
+			fmt.Println("🚀 Starting controller-runtime manager...")
 
-	jobG.Add(job.OneShot("manager", func(ctx context.Context, health cell.HealthReporter) error {
-		params.Loggger.Info("🚀 Starting controller-runtime manager...")
-		fmt.Println("🚀 Starting controller-runtime manager...")
+			stopLog := context.AfterFunc(ctx, func() {
+				fmt.Println("manager job context canceled:",
+					"error=", ctx.Err(),
+					"cause=", context.Cause(ctx),
+				)
+			})
+			defer stopLog()
 
-		stopLog := context.AfterFunc(ctx, func() {
-			fmt.Println("manager job context canceled:",
-				"error=", ctx.Err(),
-				"cause=", context.Cause(ctx),
+			fmt.Println("calling mgr.Start")
+			err := mgr.Start(ctx)
+			params.Loggger.WithError(err).WithFields(logrus.Fields{
+				"jobContextError": ctx.Err(),
+				"jobContextCause": context.Cause(ctx),
+			}).Error("Controller-runtime manager stopped")
+			fmt.Println("mgr.Start returned:",
+				"error=", err,
+				"contextError=", ctx.Err(),
+				"contextCause=", context.Cause(ctx),
 			)
-		})
-		defer stopLog()
+			if err != nil {
+				params.Loggger.WithError(err).Error("❌ Manager crashed")
+				return err
+			}
 
-		fmt.Println("calling mgr.Start")
-		err := mgr.Start(ctx)
-		params.Loggger.WithError(err).WithFields(logrus.Fields{
-			"jobContextError": ctx.Err(),
-			"jobContextCause": context.Cause(ctx),
-		}).Error("Controller-runtime manager stopped")
-		fmt.Println("mgr.Start returned:",
-			"error=", err,
-			"contextError=", ctx.Err(),
-			"contextCause=", context.Cause(ctx),
-		)
-		if err != nil {
-			params.Loggger.WithError(err).Error("❌ Manager crashed")
-			return err
-		}
-
-		params.Loggger.Info("✓ Manager running")
-		return nil
-	}))
-
-	params.Lifecycle.Append(jobG)
+			params.Loggger.Info("✓ Manager running")
+			return nil
+		}))
 
 	return mgr, nil
 }
