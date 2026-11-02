@@ -1,0 +1,739 @@
+name: Gateway API controllers support for GatewayAPI v1.7.0
+
+on:
+  # Trigger this workflow after the Image CI Builder workflow completes.
+  workflow_run:
+    workflows: ["Image CI Builder"]
+    types:
+      - completed
+  
+  # Allow manual triggering of the workflow with test selection
+  workflow_dispatch:
+    inputs:
+      run_tls_default_cert:
+        description: 'Run Network Gateway API HTTP Test'
+        required: false
+        default: 'true'
+        type: boolean
+      run_tls_termination_tests:
+        description: 'Run HTTPS Termination Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_tls_passthrough_tests:
+        description: 'Run HTTP/HTTPS/TLSROUTE Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_grpc_tests:
+        description: 'Run GRPC Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_http_split_tests:
+        description: 'Run HTTP Splitting Functional Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_http_modify_header_tests:
+        description: 'Run Network Gateway API HTTP Modify Header'
+        required: false
+        default: 'true'
+        type: boolean
+      run_parameterized_gatewayclass:
+        desciption: Run Network Gateway API Parameterized Gateway Class
+        required: false
+        default: 'true'
+        type: boolean
+      run_tls_backend_policy:
+        desciption: Run Network Gateway API TLS BackEnd Policy 
+        required: false
+        default: 'true'
+        type: boolean
+      run_listener_set:
+        desciption: Run Network Gateway API Listener Sets 
+        required: false
+        default: 'true'
+        type: boolean
+      run_tcp_route_tests:
+        description: 'Run TCP Route Tests'
+        required: false
+        default: 'true'
+        type: boolean
+      run_udp_route_tests:
+        description: 'Run UDP Route Tests'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  deploy-and-functional-test:
+    name: Deploy and Feature Tests in Kind Cluster
+    runs-on: ubuntu-22.04
+
+    # Only deploy and test when the upstream image build completed successfully,
+    # or when manually triggered.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      # ============================================================
+      # 1. Checkout application/operator repository
+      # ============================================================
+      # Provides deployment manifests, test scripts, and other
+      # resources required to deploy and test the operator.
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ============================================================
+      # 2. Set up Docker
+      # ============================================================
+      # Docker is required because the Kind Kubernetes nodes run
+      # as Docker containers.
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      # ============================================================
+      # 3. Prepare host directories for Kind node storage
+      # ============================================================
+      # The local volume provisioner uses local/host storage.
+      #
+      # These directories are mounted into the Kind nodes through
+      # the Kind cluster configuration.
+      - name: Create host directories
+        run: |
+          sudo mkdir -p /tmp/kind-node1-logs /tmp/kind-node2-logs
+          sudo chmod 777 /tmp/kind-node1-logs /tmp/kind-node2-logs
+
+          sudo mount --bind /tmp/kind-node1-logs /tmp/kind-node1-logs
+          sudo mount --bind /tmp/kind-node2-logs /tmp/kind-node2-logs
+
+      # ============================================================
+      # 4. Create Kind Kubernetes cluster
+      # ============================================================
+      # Creates the Kubernetes cluster using the project-specific
+      # Kind configuration.
+      #
+      # At this point the Kubernetes cluster exists, but the
+      # application/operator infrastructure has not been installed.
+      - name: Set up Kind
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: kind
+          config: .github/kind-config.yaml
+
+      # ============================================================
+      # 5. Install kubectl
+      # ============================================================
+      # kubectl is used to configure, deploy, and validate the
+      # Kubernetes resources throughout this workflow.
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+      
+      # ============================================================
+      # 5.5. Install Helm
+      # ============================================================
+      # Helm is required to install and manage Cilium and other
+      # Kubernetes packages.
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+      
+      # ============================================================
+      # 14.5. Verify Helm Installation
+      # ============================================================
+      - name: Verify Helm Installation
+        run: |
+          echo "Checking Helm installation..."
+          which helm
+          helm version
+          helm repo list
+          echo "Helm verification complete"
+
+      # ============================================================
+      # 6. Install GitHub CLI
+      # ============================================================
+      # GitHub CLI is available to deployment/test scripts that
+      # need to interact with GitHub resources.
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install gh -y
+
+      # ============================================================
+      # 7. Checkout infrastructure repository
+      # ============================================================
+      # The infra repository contains the Dolphin CRD definitions
+      # required by the operator.
+      #
+      # It is checked out into ./infra so the CRDs can be applied
+      # before the operator is deployed.
+      - name: Checkout infra repo (with CRD YAMLs)
+        uses: actions/checkout@v4
+        with:
+          repository: ccfish2/infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: infra
+
+      # ============================================================
+      # 8. Deploy local storage provisioner
+      # ============================================================
+      # The Dolphin StatefulSet requires persistent storage.
+      #
+      # This step:
+      #   1. Installs the local volume provisioner.
+      #   2. Waits for its DaemonSet to become Ready.
+      #   3. Waits until at least two PVs are Available.
+      #
+      # Multiple available PVs are required for the StatefulSet
+      # storage configuration used by the Kind environment.
+      - name: Deploy local volume provisioner and wait for PV
+        run: |
+          kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
+
+          # Wait for the local volume provisioner DaemonSet
+          # to successfully roll out.
+          if kubectl -n kube-system rollout status ds/local-volume-provisioner --timeout=2m; then
+            echo "DaemonSet local-volume-provisioner rolled out successfully"
+          else
+            echo "DaemonSet local-volume-provisioner rollout failed or timed out"
+            exit 1
+          fi
+
+          # Wait for at least two Available PVs.
+          timeout=120
+          interval=5
+          elapsed=0
+
+          while [ $elapsed -lt $timeout ]; do
+              current_count=$(kubectl get pv --no-headers | awk '/Available/ {print $0}' | wc -l)
+
+              if [ "$current_count" -ge 2 ]; then
+                  echo "Found 2 Available PVs"
+                  exit 0
+              else
+                  sleep $interval
+                  elapsed=$((elapsed + interval))
+              fi
+          done
+
+          echo "Timeout reached. Did not find at least 2 Available PVs."
+          exit 1
+
+      # ============================================================
+      # 9. Install Dolphin and Gateway API CRDs
+      # ============================================================
+      # CRDs must be installed before the operator can create or
+      # manage the corresponding custom resources.
+      #
+      # This installs:
+      #
+      #   Dolphin CRDs
+      #   GatewayClass
+      #   Gateway
+      #   HTTPRoute
+      #   ReferenceGrant
+      #   GRPCRoute
+      #   TLSRoute
+      #
+      # TLSRoute is installed from the Gateway API experimental
+      # CRD directory.
+      - name: Deploy the Dolphin CRD YAMLs
+        run: |
+          # Install Dolphin-specific CRDs.
+          kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
+
+      
+      # 9. Install Gateway API CRDs v1.7.0-rc.1
+      # ============================================================
+      # CRDs must be installed before the operator can create or
+      # manage the corresponding custom resources.
+      #
+      # This installs:
+      #
+      #   Dolphin CRDs
+      #   GatewayClass
+      #   Gateway
+      #   HTTPRoute
+      #   ReferenceGrant
+      #   GRPCRoute
+      #   TLSRoute
+      #
+      # TLSRoute is installed from the Gateway API experimental
+      # CRD directory.
+      - name: Deploy GatewayAPI CRD YAMLs
+        run: |
+          kubectl apply -f .github/actions/tests/gwapi17rc1/crd-standard
+
+      # ============================================================
+      # 10. Create namespace and Quay image pull secret
+      # ============================================================
+      # The Dolphin operator image is stored in Quay.io.
+      #
+      # The imagePullSecret allows Kubernetes to authenticate to
+      # the private Quay registry when pulling the operator image.
+      - name: Create image pull secret
+        run: |
+          kubectl create ns dolphin
+
+          kubectl create secret docker-registry quay-secret \
+            --docker-server=quay.io \
+            --docker-username=${{ secrets.QUAY_USER }} \
+            --docker-password=${{ secrets.QUAY_PASSWD }} \
+            --docker-email=dummy@example.com \
+            --namespace=dolphin \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ============================================================
+      # 11. Deploy Dolphin operator
+      # ============================================================
+      # Deploy the Kind-specific manifests.
+      #
+      # The image reference in each manifest is overridden with
+      # the exact image generated by the successful Image CI Builder
+      # workflow.
+      #
+      # github.event.workflow_run.head_sha identifies the commit
+      # associated with the upstream workflow run.
+      - name: Deploy Dolphin Operator
+        run: |
+          echo "Deploying image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}"
+
+          # Ensure the application namespace exists.
+          kubectl create namespace dolphin || true
+
+          # Override the container image in the Kind-specific
+          # deployment manifests.
+          for file in install/manifests/kindenv/*.yaml; do
+            sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
+          done
+
+      # ============================================================
+      # 12. Wait for PersistentVolumeClaims
+      # ============================================================
+      # The StatefulSet cannot become Ready until its PVCs are
+      # successfully bound to the available PVs.
+      - name: Wait for PVCs to be Ready
+        run: |
+          NAMESPACE="dolphin"
+
+          check_pvc_status() {
+              PVC_STATUS=$(kubectl get pvc -n "$NAMESPACE" --no-headers -o custom-columns=":status.phase")
+
+              for status in $PVC_STATUS; do
+                  if [[ "$status" != "Bound" ]]; then
+                      return 1
+                  fi
+              done
+
+              return 0
+          }
+
+          if check_pvc_status; then
+              echo "All PVCs are in 'Bound' status."
+              exit 0
+          else
+              echo "Some PVCs are not in 'Bound' status. Waiting for 2 minutes..."
+              sleep 120
+
+              if check_pvc_status; then
+                  echo "All PVCs are now in 'Bound' status."
+                  exit 0
+              else
+                  echo "PVCs are still not in 'Bound' status after waiting."
+                  exit 1
+              fi
+          fi
+
+      # ============================================================
+      # 14. Install functional-test dependencies
+      # ============================================================
+      # jq is required by the functional test scripts for parsing
+      # JSON output from Kubernetes and networking commands.
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # ============================================================
+      # 14.1. Install/Upgrade cilium to version 1.20.1
+      # ============================================================
+      - name: Install/upgrade Cilium Agent and Envoy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          NAMESPACE="kube-system"
+          CILIUM_VERSION="1.20.1"
+          TIMEOUT=300
+          INTERVAL=5
+
+          # Wait until all pods matching a selector are Ready.
+          wait_for_pods() {
+            local selector="$1"
+            local description="$2"
+            local elapsed=0
+
+            echo "Waiting for ${description} pods to be ready..."
+
+            while (( elapsed < TIMEOUT )); do
+              if kubectl -n "${NAMESPACE}" wait \
+                  --for=condition=Ready \
+                  pod \
+                  -l "${selector}" \
+                  --timeout="${INTERVAL}s" >/dev/null 2>&1; then
+                echo "${description} pods are ready."
+                return 0
+              fi
+
+              echo "Still waiting for ${description} pods... (${elapsed}/${TIMEOUT}s)"
+              sleep "${INTERVAL}"
+              ((elapsed += INTERVAL))
+            done
+
+            echo "ERROR: Timed out waiting for ${description} pods."
+            kubectl -n "${NAMESPACE}" get pods -l "${selector}" -o wide || true
+            return 1
+          }
+
+          echo "Installing/upgrading Cilium ${CILIUM_VERSION}..."
+
+          helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
+          helm repo update >/dev/null
+
+          CILIUM_HELM_TIMEOUT=300
+
+          if ! helm upgrade --install cilium cilium/cilium \
+              --version "${CILIUM_VERSION}" \
+              --namespace "${NAMESPACE}" \
+              --create-namespace \
+              --set kubeProxyReplacement=true \
+              --set gatewayAPI.enabled=true \
+              --wait \
+              --timeout "${CILIUM_HELM_TIMEOUT}s"
+          then
+            echo "Cilium failed to become ready; collecting diagnostics..."
+
+            echo "----- kube-system pods -----"
+            kubectl -n kube-system get pods -o wide || true
+
+            echo "----- Cilium DaemonSet -----"
+            kubectl -n kube-system get ds cilium -o wide || true
+            kubectl -n kube-system describe ds cilium || true
+
+            echo "----- Cilium pod descriptions -----"
+            kubectl -n kube-system describe pods \
+              -l k8s-app=cilium || true
+
+            echo "----- Cilium logs -----"
+            kubectl -n kube-system logs \
+              -l k8s-app=cilium \
+              --all-containers=true \
+              --tail=300 \
+              --prefix || true
+
+            echo "----- kube-system events -----"
+            kubectl get events -n kube-system \
+              --sort-by='.lastTimestamp' | tail -100 || true
+
+            echo "----- all nodes -----"
+            kubectl get nodes -o wide || true
+
+            echo "----- node conditions/resources -----"
+            kubectl describe nodes | \
+              grep -A10 -E "Conditions:|Allocated resources" || true
+
+            echo "----- Helm status -----"
+            helm status cilium -n kube-system || true
+
+            exit 1
+          fi
+
+          echo "Waiting for Cilium agent pods to be ready..."
+          wait_for_pods "k8s-app=cilium" "cilium agent"
+
+          echo "Waiting for Cilium Envoy pods to be ready..."
+          wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy"
+
+          echo "Ensuring Cilium Operator is not running..."
+
+          # In case an older installation created the operator, remove it.
+          if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+            kubectl -n "${NAMESPACE}" delete deployment cilium-operator --ignore-not-found
+          fi
+
+          echo "Waiting for Cilium Operator deployment to disappear..."
+
+          for ((elapsed=0; elapsed<TIMEOUT; elapsed+=INTERVAL)); do
+            if ! kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+              echo "Cilium Operator is absent."
+              break
+            fi
+
+            echo "Cilium Operator still exists; waiting..."
+            sleep "${INTERVAL}"
+          done
+
+          # Explicitly fail if the operator still exists after the timeout.
+          if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+            echo "ERROR: Cilium Operator deployment still exists after ${TIMEOUT}s."
+            kubectl -n "${NAMESPACE}" get deployment cilium-operator -o wide || true
+            exit 1
+          fi
+
+          echo "----- Cilium pods -----"
+          kubectl -n "${NAMESPACE}" get pods \
+            -l k8s-app=cilium \
+            -o wide
+
+          echo "----- Cilium Envoy pods -----"
+          kubectl -n "${NAMESPACE}" get pods \
+            -l k8s-app=cilium-envoy \
+            -o wide
+
+          echo "Cilium installation complete."
+      
+      # ============================================================
+      # 14.2 Deploy Operator and  Wait for Dolphin operator to become Ready
+      # ============================================================
+      # The deployment phase is considered successful only after
+      # the Dolphin StatefulSet has successfully rolled out.
+      #
+      # This ensures the operator is running before functional
+      # tests are executed.
+      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
+        run: |
+          kubectl apply -f install/manifests/statefulset.yaml
+
+          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
+            echo "StatefulSet operator-dolphin rolled out successfully"
+          else
+            echo "StatefulSet operator-dolphin rollout failed or timed out"
+            exit 1
+          fi
+
+
+      # ============================================================
+      # 14.2. Deploy GatewayClass
+      # ============================================================     
+      - name: Deploy GatewayClass
+        shell: bash
+        run: |
+          echo "Deploying GatewayClass"
+
+          kubectl apply -f - <<EOF
+          apiVersion: gateway.networking.k8s.io/v1
+          kind: GatewayClass
+          metadata:
+            name: dolphin
+          spec:
+            controllerName: io.dolphin/gateway-controller
+            description: The default Dolphin GatewayClass
+          EOF
+
+          gatewayclass_name="dolphin"
+          timeout=60
+          interval=2
+          elapsed=0
+
+          echo "⏳ Waiting for GatewayClass ${gatewayclass_name} to be accepted..."
+
+          while true; do
+            status=$(kubectl get gatewayclass "$gatewayclass_name" \
+              -o jsonpath="{.status.conditions[?(@.type=='Accepted')].status}" \
+              2>/dev/null || echo "")
+
+            if [[ "$status" == "True" ]]; then
+              echo "✅ GatewayClass ${gatewayclass_name} is accepted."
+              break
+            fi
+
+            if (( elapsed >= timeout )); then
+              echo "❌ Timed out waiting for GatewayClass ${gatewayclass_name} to be accepted."
+              exit 1
+            fi
+
+            sleep "$interval"
+            ((elapsed += interval))
+          done
+
+          kubectl delete gatewayclasses.gateway.networking.k8s.io cilium
+
+      # ============================================================
+      # 15. Gateway API HTTP Test
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_http_tests to false.
+      - name: Run Network Gateway API HTTP Tests 
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_default_cert == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/tls-default-cert/default-tls-cert.sh
+
+      # ============================================================
+      # 16. Gateway API -- TLS Termination
+      # ============================================================
+      - name: Run Network Gateway API TLS Termination
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_termination_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/https-termination/gw161tls-termination.sh
+
+      # ============================================================
+      # 16. Gateway API Basic Functional Tests Redundant
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_http_tests to false.
+      # there are some overlapps between api-tests and default-tls-cert tests
+      # - name: Run Network Gateway API Basic TLS Termination Functional Tests 
+      #   if: |
+      #     github.event_name == 'workflow_run' || 
+      #     (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
+      #   run: |
+      #     bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
+
+      # ============================================================
+      # 17. Gateway API HTTP/HTTPS/TLSROUTE Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_tls_passthrough_tests to false.
+      - name: Run Network Gateway API TLS Passthrough Functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_passthrough_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/gatewayapi-tls-passthrough.sh
+
+      # ============================================================
+      # 18. Gateway API Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # by setting run_grpc_tests to false.
+      - name: Run Network Gateway API GRPC functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_grpc_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/161grpc/grpc.sh
+
+      # ============================================================
+      # 19. Gateway API -- HTTP Splitting Functional Tests
+      # ============================================================
+      # Validate Gateway API functionality provided by the operator.
+      #
+      # The test suite exercises the Gateway API resources installed
+      # earlier in this workflow, including GatewayClass, Gateway,
+      # HTTPRoute and other supported Gateway API resources.
+      #
+      # This step can be skipped when manually triggering the workflow
+      # the echo image amd64 and arm64 does not match
+      # by setting run_http_split_tests to false.
+      - name: Run Network Gateway API HTTP Splitting functional Tests
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_split_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/httpsplit/161httpsplit.sh
+
+      # ============================================================
+      # 20. Gateway API -- HTTP Header Modify
+      # ============================================================
+      - name: Run Network Gateway API HTTP Modify Header
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_http_modify_header_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/httpheadermodify/gw161httpheader-modify.sh
+
+      
+      # ============================================================
+      # 21. Gateway API -- Parameterized Gateway Class
+      # ============================================================
+      - name: Run Network Gateway API Parameterized Gateway Class
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_parameterized_gatewayclass == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/gatewayapictl161parameterizedclas.sh
+
+      # ============================================================
+      # 22. Gateway API -- TLS Backend Policy
+      # ============================================================
+      - name: Run Network Gateway API TLS Backend Policy
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tls_backend_policy == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/tlsbackendpolicy/gwapi161tlsbackendpolicy.sh
+
+      # ============================================================
+      # 23. Gateway API -- ListenerSets
+      # ============================================================
+      - name: Run Network Gateway API ListenerSet
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_listener_set == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/listenersets/gw161listenersets.sh
+
+      
+      # ============================================================
+      # 25. Gateway API -- TCP Route
+      # ============================================================
+      - name: Run Network Gateway API TCP Route
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_tcp_route_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/tcpudproute/gw161tcproutes.sh
+  
+      # ============================================================
+      # 26. Gateway API -- UDP Route
+      # ============================================================
+      - name: Run Network Gateway API UDP Route
+        if: |
+          github.event_name == 'workflow_run' || 
+          (github.event_name == 'workflow_dispatch' && inputs.run_udp_route_tests == 'true')
+        run: |
+          bash .github/actions/tests/kindenv/gatewayapiv161/udp/gw161udproutes.sh
+
+      # ============================================================
+      # 27. Cleanup
+      # ============================================================
+      # Always delete the Kind cluster, including when deployment
+      # or any functional test fails.
+      #
+      # This ensures the GitHub Actions runner is cleaned up after
+      # every workflow execution.
+      - name: Delete Kind Cluster
+        if: always()
+        run: |
+          kind delete cluster
