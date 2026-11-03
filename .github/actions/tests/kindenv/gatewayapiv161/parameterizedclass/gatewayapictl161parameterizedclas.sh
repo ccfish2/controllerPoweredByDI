@@ -18,12 +18,6 @@ echo "Deploy GatewayClass, DolphinGatewayClassConfig, Gateway, HTTPRoute"
 kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/deploy.yaml
 sleep 180
 
-#!/usr/bin/env bash
-set -euo pipefail
-echo "Deploy Cilium Envoy Cnofig for Gateway and HTTP Route"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/parameterizedclass/nodeport-gateway-cec.yaml
-sleep 10
-
 echo "Deploying netshoot client"
 NAMESPACE="dolphin"
 # grpcurl installed alongside curl/openssl in the netshoot image.

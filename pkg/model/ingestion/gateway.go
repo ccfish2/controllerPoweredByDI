@@ -308,6 +308,8 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 			var requestHeaderFilter *model.HttpHeaderFilter
 			var responseHeaderFilter *model.HttpHeaderFilter
 			var requestMirrors []*model.HttpRequestMirror
+			var requestRedirectFilter *model.HTTPRequestRedirectFilter
+			var rewriteFilter *model.HTTPURLRewriteFilter
 
 			for _, f := range rule.Filters {
 				switch f.Type {
@@ -336,6 +338,8 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
 					RequestMirrors:         requestMirrors,
+					RequestRedirect:        requestRedirectFilter,
+					Rewrite:                rewriteFilter,
 				})
 			}
 
@@ -350,6 +354,8 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
 					RequestMirrors:         requestMirrors,
+					RequestRedirect:        requestRedirectFilter,
+					Rewrite:                rewriteFilter,
 				})
 			}
 		}
@@ -681,38 +687,36 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 				case gatewayv1.HTTPRouteFilterRequestMirror:
 					requestMirrors = append(requestMirrors, toHTTPRequestMirror(f.RequestMirror, r.Namespace))
 				}
-
-				if len(rule.Matches) == 0 {
-					httpRoutes = append(httpRoutes, model.HTTPRoute{
-						Hostnames:              matchedHosts,
-						Backends:               bes,
-						DirectResponse:         dr,
-						RequestHeaderFilter:    requestHeaderFilter,
-						ResponseHeaderModifier: responseHeaderFilter,
-						RequestMirrors:         requestMirrors,
-						RequestRedirect:        requestRedirectFilter,
-						Rewrite:                rewriteFilter,
-					})
-				}
-
-				for _, match := range rule.Matches {
-					httpRoutes = append(httpRoutes, model.HTTPRoute{
-						PathMatch:              toPathMatch(match),
-						HeadersMatch:           toHeaderMatch(match),
-						QueryParamsMatch:       toQueryMatch(match),
-						IsGRPC:                 true,
-						Hostnames:              matchedHosts,
-						Backends:               bes,
-						DirectResponse:         dr,
-						RequestHeaderFilter:    requestHeaderFilter,
-						ResponseHeaderModifier: responseHeaderFilter,
-						RequestMirrors:         requestMirrors,
-						RequestRedirect:        requestRedirectFilter,
-						Rewrite:                rewriteFilter,
-					})
-				}
 			}
 
+			if len(rule.Matches) == 0 {
+				httpRoutes = append(httpRoutes, model.HTTPRoute{
+					Hostnames:              matchedHosts,
+					Backends:               bes,
+					DirectResponse:         dr,
+					RequestHeaderFilter:    requestHeaderFilter,
+					ResponseHeaderModifier: responseHeaderFilter,
+					RequestMirrors:         requestMirrors,
+					RequestRedirect:        requestRedirectFilter,
+					Rewrite:                rewriteFilter,
+				})
+			}
+
+			for _, match := range rule.Matches {
+				httpRoutes = append(httpRoutes, model.HTTPRoute{
+					PathMatch:              toPathMatch(match),
+					HeadersMatch:           toHeaderMatch(match),
+					QueryParamsMatch:       toQueryMatch(match),
+					Hostnames:              matchedHosts,
+					Backends:               bes,
+					DirectResponse:         dr,
+					RequestHeaderFilter:    requestHeaderFilter,
+					ResponseHeaderModifier: responseHeaderFilter,
+					RequestMirrors:         requestMirrors,
+					RequestRedirect:        requestRedirectFilter,
+					Rewrite:                rewriteFilter,
+				})
+			}
 		}
 	}
 	return httpRoutes

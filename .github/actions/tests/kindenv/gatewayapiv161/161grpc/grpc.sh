@@ -9,12 +9,6 @@ source ".github/actions/tests/kindenv/lib/metallb.sh"
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"
 
-# Gateway implementation before creating any Gateway API objects.
-#kubectl -n "${NAMESPACE}" apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-
-# arm64 compitable
-#kubectl -n "${NAMESPACE}" apply -f .github/applications-for-conformance/books-info.yaml
-
 # Remove the legacy static CEC so it cannot reconcile a Service that this test
 # does not create. The active passthrough CEC is applied below.
 kubectl -n "${NAMESPACE}" delete ciliumenvoyconfig cilium-gateway-my-gateway \
@@ -161,10 +155,6 @@ dump_debug() {
   kubectl get events -A --sort-by='.lastTimestamp' | tail -80 || true
   echo "=== End GRPCRoute diagnostics ==="
 }
-
-echo "Deploy GRPC route cilium envoy config"
-kubectl -n dolphin apply -f .github/actions/tests/kindenv/gatewayapiv161/161grpc/grpc-cec.yaml
-sleep 10
 
 echo "Preparing netshoot client"
 

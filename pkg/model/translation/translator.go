@@ -103,11 +103,34 @@ func (d *defaultTranslator) getBackendServices(m *model.Model) []*dolphinv1.Serv
 	return res
 }
 
-func (i *defaultTranslator) getServices(_ *model.Model) []*dolphinv1.ServiceListener {
+func (i *defaultTranslator) getServices(m *model.Model) []*dolphinv1.ServiceListener {
+	ports := map[uint16]struct{}{}
+	if m != nil {
+		for _, listener := range m.HTTP {
+			if listener.Port != 0 {
+				ports[uint16(listener.Port)] = struct{}{}
+			}
+		}
+		for _, listener := range m.TLS {
+			if listener.Port != 0 {
+				ports[uint16(listener.Port)] = struct{}{}
+			}
+		}
+	}
+	listenerPorts := make([]uint16, 0, len(ports))
+	for port := range ports {
+		listenerPorts = append(listenerPorts, port)
+	}
+	goslices.Sort(listenerPorts)
+	if len(listenerPorts) == 0 {
+		listenerPorts = nil
+	}
+
 	return []*dolphinv1.ServiceListener{
 		{
 			Name:      i.name,
 			Namespace: i.namespace,
+			Ports:     listenerPorts,
 		},
 	}
 }
@@ -358,46 +381,35 @@ func isGRPCService(m *model.Model, ns string, name string, port string) bool {
 
 func getNamespaceNamePortsMap(m *model.Model) map[string]map[string][]string {
 	namespaceNamePortMap := map[string]map[string][]string{}
-	for _, t := range m.HTTP {
-		for _, l := range t.Routes {
-			for _, be := range l.Backends {
-				namePortMap, exist := namespaceNamePortMap[be.Name]
-				if exist {
-					namePortMap[be.Name] = slices.SortedUniqs(append((namePortMap[be.Name]), be.Port.GetPort()))
-				} else {
-					namePortMap = map[string][]string{
-						be.Name: {be.Port.GetPort()},
-					}
+	for _, listener := range m.HTTP {
+		for _, route := range listener.Routes {
+			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
+			for _, mirror := range route.RequestMirrors {
+				if mirror.Backend != nil {
+					mergeBackendsInNamespaceNamePortMap([]model.Backend{*mirror.Backend}, namespaceNamePortMap)
 				}
-				mergeBackendsInNamespaceNamePortMap(l.Backends, namespaceNamePortMap)
-			}
-
-			for _, rm := range l.RequestMirrors {
-				mergeBackendsInNamespaceNamePortMap([]model.Backend{*rm.Backend}, namespaceNamePortMap)
 			}
 		}
 	}
-
-	for _, l := range m.TLS {
-		for _, r := range l.Routes {
-			mergeBackendsInNamespaceNamePortMap(r.Backends, namespaceNamePortMap)
+	for _, listener := range m.TLS {
+		for _, route := range listener.Routes {
+			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
 		}
-
 	}
 	return namespaceNamePortMap
 }
 
 func mergeBackendsInNamespaceNamePortMap(backends []model.Backend, namespaceNamePortMap map[string]map[string][]string) {
-	for _, be := range backends {
-		nameportMap, exist := namespaceNamePortMap[be.Name]
-		if exist {
-			nameportMap[be.Name] = slices.SortedUniqs(append((nameportMap[be.Name]), be.Port.GetPort()))
-		} else {
-			nameportMap = map[string][]string{
-				be.Name: {be.Port.GetPort()},
-			}
+	for _, backend := range backends {
+		if backend.Port == nil {
+			continue
 		}
-		namespaceNamePortMap[be.Name] = nameportMap
+		namePortMap, exists := namespaceNamePortMap[backend.Namespace]
+		if !exists {
+			namePortMap = map[string][]string{}
+			namespaceNamePortMap[backend.Namespace] = namePortMap
+		}
+		namePortMap[backend.Name] = slices.SortedUniqs(append(namePortMap[backend.Name], backend.Port.GetPort()))
 	}
 }
 
