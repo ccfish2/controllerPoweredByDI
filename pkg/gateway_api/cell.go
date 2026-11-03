@@ -49,7 +49,7 @@ var Cell = cell.Module(
 	cell.Config(
 		gatewayApiConfig{
 			EnableGatewayAPISecretsSync: true,
-			GatewayAPISecretsNamespace:  "dolphin-secrets",
+			GatewayAPISecretsNamespace:  CiliumSecretsNamespace,
 			EnableGatewayAPI:            true,
 		}),
 
@@ -324,7 +324,7 @@ type gatewayApiConfig struct {
 
 func (r gatewayApiConfig) Flags(flags *pflag.FlagSet) {
 	flags.BoolVar(&r.EnableGatewayAPISecretsSync, "enable-gateway-api-secrets-sync", false, "")
-	flags.StringVar(&r.GatewayAPISecretsNamespace, "gateway-api-secrets-namespace", "dolphin", "")
+	flags.StringVar(&r.GatewayAPISecretsNamespace, "gateway-api-secrets-namespace", CiliumSecretsNamespace, "")
 	flags.BoolVar(&r.EnableGatewayAPI, "enable-gateway-api", true, "")
 }
 

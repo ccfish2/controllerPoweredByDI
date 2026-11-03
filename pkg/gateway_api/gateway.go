@@ -38,8 +38,9 @@ import (
 )
 
 const (
-	owningGatewayLabel = "io.dolphin.gateway/owning-gateway"
-	lastTransitionTime = "LastTransitionTime"
+	CiliumSecretsNamespace = "cilium-secrets"
+	owningGatewayLabel     = "io.dolphin.gateway/owning-gateway"
+	lastTransitionTime     = "LastTransitionTime"
 )
 
 type gatewayReconciler struct {
@@ -66,6 +67,7 @@ func newGatewayReconciler(mgr ctrl.Manager, secretsNamespace string, idleTimeout
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
+		SecretNamespace:    secretsNamespace,
 		IdleTimeoutSeconds: idleTimeoutSeconds,
 		EnableIPv4:         enableIpv4,
 		EnableIPv6:         enableIpv6,
