@@ -274,7 +274,7 @@ func newTransportSocket(dolphinSecretNamespace string, tls []model.TLSSecret) (*
 	var tlsSdsConfig []*envoy_extensions_transport_sockets_tls_v3.SdsSecretConfig
 	tlsMap := map[string]struct{}{}
 	for _, t := range tls {
-		tlsMap[fmt.Sprintf("%s/%s-%s", dolphinSecretNamespace, t.Namespace, t.Name)] = struct{}{}
+		tlsMap[fmt.Sprintf("%s/%s", dolphinSecretNamespace, t.Name)] = struct{}{}
 	}
 
 	for k := range tlsMap {

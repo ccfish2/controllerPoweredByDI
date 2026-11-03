@@ -320,6 +320,9 @@ func getRouteAction(route *model.HTTPRoute, backends []model.Backend, BackendHtt
 				ClusterSpecifier: &envoy_config_route_v3.RouteAction_Cluster{
 					Cluster: getClusterName(backends[0].Namespace, backends[0].Name, backends[0].Port.GetPort()),
 				},
+				MaxStreamDuration: &envoy_config_route_v3.RouteAction_MaxStreamDuration{
+					MaxStreamDuration: &durationpb.Duration{Seconds: 0},
+				},
 			},
 		}
 

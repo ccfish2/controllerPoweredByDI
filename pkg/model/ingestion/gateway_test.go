@@ -89,6 +89,7 @@ func TestToHTTPRoutesWithoutFilters(t *testing.T) {
 
 	httpRoutes := toHTTPRoutes(listener, routes, services, nil)
 	require.Len(t, httpRoutes, 1)
+	require.Equal(t, []string{"www.example.com"}, httpRoutes[0].Hostnames)
 	require.Len(t, httpRoutes[0].Backends, 1)
 	require.Equal(t, "backend", httpRoutes[0].Backends[0].Name)
 	require.Equal(t, "3000", httpRoutes[0].Backends[0].Port.GetPort())

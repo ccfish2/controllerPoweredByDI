@@ -125,7 +125,7 @@ func Test_GetService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getService(tt.args.resource, tt.args.allports, tt.args.labels, tt.args.annotations)
+			getService(tt.args.resource, tt.args.allports, tt.args.labels, tt.args.annotations, nil)
 		})
 	}
 }

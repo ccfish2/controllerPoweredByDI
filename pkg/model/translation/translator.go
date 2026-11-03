@@ -262,6 +262,10 @@ func (i *defaultTranslator) getEnvoyHTTPRouteConfiguration(m *model.Model) []dol
 
 	for _, port := range []string{insecureHost, secureHost} {
 		hostNames, exists := portHostName[port]
+		if !exists && port == insecureHost && len(m.HTTP) > 0 {
+			rc, _ := NewRouteConfiguration("listener-insecure", nil)
+			res = append(res, rc)
+		}
 		if !exists {
 			continue
 		}

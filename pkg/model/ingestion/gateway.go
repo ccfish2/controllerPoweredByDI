@@ -275,7 +275,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 			continue
 		}
 
-		if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+		if len(matchedHosts) == 1 && matchedHosts[0] == allHosts {
 			matchedHosts = nil
 		}
 
@@ -512,7 +512,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 			continue
 		}
 
-		if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+		if len(matchedHosts) == 1 && matchedHosts[0] == allHosts {
 			matchedHosts = nil
 		}
 
@@ -552,7 +552,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 					continue
 				}
 
-				if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+				if len(matchedHosts) == 1 && matchedHosts[0] == allHosts {
 					matchedHosts = nil
 				}
 
@@ -607,7 +607,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 			continue
 		}
 
-		if len(matchedHosts) == 1 || matchedHosts[0] == allHosts {
+		if len(matchedHosts) == 1 && matchedHosts[0] == allHosts {
 			matchedHosts = nil
 		}
 
