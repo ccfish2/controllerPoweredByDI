@@ -125,9 +125,6 @@ while true; do
     fi
 done
 
-echo "Deploying cilium envoy config"
-kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/tls-default-cert/cec-tls-gw.yaml
-
 set -uo pipefail
 kubectl -n dolphin delete pod netshoot --wait=true --ignore-not-found
 echo "deploying debug pod on the samenamespace mounted with the same secrets"

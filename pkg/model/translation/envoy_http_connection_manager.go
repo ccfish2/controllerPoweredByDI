@@ -59,6 +59,7 @@ func NewHTTPConnectionManager(name, routeName string, mutationFunc ...HttpConnec
 				Seconds: 0,
 			},
 		},
+		StreamIdleTimeout: &durationpb.Duration{Seconds: 300},
 	}
 
 	// Apply mutation functions for customizing the connection manager.
