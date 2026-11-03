@@ -1,7 +1,10 @@
 package ingestion
 
 import (
+	"testing"
+
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -62,4 +65,31 @@ var basiccHTTP = Input{
 			},
 		},
 	},
+}
+
+func TestToHTTPRoutesWithoutFilters(t *testing.T) {
+	port := gatewayv1.PortNumber(3000)
+	listener := gatewayv1.Listener{Name: "http", Port: 80, Protocol: gatewayv1.HTTPProtocolType}
+	routes := []gatewayv1.HTTPRoute{{
+		ObjectMeta: v1.ObjectMeta{Name: "backend", Namespace: "dolphin"},
+		Spec: gatewayv1.HTTPRouteSpec{
+			CommonRouteSpec: gatewayv1.CommonRouteSpec{ParentRefs: []gatewayv1.ParentReference{{Name: "my-gateway"}}},
+			Hostnames:       []gatewayv1.Hostname{"www.example.com"},
+			Rules: []gatewayv1.HTTPRouteRule{{
+				BackendRefs: []gatewayv1.HTTPBackendRef{{
+					BackendRef: gatewayv1.BackendRef{
+						BackendObjectReference: gatewayv1.BackendObjectReference{Name: "backend", Port: &port},
+					},
+				}},
+				Matches: []gatewayv1.HTTPRouteMatch{{Path: &gatewayv1.HTTPPathMatch{Type: model.AddressOf(gatewayv1.PathMatchPathPrefix), Value: model.AddressOf("/")}}},
+			}},
+		},
+	}}
+	services := []corev1.Service{{ObjectMeta: v1.ObjectMeta{Name: "backend", Namespace: "dolphin"}}}
+
+	httpRoutes := toHTTPRoutes(listener, routes, services, nil)
+	require.Len(t, httpRoutes, 1)
+	require.Len(t, httpRoutes[0].Backends, 1)
+	require.Equal(t, "backend", httpRoutes[0].Backends[0].Name)
+	require.Equal(t, "3000", httpRoutes[0].Backends[0].Port.GetPort())
 }

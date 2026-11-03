@@ -289,14 +289,6 @@ echo "Passthrough service:"
 kubectl -n "${NAMESPACE}" get svc "${PASSTHROUGH_SERVICE}" -o wide
 kubectl -n "${NAMESPACE}" get endpoints "${PASSTHROUGH_SERVICE}" -o yaml
 
-# Install the Envoy path configuration used to connect the external Gateway
-# address to the backend pods through Cilium's datapath.
-kubectl -n "${NAMESPACE}" apply -f \
-  .github/actions/tests/kindenv/gatewayapiv161/tls-passthrough/ciliumenvoconfig-tls-passthrough.yaml
-sleep 10
-
-dump_passthrough_debug
-
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
   gateway_programmed="$(

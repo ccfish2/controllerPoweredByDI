@@ -61,8 +61,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 		listener.SocketOptions = []*envoy_config_core_v3.SocketOption{
 			{
 				Description: "Enable TCP keep-alive (default to enabled)",
-				// Level:       syscall.SOL_SOCKET,
-				// Name:        syscall.SO_KEEPALIVE,
+				Level:       1, // SOL_SOCKET
+				Name:        9, // SO_KEEPALIVE
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAlive,
 				},
@@ -70,8 +70,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive idle time (in seconds) (defaults to 10s)",
-				// Level:       syscall.IPPROTO_TCP,
-				// Name:        syscall.TCP_KEEPIDLE,
+				Level:       6, // IPPROTO_TCP
+				Name:        4, // TCP_KEEPIDLE
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepIdleInSeconds,
 				},
@@ -79,8 +79,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive probe intervals (in seconds) (defaults to 5s)",
-				// Level:       syscall.IPPROTO_TCP,
-				// Name:        syscall.TCP_KEEPINTVL,
+				Level:       6, // IPPROTO_TCP
+				Name:        5, // TCP_KEEPINTVL
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAliveProbeIntervalInSeconds,
 				},
@@ -88,8 +88,8 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 			},
 			{
 				Description: "TCP keep-alive probe max failures.",
-				// Level:       syscall.IPPROTO_TCP,
-				// Name:        syscall.TCP_KEEPCNT,
+				Level:       6, // IPPROTO_TCP
+				Name:        6, // TCP_KEEPCNT
 				Value: &envoy_config_core_v3.SocketOption_IntValue{
 					IntValue: tcpKeepAliveMaxFailures,
 				},

@@ -2,6 +2,7 @@ package gateway_api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	k8serros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -453,6 +455,13 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.ensureEnvoyConfig(ctx, dec); err != nil {
 		scopedLog.WithError(err).Error("Unable to ensure DolphinEnvoyConfig")
 		setGatewayAccepted(gw, false, "Unable to ensure CEC resource")
+		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+	}
+
+	tracker.set("ensure CiliumEnvoyConfig")
+	if err := r.ensureCiliumEnvoyConfig(ctx, dec); err != nil {
+		scopedLog.WithError(err).Error("Unable to ensure CiliumEnvoyConfig")
+		setGatewayAccepted(gw, false, "Unable to ensure CiliumEnvoyConfig resource")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
@@ -1142,10 +1151,72 @@ func listenerOwnerNamespace(gw *gatewayv1.Gateway, listenerSource *model.FullyQu
 
 // following three should be verified using local run
 func (r *gatewayReconciler) ensureEnvoyConfig(ctx context.Context, desired *dolphinv1.DolphinEnvoyConfig) error {
+	if desired == nil {
+		return nil
+	}
 	dec := desired.DeepCopy()
 	_, err := controllerutil.CreateOrPatch(ctx, r.Client, dec, func() error {
 		dec.Spec = desired.Spec
+		dec.OwnerReferences = desired.OwnerReferences
 		setMergedLabelsAndAnnotations(dec, desired)
+		return nil
+	})
+	return err
+}
+
+func (r *gatewayReconciler) ensureCiliumEnvoyConfig(ctx context.Context, desired *dolphinv1.DolphinEnvoyConfig) error {
+	if desired == nil {
+		return nil
+	}
+
+	toUnstructured := func(value any) (any, error) {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		var decoded any
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			return nil, err
+		}
+		return decoded, nil
+	}
+
+	spec := map[string]any{}
+	if len(desired.Spec.BackendServices) > 0 {
+		value, err := toUnstructured(desired.Spec.BackendServices)
+		if err != nil {
+			return fmt.Errorf("failed to encode DolphinEnvoyConfig backend services: %w", err)
+		}
+		spec["backendServices"] = value
+	}
+	if len(desired.Spec.Resources) > 0 {
+		value, err := toUnstructured(desired.Spec.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to encode DolphinEnvoyConfig resources: %w", err)
+		}
+		spec["resources"] = value
+	}
+	if len(desired.Spec.Services) > 0 {
+		value, err := toUnstructured(desired.Spec.Services)
+		if err != nil {
+			return fmt.Errorf("failed to encode DolphinEnvoyConfig services: %w", err)
+		}
+		spec["services"] = value
+	}
+
+	cec := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "cilium.io/v2",
+		"kind":       "CiliumEnvoyConfig",
+		"metadata": map[string]any{
+			"name":      desired.Name,
+			"namespace": desired.Namespace,
+		},
+	}}
+	_, err := controllerutil.CreateOrPatch(ctx, r.Client, cec, func() error {
+		if err := unstructured.SetNestedMap(cec.Object, spec, "spec"); err != nil {
+			return err
+		}
+		cec.SetOwnerReferences(desired.OwnerReferences)
 		return nil
 	})
 	return err
@@ -1859,14 +1930,8 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 				input.SetAncestorCondition(currentGatewayRef, metav1.Condition{
 					Type:    string(gatewayv1.PolicyConditionAccepted),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(gatewayv1.PolicyReasonInvalid),
-					Message: fmt.Sprintf("TargetRef does not exist: %s", svcName),
-				})
-				input.SetAncestorCondition(currentGatewayRef, metav1.Condition{
-					Type:    string(gatewayv1.RouteConditionResolvedRefs),
-					Status:  metav1.ConditionFalse,
-					Reason:  string(gatewayv1.RouteReasonBackendNotFound),
-					Message: fmt.Sprintf("TargetRef does not exist: %s", svcName),
+					Reason:  string(gatewayv1.PolicyReasonConflicted),
+					Message: "BackendTLSPolicy conflicts with another",
 				})
 				// Checks finished, apply the status to the actual objects.
 				if err := r.updateBackendTLSPolicyStatus(ctx, scopedLog, original, btlsp); err != nil {
@@ -1874,6 +1939,7 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 				}
 				// Update the original with the updated status
 				original.Status = btlsp.Status
+
 			}
 			// Continue, because this Service doesn't exist
 			continue
