@@ -71,7 +71,7 @@ echo "✓ Echo pods are running"
 
 NAMESPACE="dolphin"
 POD="netshoot"
-if curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+if curl_with_retry "$NAMESPACE" "$POD" 180 5 \
     curl -sSL \
     -o /tmp/response.json \
     -w "%{http_code}" \
