@@ -247,6 +247,13 @@ type Backend struct {
 
 	Port   *BackendPort `json:"port,omitempty"`
 	Weight *int32       `json:"weight,omitempty"`
+	TLS    *BackendTLS  `json:"tls,omitempty"`
+}
+
+// BackendTLS contains the upstream TLS settings derived from a BackendTLSPolicy.
+type BackendTLS struct {
+	SNI              string `json:"sni,omitempty"`
+	ValidationSecret string `json:"validationSecret,omitempty"`
 }
 
 type TLSRoute struct {

@@ -155,17 +155,21 @@ func (i *defaultTranslator) getListener(m *model.Model) []dolphinv1.XDSResource 
 	return []dolphinv1.XDSResource{l}
 }
 
-func tlsPassthroughBackendsToHostnames(tlsListeners []model.TLSListener) map[string][]string {
-	tlsPassthroughBackendsToHostnames := make(map[string][]string)
-	for _, h := range tlsListeners {
-		for _, route := range h.Routes {
+func tlsPassthroughBackendsToHostnames(tlsListeners []model.TLSListener) map[string]tlsPassthroughBackend {
+	tlsPassthroughBackendsToHostnames := make(map[string]tlsPassthroughBackend)
+	for _, listener := range tlsListeners {
+		for _, route := range listener.Routes {
 			for _, backend := range route.Backends {
 				key := fmt.Sprintf("%s:%s:%s", backend.Namespace, backend.Name, backend.Port.GetPort())
-				tlsPassthroughBackendsToHostnames[key] = append(tlsPassthroughBackendsToHostnames[key], route.Hostnames...)
+				entry := tlsPassthroughBackendsToHostnames[key]
+				entry.Hostnames = append(entry.Hostnames, route.Hostnames...)
+				if len(route.Hostnames) > 0 {
+					entry.StatPrefix = fmt.Sprintf("%s:%s", listener.Name, route.Hostnames[0])
+				}
+				tlsPassthroughBackendsToHostnames[key] = entry
 			}
 		}
 	}
-
 	return tlsPassthroughBackendsToHostnames
 }
 
@@ -344,10 +348,30 @@ func (i *defaultTranslator) getClusters(m *model.Model) []dolphinv1.XDSResource 
 					WithOutlierDetection(true),
 				}
 
-				if isGRPCService(m, ns, name, port) {
-					mutators = append(mutators, WithProtocol(HTTPVersion2))
+				if port == "443" {
+					hostname := ""
+					for _, listener := range m.HTTP {
+						for _, route := range listener.Routes {
+							if len(route.Hostnames) > 0 {
+								hostname = route.Hostnames[0]
+							}
+						}
+					}
+					mutators = append(mutators, WithUpstreamTLS(i.secretsNamespace, "example-cert", hostname))
 				}
 				envoyClusters[clusterName], _ = NewHTTPCluster(clusterName, clusterServiceName, mutators...)
+			}
+		}
+	}
+	for ns, v := range getNamespaceNamePortsMapForTLS(m) {
+		for name, ports := range v {
+			for _, port := range ports {
+				clusterName := getClusterName(ns, name, port)
+				clusterServiceName := getClusterServiceName(ns, name, port)
+				if _, exists := envoyClusters[clusterName]; !exists {
+					sortedClusterNames = append(sortedClusterNames, clusterName)
+					envoyClusters[clusterName], _ = NewTCPClusterWithDefaults(clusterName, clusterServiceName)
+				}
 			}
 		}
 	}
@@ -356,8 +380,10 @@ func (i *defaultTranslator) getClusters(m *model.Model) []dolphinv1.XDSResource 
 			for _, port := range ports {
 				clusterName := getClusterName(ns, name, port)
 				clusterServiceName := getClusterServiceName(ns, name, port)
-				sortedClusterNames = append(sortedClusterNames, clusterName)
-				envoyClusters[clusterName], _ = NewTCPClusterWithDefaults(clusterName, clusterServiceName)
+				if _, exists := envoyClusters[clusterName]; !exists {
+					sortedClusterNames = append(sortedClusterNames, clusterName)
+					envoyClusters[clusterName], _ = NewTCPClusterWithDefaults(clusterName, clusterServiceName)
+				}
 			}
 		}
 	}
@@ -447,6 +473,16 @@ func getNamespaceNamePortsMapForHTTP(m *model.Model) map[string]map[string][]str
 func getNamespaceNamePortsMapForTCP(m *model.Model) map[string]map[string][]string {
 	namespaceNamePortMap := map[string]map[string][]string{}
 	for _, listener := range m.TCP {
+		for _, route := range listener.Routes {
+			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
+		}
+	}
+	return namespaceNamePortMap
+}
+
+func getNamespaceNamePortsMapForTLS(m *model.Model) map[string]map[string][]string {
+	namespaceNamePortMap := map[string]map[string][]string{}
+	for _, listener := range m.TLS {
 		for _, route := range listener.Routes {
 			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
 		}

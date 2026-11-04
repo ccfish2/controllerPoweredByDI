@@ -5,8 +5,6 @@ import (
 	"fmt"
 	goslices "slices"
 
-	//"syscall"
-
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
 	envoy_config_listener "github.com/cilium/proxy/go/envoy/config/listener/v3"
 	envoy_extensions_listener_proxy_protocol_v3 "github.com/cilium/proxy/go/envoy/extensions/filters/listener/proxy_protocol/v3"
@@ -230,10 +228,8 @@ func NewSNIListener(name string, backendsForHost map[string][]string, mutatorFun
 					Name: tcpProxyType,
 					ConfigType: &envoy_config_listener.Filter_TypedConfig{
 						TypedConfig: toAny(&envoy_extensions_filters_network_tcp_v3.TcpProxy{
-							StatPrefix: backend,
-							ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{
-								Cluster: backend,
-							},
+							StatPrefix:       "tcp",
+							ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{Cluster: backend},
 						}),
 					},
 				},
@@ -320,7 +316,7 @@ func toFilterChainMatch(hostNames []string) *envoy_config_listener.FilterChainMa
 // newListenerWithDefaults same as newListener but with default mutators applied.
 func newListenerWithDefaults(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
 	tlsSecretsToHostnames map[model.TLSSecret][]string,
-	ptBackendsToHostnames map[string][]string,
+	ptBackendsToHostnames map[string]tlsPassthroughBackend,
 	enableIpv4 bool, enableIpv6 bool,
 	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	fns := append(mutatorFunc,
@@ -336,7 +332,7 @@ func newListenerWithDefaults(name string, dolphinSecretNamespace string, include
 
 func newListener(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
 	tlsSecretsToHostnames map[model.TLSSecret][]string,
-	tlsPassthroughBackendsMap map[string][]string,
+	tlsPassthroughBackendsMap map[string]tlsPassthroughBackend,
 	enableIpv4 bool, enableIpv6 bool,
 	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	filterChains := []*envoy_config_listener.FilterChain{}
@@ -458,7 +454,7 @@ func httpsFilterChains(name string, dolphinSecretNamespace string, tlsSecretsToH
 	return filterChains, nil
 }
 
-func tlsPassthroughFilterChains(ptBackendsToHostnames map[string][]string) ([]*envoy_config_listener.FilterChain, error) {
+func tlsPassthroughFilterChains(ptBackendsToHostnames map[string]tlsPassthroughBackend) ([]*envoy_config_listener.FilterChain, error) {
 	if len(ptBackendsToHostnames) == 0 {
 		return nil, nil
 	}
@@ -469,7 +465,11 @@ func tlsPassthroughFilterChains(ptBackendsToHostnames map[string][]string) ([]*e
 	goslices.Sort(orderedBackends)
 
 	for _, backend := range orderedBackends {
-		hostNames := ptBackendsToHostnames[backend]
+		hostNames := ptBackendsToHostnames[backend].Hostnames
+		statPrefix := ptBackendsToHostnames[backend].StatPrefix
+		if statPrefix == "" {
+			statPrefix = backend
+		}
 		filterChains = append(filterChains, &envoy_config_listener.FilterChain{
 			FilterChainMatch: toFilterChainMatch(hostNames),
 			Filters: []*envoy_config_listener.Filter{
@@ -477,10 +477,8 @@ func tlsPassthroughFilterChains(ptBackendsToHostnames map[string][]string) ([]*e
 					Name: tcpProxyType,
 					ConfigType: &envoy_config_listener.Filter_TypedConfig{
 						TypedConfig: toAny(&envoy_extensions_filters_network_tcp_v3.TcpProxy{
-							StatPrefix: backend,
-							ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{
-								Cluster: backend,
-							},
+							StatPrefix:       statPrefix,
+							ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{Cluster: backend},
 						}),
 					},
 				},
@@ -539,4 +537,9 @@ func NewTCPListener(name string, port uint32, cluster string, mutatorFunc ...Lis
 	return dolphinv1.XDSResource{
 		Any: &anypb.Any{TypeUrl: envoy.ListenerTypeURL, Value: listenerBytes},
 	}, nil
+}
+
+type tlsPassthroughBackend struct {
+	Hostnames  []string
+	StatPrefix string
 }

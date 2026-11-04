@@ -29,6 +29,9 @@ const (
 
 	// DownstreamTlsContextURL is the type URL of DownstreamTlsContext.
 	DownstreamTlsContextURL = "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext"
+
+	// UpstreamTlsContextURL is the type URL of UpstreamTlsContext.
+	UpstreamTlsContextURL = "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext"
 )
 
 func GetInternalListenerCIDRs(ipv4, ipv6 bool) []*envoy_config_core.CidrRange {

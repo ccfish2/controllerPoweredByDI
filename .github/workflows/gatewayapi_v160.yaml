@@ -526,6 +526,9 @@ jobs:
       - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
         run: |
           kubectl apply -f install/manifests/statefulset.yaml
+          kubectl set image -n dolphin \
+          statefulset/operator-dolphin \
+          dolphin-operator=docker.io/jimin1/dolphin-operator-generic:${{ steps.tag.outputs.tag }}
 
           if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
             echo "StatefulSet operator-dolphin rolled out successfully"

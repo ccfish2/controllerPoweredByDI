@@ -3,6 +3,7 @@ package translation
 import (
 	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
 	envoy_config_core_v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
+	envoy_extensions_transport_sockets_tls_v3 "github.com/cilium/proxy/go/envoy/extensions/transport_sockets/tls/v3"
 	envoy_upstreams_http_v3 "github.com/cilium/proxy/go/envoy/extensions/upstreams/http/v3"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -14,6 +15,7 @@ import (
 
 const (
 	httpProtocolOptionsType = "envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
+	upstreamTLSType         = "envoy.transport_sockets.tls"
 )
 
 type HTTPVersionType int
@@ -111,6 +113,45 @@ func WithIdleTimeout(seconds int) ClusterMutator {
 	}
 }
 
+func WithUpstreamTLS(secretsNamespace, validationSecret, sni string) ClusterMutator {
+	return func(cluster *envoy_config_cluster_v3.Cluster) *envoy_config_cluster_v3.Cluster {
+		if cluster == nil {
+			return cluster
+		}
+
+		validationContext := &envoy_extensions_transport_sockets_tls_v3.UpstreamTlsContext{
+			Sni: sni,
+			CommonTlsContext: &envoy_extensions_transport_sockets_tls_v3.CommonTlsContext{
+				ValidationContextType: &envoy_extensions_transport_sockets_tls_v3.CommonTlsContext_CombinedValidationContext{
+					CombinedValidationContext: &envoy_extensions_transport_sockets_tls_v3.CommonTlsContext_CombinedCertificateValidationContext{
+						DefaultValidationContext: &envoy_extensions_transport_sockets_tls_v3.CertificateValidationContext{},
+						ValidationContextSdsSecretConfig: &envoy_extensions_transport_sockets_tls_v3.SdsSecretConfig{
+							Name: secretsNamespace + "/" + validationSecret,
+						},
+					},
+				},
+				TlsParams: &envoy_extensions_transport_sockets_tls_v3.TlsParameters{
+					TlsMaximumProtocolVersion: envoy_extensions_transport_sockets_tls_v3.TlsParameters_TLSv1_3,
+				},
+			},
+		}
+		tlsBytes, err := proto.Marshal(validationContext)
+		if err != nil {
+			return cluster
+		}
+		cluster.TransportSocket = &envoy_config_core_v3.TransportSocket{
+			Name: upstreamTLSType,
+			ConfigType: &envoy_config_core_v3.TransportSocket_TypedConfig{
+				TypedConfig: &anypb.Any{
+					TypeUrl: envoy.UpstreamTlsContextURL,
+					Value:   tlsBytes,
+				},
+			},
+		}
+		return cluster
+	}
+}
+
 func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
 	cluster := &envoy_config_cluster_v3.Cluster{
 		Name: clusterName,
@@ -123,33 +164,20 @@ func NewHTTPCluster(clusterName string, clusterServiceName string, mutationFunc 
 				},
 			}),
 		},
-		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{
-			Type: envoy_config_cluster_v3.Cluster_EDS,
-		},
-		EdsClusterConfig: &envoy_config_cluster_v3.Cluster_EdsClusterConfig{
-			ServiceName: clusterServiceName,
-		},
+		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{Type: envoy_config_cluster_v3.Cluster_EDS},
+		EdsClusterConfig:     &envoy_config_cluster_v3.Cluster_EdsClusterConfig{ServiceName: clusterServiceName},
 	}
 
-	// Apply mutation functions for customizing the cluster.
 	for _, fn := range mutationFunc {
 		cluster = fn(cluster)
 	}
-
 	clusterBytes, err := proto.Marshal(cluster)
 	if err != nil {
 		return dolphinv1.XDSResource{}, err
 	}
-
-	return dolphinv1.XDSResource{
-		Any: &anypb.Any{
-			TypeUrl: envoy.ClusterTypeURL,
-			Value:   clusterBytes,
-		},
-	}, nil
+	return dolphinv1.XDSResource{Any: &anypb.Any{TypeUrl: envoy.ClusterTypeURL, Value: clusterBytes}}, nil
 }
 
-// NewTCPClusterWithDefaults same as NewTCPCluster but has default mutation functions applied.
 func NewTCPClusterWithDefaults(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
 	fns := append(mutationFunc,
 		WithConnectionTimeout(5),
@@ -161,29 +189,16 @@ func NewTCPClusterWithDefaults(clusterName string, clusterServiceName string, mu
 
 func NewTCPCluster(clusterName string, clusterServiceName string, mutationFunc ...ClusterMutator) (dolphinv1.XDSResource, error) {
 	cluster := &envoy_config_cluster_v3.Cluster{
-		Name: clusterName,
-		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{
-			Type: envoy_config_cluster_v3.Cluster_EDS,
-		},
-		EdsClusterConfig: &envoy_config_cluster_v3.Cluster_EdsClusterConfig{
-			ServiceName: clusterServiceName,
-		},
+		Name:                 clusterName,
+		ClusterDiscoveryType: &envoy_config_cluster_v3.Cluster_Type{Type: envoy_config_cluster_v3.Cluster_EDS},
+		EdsClusterConfig:     &envoy_config_cluster_v3.Cluster_EdsClusterConfig{ServiceName: clusterServiceName},
 	}
-
-	// Apply mutation functions for customizing the cluster.
 	for _, fn := range mutationFunc {
 		cluster = fn(cluster)
 	}
-
 	clusterBytes, err := proto.Marshal(cluster)
 	if err != nil {
 		return dolphinv1.XDSResource{}, err
 	}
-
-	return dolphinv1.XDSResource{
-		Any: &anypb.Any{
-			TypeUrl: envoy.ClusterTypeURL,
-			Value:   clusterBytes,
-		},
-	}, nil
+	return dolphinv1.XDSResource{Any: &anypb.Any{TypeUrl: envoy.ClusterTypeURL, Value: clusterBytes}}, nil
 }
