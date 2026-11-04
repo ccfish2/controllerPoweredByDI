@@ -355,7 +355,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tracker.set("build namespace index and filter routes")
 	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
 	dgccfg := r.getGatewayClassConfig(ctx, gwc)
-	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, httpRouteList.Items)
+	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, attachedListenerSets, httpRouteList.Items)
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
 	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items)
 	tracker.set("build ingestion model")
@@ -369,6 +369,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		TCPRoutes:          tcpRoutes,
 		UDPRoutes:          udpRoutes,
 		Services:           servicesList.Items,
+		Listeners:          listenerContexts,
 	})
 
 	btlspList := &gatewayv1.BackendTLSPolicyList{}
@@ -1737,14 +1738,52 @@ func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.
 	return nil
 }
 
-func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
+func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
 	var filtered []gatewayv1.HTTPRoute
+	listeners := r.mergeListeners(ctx, logrus.New().WithContext(ctx), gw, attachedListenerSets)
 	for _, route := range routes {
-		if isAttachable(ctx, gw, &route, route.Status.Parents) && isAllowed(ctx, r.Client, gw, &route) && len(computeHosts(gw, route.Spec.Hostnames)) > 0 {
-			filtered = append(filtered, route)
+		for _, listenerContext := range listeners {
+			listener := &listenerContext.Listener
+			if !listenerMatchesRouteParent(gw, listenerContext.Source, listener, &route) || len(computeHostsForListener(listener, route.Spec.Hostnames)) == 0 {
+				continue
+			}
+			if listenerContext.Source.Kind == "ListenerSet" {
+				if listenerContext.AllowedNamespaces == nil {
+					filtered = append(filtered, route)
+					break
+				}
+				if _, allowed := listenerContext.AllowedNamespaces[route.Namespace]; allowed {
+					filtered = append(filtered, route)
+					break
+				}
+				continue
+			}
+			if listenerisAllowed(gw, listener, &route, nil) {
+				filtered = append(filtered, route)
+				break
+			}
 		}
 	}
 	return filtered
+}
+
+func listenerMatchesRouteParent(gw *gatewayv1.Gateway, source model.FullyQualifiedResource, listener *gatewayv1.Listener, route *gatewayv1.HTTPRoute) bool {
+	for _, ref := range route.Spec.ParentRefs {
+		if ref.SectionName != nil && *ref.SectionName != listener.Name {
+			continue
+		}
+		if ref.Port != nil && *ref.Port != listener.Port {
+			continue
+		}
+		if source.Kind == "ListenerSet" {
+			if helpers.IsListenerSet(ref) && helpers.NamespaceDerefOr(ref.Namespace, route.Namespace) == source.Namespace && string(ref.Name) == source.Name {
+				return true
+			}
+		} else if helpers.IsGateway(ref) && helpers.NamespaceDerefOr(ref.Namespace, route.Namespace) == gw.Namespace && string(ref.Name) == gw.Name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, routes []gatewayv1.TLSRoute) []gatewayv1.TLSRoute {

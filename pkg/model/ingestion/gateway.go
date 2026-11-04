@@ -47,6 +47,7 @@ type Input struct {
 	GatewayClassConfig *v2alpha1.DolphinGatewayClassConfig
 
 	Gateway         gatewayv1.Gateway
+	Listeners       []ListenerWithContext
 	HTTPRoutes      []gatewayv1.HTTPRoute
 	TLSRoutes       []gatewayv1.TLSRoute
 	GRPCRoutes      []gatewayv1.GRPCRoute
@@ -88,11 +89,17 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 		UID:       string(input.Gateway.GetUID()),
 	}
 
-	for _, l := range input.Gateway.Spec.Listeners {
+	for _, listenerContext := range input.Listeners {
+		l := listenerContext.Listener
+		listenerSource := source
+		if listenerContext.Source.Name != "" {
+			listenerSource = listenerContext.Source
+		}
+
 		if l.Protocol == gatewayv1.UDPProtocolType {
 			resUDP = append(resUDP, model.UDPListener{
 				Name:           string(l.Name),
-				Sources:        []model.FullyQualifiedResource{source},
+				Sources:        []model.FullyQualifiedResource{listenerSource},
 				Port:           uint32(l.Port),
 				Routes:         toUDPRoutes(l, input.UDPRoutes, input.Services, input.ReferenceGrants),
 				Infrastructure: infra,
@@ -102,7 +109,7 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 		if l.Protocol == gatewayv1.TCPProtocolType {
 			resTCP = append(resTCP, model.TCPListener{
 				Name:           string(l.Name),
-				Sources:        []model.FullyQualifiedResource{source},
+				Sources:        []model.FullyQualifiedResource{listenerSource},
 				Port:           uint32(l.Port),
 				Routes:         toTCPRoutes(l, input.TCPRoutes, input.Services, input.ReferenceGrants),
 				Infrastructure: infra,
@@ -116,13 +123,12 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 			continue
 		}
 
-		httpRoutes := toHTTPRoutes(l, input.HTTPRoutes, input.Services, input.ReferenceGrants)
+		httpRoutes := toHTTPRoutes(l, input.HTTPRoutes, input.Services, input.ReferenceGrants, listenerSource)
 		httpRoutes = append(httpRoutes,
 			toGRPCRoutes(l, input.GRPCRoutes, input.Services, input.ReferenceGrants)...)
-
 		resHTTP = append(resHTTP, model.HTTPListener{
 			Name:           string(l.Name),
-			Sources:        []model.FullyQualifiedResource{source},
+			Sources:        []model.FullyQualifiedResource{listenerSource},
 			Port:           uint32(l.Port),
 			Hostname:       toHostname(l.Hostname),
 			TLS:            toTLS(l.TLS, input.ReferenceGrants, input.Gateway.GetNamespace()),
@@ -132,12 +138,65 @@ func GatewayAPI(input Input) ([]model.HTTPListener, []model.TLSListener, []model
 
 		resTLS = append(resTLS, model.TLSListener{
 			Name:           string(l.Name),
-			Sources:        []model.FullyQualifiedResource{source},
+			Sources:        []model.FullyQualifiedResource{listenerSource},
 			Port:           uint32(l.Port),
 			Hostname:       toHostname(l.Hostname),
 			Routes:         toTLSRoutes(l, input.TLSRoutes, input.Services, input.ReferenceGrants),
 			Infrastructure: infra,
 		})
+	}
+
+	if input.Listeners == nil {
+		for _, l := range input.Gateway.Spec.Listeners {
+			if l.Protocol == gatewayv1.UDPProtocolType {
+				resUDP = append(resUDP, model.UDPListener{
+					Name:           string(l.Name),
+					Sources:        []model.FullyQualifiedResource{source},
+					Port:           uint32(l.Port),
+					Routes:         toUDPRoutes(l, input.UDPRoutes, input.Services, input.ReferenceGrants),
+					Infrastructure: infra,
+				})
+				continue
+			}
+			if l.Protocol == gatewayv1.TCPProtocolType {
+				resTCP = append(resTCP, model.TCPListener{
+					Name:           string(l.Name),
+					Sources:        []model.FullyQualifiedResource{source},
+					Port:           uint32(l.Port),
+					Routes:         toTCPRoutes(l, input.TCPRoutes, input.Services, input.ReferenceGrants),
+					Infrastructure: infra,
+				})
+				continue
+			}
+
+			if l.Protocol != gatewayv1.HTTPProtocolType &&
+				l.Protocol != gatewayv1.HTTPSProtocolType &&
+				l.Protocol != gatewayv1.TLSProtocolType {
+				continue
+			}
+
+			httpRoutes := toHTTPRoutes(l, input.HTTPRoutes, input.Services, input.ReferenceGrants, source)
+			httpRoutes = append(httpRoutes,
+				toGRPCRoutes(l, input.GRPCRoutes, input.Services, input.ReferenceGrants)...)
+			resHTTP = append(resHTTP, model.HTTPListener{
+				Name:           string(l.Name),
+				Sources:        []model.FullyQualifiedResource{source},
+				Port:           uint32(l.Port),
+				Hostname:       toHostname(l.Hostname),
+				TLS:            toTLS(l.TLS, input.ReferenceGrants, input.Gateway.GetNamespace()),
+				Routes:         httpRoutes,
+				Infrastructure: infra,
+			})
+
+			resTLS = append(resTLS, model.TLSListener{
+				Name:           string(l.Name),
+				Sources:        []model.FullyQualifiedResource{source},
+				Port:           uint32(l.Port),
+				Hostname:       toHostname(l.Hostname),
+				Routes:         toTLSRoutes(l, input.TLSRoutes, input.Services, input.ReferenceGrants),
+				Infrastructure: infra,
+			})
+		}
 	}
 
 	return resHTTP, resTLS, resTCP, resUDP
@@ -587,16 +646,22 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.TLSRoute, s
 	return tlsRoutes
 }
 
-func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant) []model.HTTPRoute {
+func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, services []corev1.Service, grants []gatewayv1.ReferenceGrant, listenerSource ...model.FullyQualifiedResource) []model.HTTPRoute {
 	var httpRoutes []model.HTTPRoute
 
 	for _, r := range input {
-
 		isListener := false
-
-		for _, refs := range r.Spec.ParentRefs {
-			if refs.SectionName == nil || string(*refs.SectionName) == string(listener.Name) {
-				isListener = true
+		for _, ref := range r.Spec.ParentRefs {
+			if ref.SectionName != nil && string(*ref.SectionName) != string(listener.Name) {
+				continue
+			}
+			if len(listenerSource) == 0 || listenerSource[0].Kind == "Gateway" {
+				isListener = helpers.IsGateway(ref) || (ref.Kind == nil && ref.Group == nil)
+			} else if helpers.IsListenerSet(ref) {
+				isListener = helpers.NamespaceDerefOr(ref.Namespace, r.Namespace) == listenerSource[0].Namespace && string(ref.Name) == listenerSource[0].Name
+			}
+			if isListener {
+				break
 			}
 		}
 		if !isListener {
