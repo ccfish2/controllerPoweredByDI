@@ -85,7 +85,7 @@ func (t *translator) Translate(
 		cfg = dgccfg[0]
 	}
 
-	if len(m.HTTP) == 0 && len(m.TLS) == 0 {
+	if len(m.HTTP) == 0 && len(m.TLS) == 0 && len(m.TCP) == 0 {
 		return nil,
 			getService(source, ports, allLabels, allAnnotations, cfg),
 			getEndpoints(*source),

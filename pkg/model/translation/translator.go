@@ -116,6 +116,11 @@ func (i *defaultTranslator) getServices(m *model.Model) []*dolphinv1.ServiceList
 				ports[uint16(listener.Port)] = struct{}{}
 			}
 		}
+		for _, listener := range m.TCP {
+			if listener.Port != 0 {
+				ports[uint16(listener.Port)] = struct{}{}
+			}
+		}
 	}
 	listenerPorts := make([]uint16, 0, len(ports))
 	for port := range ports {
@@ -180,6 +185,7 @@ func (i *defaultTranslator) getResources(m *model.Model) []dolphinv1.XDSResource
 	res = append(res, i.getListener(m)...)
 	res = append(res, i.getEnvoyHTTPRouteConfiguration(m)...)
 	res = append(res, i.getClusters(m)...)
+	res = append(res, i.getTCPRouteListeners(m)...)
 	return res
 }
 
@@ -345,7 +351,7 @@ func (i *defaultTranslator) getClusters(m *model.Model) []dolphinv1.XDSResource 
 			}
 		}
 	}
-	for ns, v := range getNamespaceNamePortsMapForTLS(m) {
+	for ns, v := range getNamespaceNamePortsMapForTCP(m) {
 		for name, ports := range v {
 			for _, port := range ports {
 				clusterName := getClusterName(ns, name, port)
@@ -400,6 +406,11 @@ func getNamespaceNamePortsMap(m *model.Model) map[string]map[string][]string {
 			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
 		}
 	}
+	for _, listener := range m.TCP {
+		for _, route := range listener.Routes {
+			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
+		}
+	}
 	return namespaceNamePortMap
 }
 
@@ -433,14 +444,39 @@ func getNamespaceNamePortsMapForHTTP(m *model.Model) map[string]map[string][]str
 	return namespaceNamePortMap
 }
 
-func getNamespaceNamePortsMapForTLS(m *model.Model) map[string]map[string][]string {
+func getNamespaceNamePortsMapForTCP(m *model.Model) map[string]map[string][]string {
 	namespaceNamePortMap := map[string]map[string][]string{}
-	for _, l := range m.TLS {
-		for _, r := range l.Routes {
-			mergeBackendsInNamespaceNamePortMap(r.Backends, namespaceNamePortMap)
+	for _, listener := range m.TCP {
+		for _, route := range listener.Routes {
+			mergeBackendsInNamespaceNamePortMap(route.Backends, namespaceNamePortMap)
 		}
 	}
 	return namespaceNamePortMap
+}
+
+func (i *defaultTranslator) getTCPRouteListeners(m *model.Model) []dolphinv1.XDSResource {
+	var res []dolphinv1.XDSResource
+	for _, listener := range m.TCP {
+		cluster := ""
+		for _, route := range listener.Routes {
+			if len(route.Backends) == 0 {
+				continue
+			}
+			backend := route.Backends[0]
+			if backend.Port != nil {
+				cluster = getClusterName(backend.Namespace, backend.Name, backend.Port.GetPort())
+			}
+			break
+		}
+		if cluster == "" {
+			continue
+		}
+		l, err := NewTCPListenerWithDefaults("tcp-listener", listener.Port, cluster)
+		if err == nil {
+			res = append(res, l)
+		}
+	}
+	return res
 }
 
 func toAny(msg proto.Message) *anypb.Any {

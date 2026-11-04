@@ -490,3 +490,53 @@ func tlsPassthroughFilterChains(ptBackendsToHostnames map[string][]string) ([]*e
 
 	return filterChains, nil
 }
+
+// NewTCPListenerWithDefaults creates a TCP proxy listener with the standard socket options.
+func NewTCPListenerWithDefaults(name string, port uint32, cluster string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+	fns := append(mutatorFunc,
+		WithSocketOption(
+			defaultTCPKeepAlive,
+			defaultTCPKeepAliveIdleTimeInSeconds,
+			defaultTCPKeepAliveProbeIntervalInSeconds,
+			defaultTCPKeepAliveMaxFailures),
+	)
+	return NewTCPListener(name, port, cluster, fns...)
+}
+
+// NewTCPListener creates a raw TCP proxy listener.
+func NewTCPListener(name string, port uint32, cluster string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+	listener := &envoy_config_listener.Listener{
+		Name: name,
+		Address: &envoy_config_core_v3.Address{
+			Address: &envoy_config_core_v3.Address_SocketAddress{
+				SocketAddress: &envoy_config_core_v3.SocketAddress{
+					Address:       "0.0.0.0",
+					PortSpecifier: &envoy_config_core_v3.SocketAddress_PortValue{PortValue: uint32(port)},
+				},
+			},
+		},
+		FilterChains: []*envoy_config_listener.FilterChain{{
+			Filters: []*envoy_config_listener.Filter{{
+				Name: tcpProxyType,
+				ConfigType: &envoy_config_listener.Filter_TypedConfig{
+					TypedConfig: toAny(&envoy_extensions_filters_network_tcp_v3.TcpProxy{
+						StatPrefix:       "tcp",
+						ClusterSpecifier: &envoy_extensions_filters_network_tcp_v3.TcpProxy_Cluster{Cluster: cluster},
+					}),
+				},
+			}},
+		}},
+	}
+
+	for _, fn := range mutatorFunc {
+		listener = fn(listener)
+	}
+
+	listenerBytes, err := proto.Marshal(listener)
+	if err != nil {
+		return dolphinv1.XDSResource{}, err
+	}
+	return dolphinv1.XDSResource{
+		Any: &anypb.Any{TypeUrl: envoy.ListenerTypeURL, Value: listenerBytes},
+	}, nil
+}

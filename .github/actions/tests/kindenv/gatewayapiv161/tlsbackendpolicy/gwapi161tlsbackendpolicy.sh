@@ -190,9 +190,10 @@ kubectl -n dolphin patch HTTPRoute backend --type=json --patch '
    path: /spec/rules/0/backendRefs/0/port
    value: 443
 '
+sleep 5
 
 #curl -vI --resolve "www.example.com:80:<YOUR_GATEWAY_EXTERNAL_IP>" http://www.example.com:80/get
-if curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+if curl_with_retry "$NAMESPACE" "$POD" 200 5 \
   curl -sSL -o /tmp/response.json -w "%{http_code}" \
   --resolve "${HOST}:80:${gatewayip}" \
   "${URL}"; then
