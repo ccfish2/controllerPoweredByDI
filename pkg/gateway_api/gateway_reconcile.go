@@ -388,7 +388,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	tracker.set("update Gateway listener statuses")
-	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList, grpcRouteList, namespaceLabels)
+	err = r.setListenerStatus(ctx, copy, httpRouteList, tlsRouteList, grpcRouteList, tcpRouteList, udpRouteList, namespaceLabels)
 	if err != nil {
 		scopedLog.WithError(err).Error("Unable to set listener status")
 		setGatewayAccepted(copy, false, "Unable to set listener status")
@@ -452,17 +452,22 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
-	tracker.set("ensure DolphinEnvoyConfig")
-	if err := r.ensureEnvoyConfig(ctx, dec); err != nil {
-		scopedLog.WithError(err).Error("Unable to ensure DolphinEnvoyConfig")
-		setGatewayAccepted(gw, false, "Unable to ensure CEC resource")
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
-	}
+	if dec != nil {
+		tracker.set("ensure DolphinEnvoyConfig")
+		if err := r.ensureEnvoyConfig(ctx, dec); err != nil {
+			scopedLog.WithError(err).Error("Unable to ensure DolphinEnvoyConfig")
+			setGatewayAccepted(gw, false, "Unable to ensure CEC resource")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
 
-	tracker.set("ensure CiliumEnvoyConfig")
-	if err := r.ensureCiliumEnvoyConfig(ctx, dec); err != nil {
-		scopedLog.WithError(err).Error("Unable to ensure CiliumEnvoyConfig")
-		setGatewayAccepted(gw, false, "Unable to ensure CiliumEnvoyConfig resource")
+		tracker.set("ensure CiliumEnvoyConfig")
+		if err := r.ensureCiliumEnvoyConfig(ctx, dec); err != nil {
+			scopedLog.WithError(err).Error("Unable to ensure CiliumEnvoyConfig")
+			setGatewayAccepted(gw, false, "Unable to ensure CiliumEnvoyConfig resource")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
+	} else if err := r.deleteEnvoyConfigs(ctx, gw); err != nil {
+		scopedLog.WithError(err).Error("Unable to delete EnvoyConfigs")
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
@@ -900,6 +905,7 @@ func (r *gatewayReconciler) setListenerSetStatuses(
 			var attachedRoutes int32
 			attachedRoutes += int32(len(r.filterHTTPRoutesByListener(ctx, gw, &l, &lsSource, httpRoutes.Items, namespaceLabels, *ls)))
 			attachedRoutes += int32(len(r.filterTCPRoutesByListener(ctx, gw, &l, &lsSource, tcpRoutes.Items, namespaceLabels, *ls)))
+			attachedRoutes += int32(len(r.filterUDPRoutesByListener(ctx, gw, &l, &lsSource, udpRoutes.Items, namespaceLabels, *ls)))
 
 			listenerStatuses = append(listenerStatuses, gatewayv1.ListenerEntryStatus{
 				Name:           entry.Name,
@@ -1143,6 +1149,19 @@ func (r *gatewayReconciler) filterTCPRoutesByListener(ctx context.Context, gw *g
 	return filtered
 }
 
+func (r *gatewayReconciler) filterUDPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1.UDPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1.UDPRoute {
+	_ = listenerOwnerNamespace(gw, listenerSource)
+	var filtered []gatewayv1.UDPRoute
+	for _, route := range routes {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) &&
+			listenerisAllowed(gw, listener, &route, namespaceLabels) &&
+			parentRefMatched(gw, listener, route.GetNamespace(), route.Spec.ParentRefs) {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
 func listenerOwnerNamespace(gw *gatewayv1.Gateway, listenerSource *model.FullyQualifiedResource) string {
 	if listenerSource != nil && listenerSource.Kind == "ListenerSet" {
 		return listenerSource.Namespace
@@ -1282,7 +1301,7 @@ func hasAllowedRoutesNamespaceSelector(gw *gatewayv1.Gateway) bool {
 // audit gateway routes configuration
 // calculate and update the statistics into the GW status
 // update collecting listeners info from gateway and update the total routes
-func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
+func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, tcpRoutes *gatewayv1.TCPRouteList, udpRoutes *gatewayv1.UDPRouteList, namespaceLabels helpers.NamespaceLabelIndex) error {
 	grants := &gatewayv1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
 		return fmt.Errorf("failed to retrieve reference grants: %w", err)
@@ -1384,6 +1403,8 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 		attachedRoutes += int32(len(r.filterHTTPRoutesByListener(ctx, gw, &l, &gwSource, httpRoutes.Items, namespaceLabels)))
 		attachedRoutes += int32(len(r.filterTLSRoutesByListener(ctx, gw, &l, tlsRoutes.Items)))
 		attachedRoutes += int32(len(r.filterGRPCRoutesByListener(ctx, gw, &l, grpcRoutes.Items, namespaceLabels)))
+		attachedRoutes += int32(len(r.filterTCPRoutesByListener(ctx, gw, &l, &gwSource, tcpRoutes.Items, namespaceLabels)))
+		attachedRoutes += int32(len(r.filterUDPRoutesByListener(ctx, gw, &l, &gwSource, udpRoutes.Items, namespaceLabels)))
 
 		found := false
 		for i := range gw.Status.Listeners {
@@ -2080,4 +2101,26 @@ func (r *gatewayReconciler) updateBackendTLSPolicyStatus(ctx context.Context, sc
 	}
 	scopedLog.Debug("BackendTLSPolicy status", types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
 	return r.Client.Status().Update(ctx, new)
+}
+
+func (r *gatewayReconciler) deleteEnvoyConfigs(ctx context.Context, gw *gatewayv1.Gateway) error {
+	name := model.Shorten("dolphin-gateway-" + gw.Name)
+
+	dec := &dolphinv1.DolphinEnvoyConfig{}
+	dec.Name = name
+	dec.Namespace = gw.Namespace
+	if err := r.Client.Delete(ctx, dec); err != nil && !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete DolphinEnvoyConfig: %w", err)
+	}
+
+	cec := &unstructured.Unstructured{}
+	cec.SetAPIVersion("cilium.io/v2")
+	cec.SetKind("CiliumEnvoyConfig")
+	cec.SetName(name)
+	cec.SetNamespace(gw.Namespace)
+	if err := r.Client.Delete(ctx, cec); err != nil && !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete CiliumEnvoyConfig: %w", err)
+	}
+
+	return nil
 }

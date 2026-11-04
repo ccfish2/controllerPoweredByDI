@@ -192,6 +192,12 @@ func isKindAllowed(listener gatewayv1.Listener, route metav1.Object) bool {
 		if kind.Group == nil || (string(*kind.Group) == gatewayv1.GroupName && kind.Kind == kindTLSRoute && routedKind == kindTLSRoute) {
 			return true
 		}
+		if kind.Group == nil || (string(*kind.Group) == gatewayv1.GroupName && kind.Kind == kindTCPRoute && routedKind == kindTCPRoute) {
+			return true
+		}
+		if kind.Group == nil || (string(*kind.Group) == gatewayv1.GroupName && kind.Kind == kindUDPRoute && routedKind == kindUDPRoute) {
+			return true
+		}
 	}
 	return false
 }

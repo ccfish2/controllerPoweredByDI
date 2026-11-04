@@ -31,11 +31,6 @@ while true; do
     fi
 done
 
-echo "Deploy customized cilium envoy configure"
-kubectl apply -f .github/actions/tests/kindenv/gatewayapiv161/tcpudproute/tcp-ciliumenvoy.yaml
-echo "Wait for envoy configure populate the data"
-sleep 60
-
 # printf 'hello-from-client\r\n' | nc -v 10.96.246.79 3000
 # Connection to 10.96.246.79 3000 port [tcp/*] succeeded!
 # Gateway API Test TCP Server
