@@ -244,8 +244,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
-      
-            - name: Install/upgrade Cilium Agent and Envoy
 
       # ============================================================
       # 15. Install DataPlane components
