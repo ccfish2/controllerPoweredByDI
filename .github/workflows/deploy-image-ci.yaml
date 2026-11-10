@@ -347,14 +347,39 @@ jobs:
           echo "Waiting for Cilium Envoy pods to be ready..."
           wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy"
 
-          echo "install cilium CLI for configuring dataplane cilium-envoy"
+          echo "install cilium CLI"
           CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-          CLI_ARCH=amd64
-          if [ "$(uname -m)" = "arm64" ]; then CLI_ARCH=arm64; fi
-          curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-darwin-${CLI_ARCH}.tar.gz{,.sha256sum}
-          shasum -a 256 -c cilium-darwin-${CLI_ARCH}.tar.gz.sha256sum
-          sudo tar xzvfC cilium-darwin-${CLI_ARCH}.tar.gz /usr/local/bin
-          rm cilium-darwin-${CLI_ARCH}.tar.gz{,.sha256sum}
+
+          CLI_OS=$(uname | tr '[:upper:]' '[:lower:]')
+          CLI_ARCH=$(uname -m)
+
+          case "$CLI_ARCH" in
+            x86_64)
+              CLI_ARCH=amd64
+              ;;
+            aarch64|arm64)
+              CLI_ARCH=arm64
+              ;;
+            *)
+              echo "Unsupported architecture: $CLI_ARCH"
+              exit 1
+              ;;
+          esac
+
+          echo "Installing Cilium CLI version: $CILIUM_CLI_VERSION"
+          echo "Operating system: $CLI_OS"
+          echo "Architecture: $CLI_ARCH"
+
+          curl -L --fail --remote-name-all \
+            "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-${CLI_OS}-${CLI_ARCH}.tar.gz" \
+            "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-${CLI_OS}-${CLI_ARCH}.tar.gz.sha256sum"
+
+          shasum -a 256 -c "cilium-${CLI_OS}-${CLI_ARCH}.tar.gz.sha256sum"
+          sudo tar xzvf "cilium-${CLI_OS}-${CLI_ARCH}.tar.gz" -C /usr/local/bin
+          rm -f "cilium-${CLI_OS}-${CLI_ARCH}.tar.gz" \
+                "cilium-${CLI_OS}-${CLI_ARCH}.tar.gz.sha256sum"
+          cilium version
+
             
           cilium config set enable-node-port true
           kubectl -n kube-system rollout restart deployment/cilium-operator
