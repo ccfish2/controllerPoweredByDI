@@ -63,6 +63,14 @@ jobs:
           config: .github/kind-config.yaml
 
       # ============================================================
+      # 13. Configure LoadBalance on Kind cluster
+      # ============================================================
+      - name: configure loadbalance support 
+        run: |
+          chmod u+x .github/actions/tests/kindenv/lib/metallb.sh
+          bash .github/actions/tests/kindenv/lib/metallb.sh
+
+      # ============================================================
       # 5. Install kubectl
       # ============================================================
       # kubectl is used to configure, deploy, and validate the
@@ -83,20 +91,6 @@ jobs:
           sudo apt install gh -y
 
       # ============================================================
-      # Optional: Load operator image directly into Kind
-      # ============================================================
-      # These steps are currently disabled because the deployment
-      # pulls the operator image from Quay.io instead.
-      #
-      # - name: Download Dolphin Operator Image from GitHub Release
-      #   run: |
-      #     curl -LJO https://github.com/ccfish2/controllerPoweredByDI/releases/download/civ1/dolphin-operator-generic.tar
-      #
-      # - name: Load Docker Image into KinD
-      #   run: |
-      #     kind load image-archive ./dolphin-operator-generic.tar
-
-      # ============================================================
       # 7. Checkout infrastructure repository
       # ============================================================
       # The infra repository contains the Dolphin CRD definitions
@@ -110,6 +104,10 @@ jobs:
           repository: ccfish2/infra
           token: ${{ secrets.GITHUB_TOKEN }}
           path: infra
+      
+      - name: Deploy operator CRDs
+        run: |
+          kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
 
       # ============================================================
       # 8. Deploy local storage provisioner
@@ -155,39 +153,6 @@ jobs:
 
           echo "Timeout reached. Did not find at least 2 Available PVs."
           exit 1
-
-      # ============================================================
-      # 9. Install Dolphin and Gateway API CRDs
-      # ============================================================
-      # CRDs must be installed before the operator can create or
-      # manage the corresponding custom resources.
-      #
-      # This installs:
-      #
-      #   Dolphin CRDs
-      #   IngressClass
-      #   Gateway
-      #   HTTPRoute
-      #   ReferenceGrant
-      #   GRPCRoute
-      #   TLSRoute
-      #
-      # TLSRoute is installed from the Gateway API experimental
-      # CRD directory.
-      - name: Deploy the CRD YAMLs
-        run: |
-          # Install Dolphin-specific CRDs.
-          kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
-
-          # Install Gateway API standard CRDs.
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_IngressClasses.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
-
-          # Install the experimental TLSRoute CRD.
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
 
       # ============================================================
       # 10. Create namespace and Quay image pull secret
@@ -269,22 +234,6 @@ jobs:
               fi
           fi
 
-      # ============================================================
-      # 13. Wait for Dolphin operator to become Ready
-      # ============================================================
-      # The deployment phase is considered successful only after
-      # the Dolphin StatefulSet has successfully rolled out.
-      #
-      # This ensures the operator is running before functional
-      # tests are executed.
-      - name: Wait for Dolphin Operator to be Ready
-        run: |
-          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
-            echo "StatefulSet operator-dolphin rolled out successfully"
-          else
-            echo "StatefulSet operator-dolphin rollout failed or timed out"
-            exit 1
-          fi
 
       # ============================================================
       # 14. Install functional-test dependencies
@@ -297,7 +246,10 @@ jobs:
           sudo apt-get install -y jq
       
             - name: Install/upgrade Cilium Agent and Envoy
-      
+
+      # ============================================================
+      # 15. Install DataPlane components
+      # ============================================================
       - name: Install/upgrade Cilium Agent and Envoy
         shell: bash
         run: |
@@ -347,8 +299,10 @@ jobs:
               --version "${CILIUM_VERSION}" \
               --namespace "${NAMESPACE}" \
               --create-namespace \
-              --set kubeProxyReplacement=true \
-              --set gatewayAPI.enabled=true \
+              --set ingressController.enabled=true \
+              --set ingressController.name=cilium \
+              --set ingressController.loadbalancerMode=dedicated \
+              --set envoyConfig.enabled=true
               --wait \
               --timeout "${CILIUM_HELM_TIMEOUT}s"
           then
@@ -395,8 +349,46 @@ jobs:
           echo "Waiting for Cilium Envoy pods to be ready..."
           wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy"
 
-          echo "Ensuring Cilium Operator is not running..."
+          echo "install cilium CLI for configuring dataplane cilium-envoy"
+          CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+          CLI_ARCH=amd64
+          if [ "$(uname -m)" = "arm64" ]; then CLI_ARCH=arm64; fi
+          curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-darwin-${CLI_ARCH}.tar.gz{,.sha256sum}
+          shasum -a 256 -c cilium-darwin-${CLI_ARCH}.tar.gz.sha256sum
+          sudo tar xzvfC cilium-darwin-${CLI_ARCH}.tar.gz /usr/local/bin
+          rm cilium-darwin-${CLI_ARCH}.tar.gz{,.sha256sum}
+            
+          cilium config set enable-node-port true
+          kubectl -n kube-system rollout restart deployment/cilium-operator
+          kubectl -n kube-system rollout restart ds/cilium
 
+          helm upgrade cilium cilium/cilium --version ${CILIUM_VERSION} --namespace kube-system \
+          --reuse-values \
+          --set kubeProxyReplacement=true \
+          --set routingMode=tunnel \
+          --set host-reachable-services.enabled=true
+
+          kubectl -n kube-system rollout restart deployment/cilium-operator
+          kubectl -n kube-system rollout restart ds/cilium
+
+          echo "Cilium installation complete."
+      # ============================================================
+      #                  FUNCTIONAL TESTING
+      # ============================================================
+      #
+      # The workflow validates the deployed system in three major
+      # functional areas:
+      #
+      #   1. Customer Log Controller
+      #   2. Network Ingress
+      #   3. Gateway API
+      #
+      # These tests are executed only after the operator and its
+      # persistent storage have successfully become Ready.
+      # ============================================================
+      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
+        run: |
+          echo "Ensuring Cilium Operator is not running..."
           # In case an older installation created the operator, remove it.
           if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
             kubectl -n "${NAMESPACE}" delete deployment cilium-operator --ignore-not-found
@@ -431,25 +423,10 @@ jobs:
             -l k8s-app=cilium-envoy \
             -o wide
 
-          echo "Cilium installation complete."
-
-      # ============================================================
-      #                  FUNCTIONAL TESTING
-      # ============================================================
-      #
-      # The workflow validates the deployed system in three major
-      # functional areas:
-      #
-      #   1. Customer Log Controller
-      #   2. Network Ingress
-      #   3. Gateway API
-      #
-      # These tests are executed only after the operator and its
-      # persistent storage have successfully become Ready.
-      # ============================================================
-      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
-        run: |
-          kubectl apply -f install/manifests/statefulset.yaml
+          helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
+          helm repo update
+          helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace
+          # kubectl apply -f install/manifests/statefulset.yaml
           # kubectl set image -n dolphin \
           # statefulset/operator-dolphin \
           # dolphin-operator=docker.io/jimin1/dolphin-operator-generic:${{ inputs.image_tag }}
@@ -460,21 +437,6 @@ jobs:
             echo "StatefulSet operator-dolphin rollout failed or timed out"
             exit 1
           fi
-
-      - name: Deploy IngressClass
-        shell: bash
-        run: |
-          echo "Deploying IngressClass"
-
-          kubectl apply -f - <<EOF
-          apiVersion: networking.k8s.io/v1
-          kind: IngressClass
-          metadata:
-            name: dolphin
-          spec:
-            controllerName: dolphin.io/ingress-controller
-            description: The default Dolphin IngressClass
-          EOF
 
       # ============================================================
       # 15. Customer Log Controller Functional Tests
