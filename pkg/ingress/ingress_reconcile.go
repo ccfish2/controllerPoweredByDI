@@ -138,7 +138,9 @@ func (r *ingressReconciler) createOrUpdateDedicatedResources(ctx context.Context
 		return fmt.Errorf("failed to build dedicated resources: %w", err)
 	}
 
-	if err := r.createOrUpdateDolphinEnvoyConfig(ctx, desiredDolphinEnvoyConfig); err != nil {
+	// persist the DolphinEnvoyConfig, then fix + convert it into the
+	// CiliumEnvoyConfig that cilium-envoy actually consumes
+	if err := r.createOrUpdateEnvoyConfigs(ctx, desiredDolphinEnvoyConfig); err != nil {
 		return err
 	}
 
@@ -282,7 +284,7 @@ func (r *ingressReconciler) createOrUpdateSharedResources(ctx context.Context) e
 		return fmt.Errorf("failed to build shared resources: %w", err)
 	}
 
-	if err := r.createOrUpdateDolphinEnvoyConfig(ctx, desiredDolphinEnvoyConfig); err != nil {
+	if err := r.createOrUpdateEnvoyConfigs(ctx, desiredDolphinEnvoyConfig); err != nil {
 		return err
 	}
 
@@ -290,10 +292,12 @@ func (r *ingressReconciler) createOrUpdateSharedResources(ctx context.Context) e
 }
 
 func (r *ingressReconciler) tryCleanupDedicatedResources(ctx context.Context, ingressNamespacedName types.NamespacedName) error {
+	envoyConfigName := types.NamespacedName{Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s-%s", dolphinIngressPrefix, ingressNamespacedName.Namespace, ingressNamespacedName.Name)}
 	resources := map[client.Object]types.NamespacedName{
 		&corev1.Service{}:               {Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", dolphinIngressPrefix, ingressNamespacedName.Name)},
 		&corev1.Endpoints{}:             {Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s", dolphinIngressPrefix, ingressNamespacedName.Name)},
-		&dolphinv1.DolphinEnvoyConfig{}: {Namespace: ingressNamespacedName.Namespace, Name: fmt.Sprintf("%s-%s-%s", dolphinIngressPrefix, ingressNamespacedName.Namespace, ingressNamespacedName.Name)},
+		&dolphinv1.DolphinEnvoyConfig{}: envoyConfigName,
+		newCiliumEnvoyConfig("", ""):    envoyConfigName,
 	}
 
 	for k, v := range resources {
@@ -310,7 +314,7 @@ func (r *ingressReconciler) tryCleanupSharedResources(ctx context.Context) error
 	if err != nil {
 		return fmt.Errorf("failed to build shared resources: %w", err)
 	}
-	if err := r.createOrUpdateDolphinEnvoyConfig(ctx, desiredDolphinenvoyConfig); err != nil {
+	if err := r.createOrUpdateEnvoyConfigs(ctx, desiredDolphinenvoyConfig); err != nil {
 		return err
 	}
 	return nil

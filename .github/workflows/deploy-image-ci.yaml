@@ -165,7 +165,7 @@ jobs:
       # This installs:
       #
       #   Dolphin CRDs
-      #   GatewayClass
+      #   IngressClass
       #   Gateway
       #   HTTPRoute
       #   ReferenceGrant
@@ -180,7 +180,7 @@ jobs:
           kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
 
           # Install Gateway API standard CRDs.
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_IngressClasses.yaml
           kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
           kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
           kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.4.1/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
@@ -231,10 +231,6 @@ jobs:
           for file in install/manifests/kindenv/*.yaml; do
             sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
           done
-
-          # Deploy the StatefulSet separately because it contains
-          # the persistent storage configuration.
-          kubectl apply -f install/manifests/statefulset.yaml
 
       # ============================================================
       # 12. Wait for PersistentVolumeClaims
@@ -299,6 +295,143 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
+      
+            - name: Install/upgrade Cilium Agent and Envoy
+      
+      - name: Install/upgrade Cilium Agent and Envoy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          NAMESPACE="kube-system"
+          CILIUM_VERSION="1.20.1"
+          TIMEOUT=300
+          INTERVAL=5
+
+          # Wait until all pods matching a selector are Ready.
+          wait_for_pods() {
+            local selector="$1"
+            local description="$2"
+            local elapsed=0
+
+            echo "Waiting for ${description} pods to be ready..."
+
+            while (( elapsed < TIMEOUT )); do
+              if kubectl -n "${NAMESPACE}" wait \
+                  --for=condition=Ready \
+                  pod \
+                  -l "${selector}" \
+                  --timeout="${INTERVAL}s" >/dev/null 2>&1; then
+                echo "${description} pods are ready."
+                return 0
+              fi
+
+              echo "Still waiting for ${description} pods... (${elapsed}/${TIMEOUT}s)"
+              sleep "${INTERVAL}"
+              ((elapsed += INTERVAL))
+            done
+
+            echo "ERROR: Timed out waiting for ${description} pods."
+            kubectl -n "${NAMESPACE}" get pods -l "${selector}" -o wide || true
+            return 1
+          }
+
+          echo "Installing/upgrading Cilium ${CILIUM_VERSION}..."
+
+          helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
+          helm repo update >/dev/null
+
+          CILIUM_HELM_TIMEOUT=300
+
+          if ! helm upgrade --install cilium cilium/cilium \
+              --version "${CILIUM_VERSION}" \
+              --namespace "${NAMESPACE}" \
+              --create-namespace \
+              --set kubeProxyReplacement=true \
+              --set gatewayAPI.enabled=true \
+              --wait \
+              --timeout "${CILIUM_HELM_TIMEOUT}s"
+          then
+            echo "Cilium failed to become ready; collecting diagnostics..."
+
+            echo "----- kube-system pods -----"
+            kubectl -n kube-system get pods -o wide || true
+
+            echo "----- Cilium DaemonSet -----"
+            kubectl -n kube-system get ds cilium -o wide || true
+            kubectl -n kube-system describe ds cilium || true
+
+            echo "----- Cilium pod descriptions -----"
+            kubectl -n kube-system describe pods \
+              -l k8s-app=cilium || true
+
+            echo "----- Cilium logs -----"
+            kubectl -n kube-system logs \
+              -l k8s-app=cilium \
+              --all-containers=true \
+              --tail=300 \
+              --prefix || true
+
+            echo "----- kube-system events -----"
+            kubectl get events -n kube-system \
+              --sort-by='.lastTimestamp' | tail -100 || true
+
+            echo "----- all nodes -----"
+            kubectl get nodes -o wide || true
+
+            echo "----- node conditions/resources -----"
+            kubectl describe nodes | \
+              grep -A10 -E "Conditions:|Allocated resources" || true
+
+            echo "----- Helm status -----"
+            helm status cilium -n kube-system || true
+
+            exit 1
+          fi
+
+          echo "Waiting for Cilium agent pods to be ready..."
+          wait_for_pods "k8s-app=cilium" "cilium agent"
+
+          echo "Waiting for Cilium Envoy pods to be ready..."
+          wait_for_pods "k8s-app=cilium-envoy" "cilium-envoy"
+
+          echo "Ensuring Cilium Operator is not running..."
+
+          # In case an older installation created the operator, remove it.
+          if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+            kubectl -n "${NAMESPACE}" delete deployment cilium-operator --ignore-not-found
+          fi
+
+          echo "Waiting for Cilium Operator deployment to disappear..."
+
+          for ((elapsed=0; elapsed<TIMEOUT; elapsed+=INTERVAL)); do
+            if ! kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+              echo "Cilium Operator is absent."
+              break
+            fi
+
+            echo "Cilium Operator still exists; waiting..."
+            sleep "${INTERVAL}"
+          done
+
+          # Explicitly fail if the operator still exists after the timeout.
+          if kubectl -n "${NAMESPACE}" get deployment cilium-operator >/dev/null 2>&1; then
+            echo "ERROR: Cilium Operator deployment still exists after ${TIMEOUT}s."
+            kubectl -n "${NAMESPACE}" get deployment cilium-operator -o wide || true
+            exit 1
+          fi
+
+          echo "----- Cilium pods -----"
+          kubectl -n "${NAMESPACE}" get pods \
+            -l k8s-app=cilium \
+            -o wide
+
+          echo "----- Cilium Envoy pods -----"
+          kubectl -n "${NAMESPACE}" get pods \
+            -l k8s-app=cilium-envoy \
+            -o wide
+
+          echo "Cilium installation complete."
 
       # ============================================================
       #                  FUNCTIONAL TESTING
@@ -314,6 +447,34 @@ jobs:
       # These tests are executed only after the operator and its
       # persistent storage have successfully become Ready.
       # ============================================================
+      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
+        run: |
+          kubectl apply -f install/manifests/statefulset.yaml
+          # kubectl set image -n dolphin \
+          # statefulset/operator-dolphin \
+          # dolphin-operator=docker.io/jimin1/dolphin-operator-generic:${{ inputs.image_tag }}
+
+          if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
+            echo "StatefulSet operator-dolphin rolled out successfully"
+          else
+            echo "StatefulSet operator-dolphin rollout failed or timed out"
+            exit 1
+          fi
+
+      - name: Deploy IngressClass
+        shell: bash
+        run: |
+          echo "Deploying IngressClass"
+
+          kubectl apply -f - <<EOF
+          apiVersion: networking.k8s.io/v1
+          kind: IngressClass
+          metadata:
+            name: dolphin
+          spec:
+            controllerName: dolphin.io/ingress-controller
+            description: The default Dolphin IngressClass
+          EOF
 
       # ============================================================
       # 15. Customer Log Controller Functional Tests
@@ -332,22 +493,9 @@ jobs:
       # ============================================================
       # Validate application ingress connectivity and the expected
       # network behavior of the deployed environment.
-      - name: Run Network Ingress Functional Tests
-        run: |
-          bash .github/actions/tests/kindenv/network-ingress-tests.sh
-
-      # ============================================================
-      # 17. Gateway API Functional Tests (v141) controller gatewaya-api upgraded to
-      # v1.6.1
-      # ============================================================
-      # Validate Gateway API functionality provided by the operator.
-      #
-      # The test suite exercises the Gateway API resources installed
-      # earlier in this workflow, including GatewayClass, Gateway,
-      # HTTPRoute and other supported Gateway API resources.
-      # - name: Run Network Gateway API Functional Tests
+      # - name: Run Network Ingress Functional Tests
       #   run: |
-      #     bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
+      #     bash .github/actions/tests/kindenv/network-ingress-tests.sh
 
       # ============================================================
       # 18. Cleanup

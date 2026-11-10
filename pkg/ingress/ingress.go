@@ -98,11 +98,16 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Endpoints{}).
 		// DolphinEnvoyConfig resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
+		// CiliumEnvoyConfig (converted from the DolphinEnvoyConfig) with OwnerReference to the Ingress
+		// with dedicated loadbalancing mode. This is what cilium-envoy consumes.
+		Owns(newCiliumEnvoyConfig("", "")).
 		// Watching shared loadbalancer Service and reconcile all shared dolphin Ingresses.
 		// It's necessary to reconcile all shared dolphin Ingresses as they all have to potentially update their LoadBalancer status.
 		Watches(&corev1.Service{}, r.enqueSharedDolphinIngress(), r.forSharedLBService()).
 		// Watching shared DolphinEnvoyConfig and reconcile a non-existing pseudo dolphin Ingress.
 		Watches(&dolphinv1.DolphinEnvoyConfig{}, r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
+		// Same for the shared CiliumEnvoyConfig, so that manual edits/deletes are reverted.
+		Watches(newCiliumEnvoyConfig("", ""), r.enqPsedoIngress(), r.forShaedDolphinEnvoyConfig()).
 		// Watching Dolphin IngressClass for changes being the default Ingress controller
 		Watches(&networkingv1.IngressClass{}, r.enqueueIngressesWithoutExplicitClass(), r.forDolphinIngressClass(), withDefaultIngressClassAnnotation()).
 		Complete(r)
