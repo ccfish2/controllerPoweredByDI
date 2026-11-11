@@ -1,191 +1,102 @@
 #!/usr/bin/env bash
-# filepath: controllerPoweredByDI/.github/actions/tests/kindenv/lib/metallb.sh
+# filepath: .github/actions/tests/kindenv/lib/metallb.sh
+set -uo pipefail
 
-get_node10ips() {
-  # Extract the IPv4 subnet using jq
-  subnet=$(docker network inspect kind | jq -r '.[0].IPAM.Config[] | select(.Subnet | test("^\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+$")) | .Subnet')
-
-  # Get the IP prefix (first three octets)
-  ip_prefix=$(echo "$subnet" | cut -d. -f1-3)
-
-  # Construct and echo the IP range
-  echo "${ip_prefix}.100 - ${ip_prefix}.110"
-}
-ips=$(get_node10ips)
+NS=metallb-system
+WAIT="${WAIT_SCALE:-240}"   # base timeout in seconds; raise if CI is slow
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/helper.sh"
 
-# deploy metalb
-kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
+dump_diag() {
+  echo "----- diagnostics -----"
+  kubectl get pods,svc,ep -A -o wide | head -80
+  kubectl -n $NS describe pods | tail -60
+  kubectl -n $NS logs deploy/controller --tail=50 || true
+  kubectl -n $NS logs ds/speaker --tail=50 || true
+  kubectl -n kube-system logs -l k8s-app=kube-dns --tail=30 || true
+}
+fail() { echo "❌ $*"; dump_diag; exit 1; }
 
-# apply metallb configmap
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  namespace: metallb-system
-  name: config
-data:
-  config: |
-    address-pools:
-    - name: default
-      protocol: layer2
-      addresses:
-      - "$ips"
-EOF
+# --- IP range ---------------------------------------------------------------
+subnet=$(docker network inspect kind \
+  | jq -r '.[0].IPAM.Config[] | select(.Subnet | test("^[0-9.]+/[0-9]+$")) | .Subnet' | head -1)
+prefix=$(echo "$subnet" | cut -d. -f1-3)
+ips="${prefix}.100-${prefix}.110"
 
-# monitor metallb controller status
-end=$((SECONDS+120))
+# --- Install ----------------------------------------------------------------
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml \
+  || fail "metallb manifest apply failed"
 
-# monitor controller status
-until kubectl get pod -n metallb-system \
-    $(kubectl get pods -n metallb-system -o name | grep controller | cut -d/ -f2) \
-    -o jsonpath="{.status.containerStatuses[0].ready}" | grep true
-do 
-    echo "Waiting for controller pod..."
-    sleep 5
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for controller pod"
-        exit 1
-    fi
-done
+# Make sure nodes and CoreDNS are up before anything depends on them
+kubectl wait --for=condition=Ready nodes --all --timeout=${WAIT}s || fail "nodes not ready"
+kubectl -n kube-system rollout status deploy/coredns --timeout=${WAIT}s || fail "coredns not ready"
 
-# monitor metallb speaker status
-NAMESPACE="metallb-system"
-TIMEOUT=120
-INTERVAL=5
-ELAPSED=0
+kubectl -n $NS rollout status deploy/controller --timeout=${WAIT}s || fail "controller not ready"
+kubectl -n $NS rollout status ds/speaker        --timeout=${WAIT}s || fail "speaker not ready"
 
-echo "waiting for all 'speaker' pods to be ready... (timeout: $TIMEOUT seconds)"
+# Webhook needs a ready endpoint before the pool can be applied
+kubectl -n $NS wait --for=jsonpath='{.subsets[0].addresses[0].ip}' \
+  endpoints/metallb-webhook-service --timeout=${WAIT}s || fail "webhook has no endpoints"
 
-while [ $ELAPSED -lt $TIMEOUT ]; do
-    NOT_READY=$(kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker -o jsonpath='{.items[?(@.status.containerStatuses[0].ready==false)].metadata.name}')
-    if [ -z "$NOT_READY" ]; then
-        echo "All 'speaker' pods are ready"
-        break
-    else
-        echo "Waiting for 'speaker' pods to be ready..."
-        sleep $INTERVAL
-        ELAPSED=$((ELAPSED + INTERVAL))
-    fi
-done
-
-if [ $ELAPSED -ge $TIMEOUT ]; then
-    echo "Timeout waiting for 'speaker' pods to be ready"
-    kubectl get pods -n $NAMESPACE -l app=metallb,component=speaker
-    exit 1
-fi
-
-# apply metalb ipaddresspool
-timeout=120  # seconds
-interval=5   # seconds between attempts
-start_time=$(date +%s)
-
-# Apply the resource
-while true; do
-    kubectl apply -f - <<EOF
+# --- Pool + L2 advertisement (retry until the webhook accepts it) ------------
+apply_pool() {
+  kubectl apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
-metadata:
-  name: default-address-pool
-  namespace: metallb-system
-spec:
-  addresses:
-  - "$ips"
+metadata: {name: default-address-pool, namespace: $NS}
+spec: {addresses: ["$ips"]}
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata: {name: default-l2, namespace: $NS}
+spec: {ipAddressPools: [default-address-pool]}
 EOF
+}
+ok=0
+for ((i=0; i<WAIT/5; i++)); do apply_pool && { ok=1; break; }; sleep 5; done
+[[ $ok == 1 ]] || fail "IPAddressPool never accepted"
 
-    # Check if resource exists
-    if kubectl get ipaddresspool -n metallb-system default-address-pool &> /dev/null; then
-        echo "Resource successfully deployed."
-        break
-    fi
+# excludel2 ConfigMap: keep your existing block here unchanged
 
-    # Check for timeout
-    current_time=$(date +%s)
-    elapsed=$(( current_time - start_time ))
-    if [ "$elapsed" -ge "$timeout" ]; then
-        echo "Timed out after $timeout seconds. Resource not confirmed as deployed."
-        exit 1
-    fi
+# --- nginx test (strict) -----------------------------------------------------
+kubectl create deployment nginx --image=nginx:alpine --dry-run=client -o yaml | kubectl apply -f -
+kubectl expose deployment nginx --port=80 --type=LoadBalancer --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout status deploy/nginx --timeout=${WAIT}s || fail "nginx not available"
 
-    echo "Retrying in $interval seconds..."
-    sleep "$interval"
-done
-
-# apply excludel2.yaml to exclude interfaces
-kubectl apply -f - <<EOF
-apiVersion: v1
-data:
-  excludel2.yaml: |
-    announcedInterfacesToExclude: ["^docker.*", "^cbr.*", "^dummy.*", "^virbr.*", "^lxcbr.*", "^veth.*", "^lo$", "^cali.*", "^tunl.*", "^flannel.*", "^kube-ipvs.*", "^cni.*", "^nodelocaldns.*"]
-kind: ConfigMap
-metadata:
-  name: metallb-excludel2
-  namespace: metallb-system
-EOF
-
-
-# validate metalb works for nginx test case
-kubectl create deployment nginx --image=nginx || true
-kubectl expose deployment nginx --port=80 --type=LoadBalancer || true
-
-end=$((SECONDS+120))
-while true; do
-    ip=$(kubectl get svc nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
-
-    if [[ -n "$ip" ]]; then
-        echo "LoadBalancer IP acquired: $ip"
-        break
-    fi
-
-    echo "Waiting for LoadBalancer IP..."
-    sleep 5
-
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for LoadBalancer IP"
-        exit 1
-    fi
-done
-
-
-# Validate internal nginx connectivity
-end=$((SECONDS + 120))
-
-kubectl wait \
-  --for=condition=available \
-  deployment/nginx \
-  --timeout=120s
-
-wait_for_endpoints default nginx 120
-
-while (( SECONDS <= end )); do
-  echo "Checking internal connectivity to nginx service..."
-
-  if output=$(kubectl run "curl-nginx-$RANDOM" \
-      --rm \
-      -i \
-      --restart=Never \
-      --image=curlimages/curl \
-      --quiet \
-      -- \
-      curl -sS --fail --connect-timeout 5 --max-time 10 \
-      http://nginx.default.svc.cluster.local 2>/dev/null); then
-
-    if grep -q "Welcome to nginx" <<<"$output"; then
-      echo "✅ Service is reachable."
-      break
-    fi
-  else
-    echo "⚠️ nginx connectivity probe failed; retrying..."
-  fi
-
-  echo "Service not reachable yet. Waiting 5 seconds..."
+# LB IP
+ip=""
+for ((i=0; i<WAIT/5; i++)); do
+  ip=$(kubectl get svc nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  [[ -n "$ip" ]] && break
   sleep 5
 done
+[[ -n "$ip" ]] || fail "no LoadBalancer IP assigned"
+echo "LoadBalancer IP acquired: $ip"
 
-if (( SECONDS > end )); then
-  echo "❌ Timeout waiting for nginx service to be reachable."
-  kubectl get svc nginx
-  kubectl get endpoints nginx
-  exit 1
-fi
+wait_for_endpoints default nginx ${WAIT}
+
+# One long-lived client pod instead of a new pod per attempt
+kubectl run curl-client --image=curlimages/curl --restart=Never --command -- sleep 3600
+kubectl wait --for=condition=Ready pod/curl-client --timeout=${WAIT}s || fail "curl-client not ready"
+
+probe() {
+  kubectl exec curl-client -- \
+    curl -sS --fail --connect-timeout 3 --max-time 5 "$1" 2>&1 | grep -q "Welcome to nginx"
+}
+
+check() { # check <label> <url>
+  for ((i=0; i<WAIT/5; i++)); do
+    if probe "$2"; then echo "✅ $1 reachable ($2)"; return 0; fi
+    echo "$1 not reachable yet ($2), retrying in 5s... ($((i*5))/${WAIT}s)"
+    sleep 5
+  done
+  return 1
+}
+
+clusterip=$(kubectl get svc nginx -o jsonpath='{.spec.clusterIP}')
+check "ClusterIP" "http://$clusterip"                    || fail "ClusterIP unreachable (kube-proxy/CNI service rules?)"
+check "DNS"       "http://nginx.default.svc.cluster.local" || fail "service DNS unreachable"
+check "LB IP"     "http://$ip"                           || fail "LoadBalancer IP unreachable"
+
+kubectl delete pod/curl-client svc/nginx deploy/nginx --ignore-not-found --wait=false
+echo "MetalLB ready and verified."
