@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 TIMEOUT=120
 NAMESPACE="dolphin"
+INTERVAL=5
 verify_connectivity() {
   local ingress_ip="$1"
   local timeout=120
