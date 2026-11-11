@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 source ".github/actions/tests/kindenv/gatewayapi_setup.sh"
 source ".github/actions/tests/kindenv/lib/helper.sh"
-source ".github/actions/tests/kindenv/lib/metallb.sh"
+#source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 NAMESPACE="dolphin"
 GATEWAY_CLASS="dolphin"

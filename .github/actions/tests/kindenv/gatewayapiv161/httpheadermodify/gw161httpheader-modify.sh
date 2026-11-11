@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 source ".github/actions/tests/kindenv/gatewayapi_setup.sh"
 source ".github/actions/tests/kindenv/lib/helper.sh"
-source ".github/actions/tests/kindenv/lib/metallb.sh"
+#source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 NAMESPACE="dolphin"
 

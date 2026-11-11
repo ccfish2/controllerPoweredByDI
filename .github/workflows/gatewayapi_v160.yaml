@@ -133,6 +133,14 @@ jobs:
           version: v0.33.0
           cluster_name: kind
           config: .github/kind-config.yaml
+      
+      # ============================================================
+      # Configure LoadBalance on Kind cluster
+      # ============================================================
+      - name: configure loadbalance support 
+        run: |
+          chmod u+x .github/actions/tests/kindenv/lib/metallb.sh
+          bash .github/actions/tests/kindenv/lib/metallb.sh
 
       # ============================================================
       # 5. Install kubectl

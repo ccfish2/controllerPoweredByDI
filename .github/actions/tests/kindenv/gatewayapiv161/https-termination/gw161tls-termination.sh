@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 source ".github/actions/tests/kindenv/gatewayapi_setup.sh"
 source ".github/actions/tests/kindenv/lib/helper.sh"
-source ".github/actions/tests/kindenv/lib/metallb.sh"
+#source ".github/actions/tests/kindenv/lib/metallb.sh"
 
 echo "Deploying a TLS-enabled gateway and validating HTTPS reconciliation"
  
