@@ -5,11 +5,15 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/lib/helper.sh"
-source "${SCRIPT_DIR}/lib/metallb.sh"
+source "${SCRIPT_DIR}/lib/ingress_check.sh"
 
 # test case one: dedicated lb ingress
-# apply book info service into default namespace
+# apply book info service into dolphin namespace
 kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+
+# backends must be running before the route can work
+kubectl -n dolphin wait --for=condition=Available \
+  deployment/details-v1 deployment/productpage-v1 --timeout=300s
 
 # apply basic-ingress
 kubectl apply -f - <<EOF 
@@ -55,32 +59,24 @@ ports:
   protocol: TCP
 EOF
 
-# ensure ingress-controller reconcile
-# loadbalancer service is up, external ip is assigned to the ingress, DolphinEnvoyConfig is created and with correct status
-ingressip=""
-end=$((SECONDS+120))
-while true; do
-    ingressip=$(kubectl -n dolphin get ingress basic-ingress -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+# ensure ingress-controller reconcile and the cilium data plane is programmed:
+#   - CiliumEnvoyConfig is created by the operator and is consistent (routes -> clusters, no proxy_protocol)
+#   - backends have ready endpoints
+#   - loadbalancer service is up, external ip is assigned to the ingress
+#   - cilium-agent redirects the ingress IP to envoy on every node
+#   - the route answers correctly several times in a row
+# The address is printed on stdout, the progress goes to stderr.
+IC_NAMESPACE=dolphin
+IC_INGRESS=basic-ingress
+IC_BACKEND_SERVICES="details productpage"
+IC_URL_PATH=/details/1
+IC_EXPECT="William Shakespeare"
 
-    if [[ -n "$ingressip" ]]; then
-        echo "Ingress Service IP acquired: $ingressip"
-        break
-    fi
-
-    echo "Waiting for Ingress IP..."
-    sleep 5
-
-    if ((SECONDS > end)); then
-        echo "Timeout waiting for Service IP"
-        exit 1
-    fi
-done
-
-# check ingress service connectivity
-check_service_external_ip "dolphin-ingress-basic-ingress" || exit 1
-verify_connectivity "$ingressip" || exit 1
-
-#dolphin-ingress-basic-ingress-8gtbt   IPv4          9999    192.192.192.192                 17m
+ingressip=$(ic_check_ingress_ready) || {
+  echo "ERROR: ingress ${IC_NAMESPACE}/${IC_INGRESS} is not ready in the data plane" >&2
+  exit 1
+}
+echo "Ingress is ready at: ${ingressip}"
 
 echo "clean up dedicated ingress lb mode testing environment"
 kubectl -n dolphin delete ingress basic-ingress
