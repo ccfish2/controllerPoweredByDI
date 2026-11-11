@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -245,19 +246,19 @@ func Execute(cmd *cobra.Command) {
 	}
 }
 
-func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
+func registerOperatorHooks(log *slog.Logger, lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
 	var wg sync.WaitGroup
 	lc.Append(cell.Hook{
 		OnStart: func(cell.HookContext) error {
 			wg.Add(1)
 			go func() {
-				runOperator(llc, clientset, shutdowner)
+				runOperator(log, llc, clientset, shutdowner)
 				wg.Done()
 			}()
 			return nil
 		},
 		OnStop: func(ctx cell.HookContext) error {
-			if err := llc.Stop(ctx); err != nil {
+			if err := llc.Stop(log, ctx); err != nil {
 				return err
 			}
 			doCleanup()
@@ -267,11 +268,11 @@ func registerOperatorHooks(lc cell.Lifecycle, llc *LeaderLifecycle, clientset k8
 	})
 }
 
-func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
+func runOperator(log *slog.Logger, lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner hive.Shutdowner) {
 	if operatorOption.Config.DisableLeaderElection {
 		log.Warn("Leader election disabled; starting leader-scoped controllers immediately for local/dev mode")
-		if err := lc.Start(context.Background()); err != nil {
-			log.WithError(err).Error("Failed to start leader-scoped controllers in local mode")
+		if err := lc.Start(log, context.Background()); err != nil {
+			log.With(err).Error("Failed to start leader-scoped controllers in local mode")
 			shutdowner.Shutdown(hive.ShutdownWithError(err))
 		}
 		isLeader.Store(true)
@@ -289,7 +290,7 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 
 	operatorID, err := os.Hostname()
 	if err != nil {
-		log.WithError(err).Fatal("Failed to get hostname when generating lease lock identity")
+		log.With(err).Error("Failed to get hostname when generating lease lock identity")
 	}
 	operatorID = fmt.Sprintf("%s-%s", operatorID, rand.String(10))
 
@@ -309,7 +310,7 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 		clientset.RestConfig(),
 		10*time.Second)
 	if err != nil {
-		log.WithError(err).Fatal("Failed to create resource lock for leader election")
+		log.With(err).Error("Failed to create resource lock for leader election")
 	}
 
 	log.Info("Waiting for leader election")
@@ -325,14 +326,14 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				if err := lc.Start(ctx); err != nil {
-					log.WithError(err).Error("Failed to start when elected leader, shutting down")
+				if err := lc.Start(log, ctx); err != nil {
+					log.With(err).Error("Failed to start when elected leader, shutting down")
 					shutdowner.Shutdown(hive.ShutdownWithError(err))
 				}
 			},
 			OnStoppedLeading: func() {
-				log.WithField("operator-id", operatorID).Info("Leader election lost")
-				log.WithFields(logrus.Fields{
+				log.With("operator-id", operatorID).Info("Leader election lost")
+				log.With(logrus.Fields{
 					"source":     "leader-election-lost",
 					"operatorID": operatorID,
 				}).Warn("Requesting Hive shutdown")
@@ -342,7 +343,7 @@ func runOperator(lc *LeaderLifecycle, clientset k8sClient.Clientset, shutdowner 
 				if identity == operatorID {
 					log.Info("Leading the operator HA deployment")
 				} else {
-					log.WithFields(logrus.Fields{
+					log.With(logrus.Fields{
 						"newLeader":  identity,
 						"operatorID": operatorID,
 					}).Info("Leader re-election complete")

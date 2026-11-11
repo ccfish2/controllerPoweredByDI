@@ -2,10 +2,12 @@ package ingress
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"testing"
 
 	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
+	envoy_config_listener "github.com/cilium/proxy/go/envoy/config/listener/v3"
 	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -225,6 +227,46 @@ func TestReconcileCreatesCiliumEnvoyConfig(t *testing.T) {
 		resources, _, err := unstructured.NestedSlice(cec.Object, "spec", "resources")
 		require.NoError(t, err)
 		assert.NotEmpty(t, resources)
+
+		// The cilium-envoy data plane must get neither the PROXY protocol listener
+		// filter nor an explicit cluster connectTimeout (see generated-cec.yaml).
+		raw, err := json.Marshal(cec.Object)
+		require.NoError(t, err)
+		assert.NotContains(t, string(raw), "proxy_protocol")
+		assert.NotContains(t, string(raw), "connectTimeout")
+	})
+
+	t.Run("PROXY protocol is never generated, even when it is requested", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(testScheme()).WithObjects(newIngress()).Build()
+		// useProxyProtocol=true is what the old default / a leftover flag would pass in
+		r := newIngressReconciler(logger, c, testDolphinNamespace, testEnforceHTTPS, true, testDolphinSecretsNamespace, []string{}, testDefaultLoadbalancingServiceName, "dedicated", testDefaultSecretNamespace, testDefaultSecretName, testDefaultTimeout)
+
+		_, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Namespace: "test", Name: "test"}})
+		require.NoError(t, err)
+
+		key := types.NamespacedName{Namespace: "test", Name: "dolphin-ingress-test-test"}
+
+		dec := &dolphinv1.DolphinEnvoyConfig{}
+		require.NoError(t, c.Get(context.Background(), key, dec))
+		listeners := 0
+		for _, res := range dec.Spec.Resources {
+			if res.Any.GetTypeUrl() != envoy.ListenerTypeURL {
+				continue
+			}
+			listeners++
+			l := &envoy_config_listener.Listener{}
+			require.NoError(t, res.Any.UnmarshalTo(l))
+			for _, f := range l.GetListenerFilters() {
+				assert.NotEqual(t, "envoy.filters.listener.proxy_protocol", f.GetName())
+			}
+		}
+		require.NotZero(t, listeners, "expected a listener in the DolphinEnvoyConfig")
+
+		cec := newCiliumEnvoyConfig("", "")
+		require.NoError(t, c.Get(context.Background(), key, cec))
+		raw, err := json.Marshal(cec.Object)
+		require.NoError(t, err)
+		assert.NotContains(t, string(raw), "proxy_protocol")
 	})
 
 	t.Run("deleting the Ingress removes the dedicated CiliumEnvoyConfig", func(t *testing.T) {

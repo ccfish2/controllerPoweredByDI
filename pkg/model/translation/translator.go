@@ -39,14 +39,30 @@ type defaultTranslator struct {
 
 	ipv4Enabled bool
 	ipv6Enabled bool
+
+	// omitClusterConnectTimeout leaves connect_timeout unset on HTTP clusters
+	// (Envoy then applies its own 5s default). Off by default so that every
+	// translator that doesn't opt in, e.g. Gateway API, behaves as before.
+	omitClusterConnectTimeout bool
 }
 
 var _ Translator = (*defaultTranslator)(nil)
 
+// TranslatorOption customizes a translator created by NewTranslator.
+type TranslatorOption func(*defaultTranslator)
+
+// WithoutClusterConnectTimeout stops the translator from setting an explicit
+// connect_timeout on the HTTP clusters it generates.
+func WithoutClusterConnectTimeout() TranslatorOption {
+	return func(t *defaultTranslator) {
+		t.omitClusterConnectTimeout = true
+	}
+}
+
 func NewTranslator(name, namespace, secretsNamespace string, enforceHTTPs bool, useProxyProtocol bool,
 	hostNameSuffixMatch bool, idleTimeoutSeconds int,
-	ipv4Enabled bool, ipv6Enabled bool) Translator {
-	return &defaultTranslator{
+	ipv4Enabled bool, ipv6Enabled bool, opts ...TranslatorOption) Translator {
+	t := &defaultTranslator{
 		name:                name,
 		namespace:           namespace,
 		secretsNamespace:    secretsNamespace,
@@ -57,6 +73,10 @@ func NewTranslator(name, namespace, secretsNamespace string, enforceHTTPs bool, 
 		ipv4Enabled:         ipv4Enabled,
 		ipv6Enabled:         ipv6Enabled,
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 // translate translates the model into a DolphinEnvoyConfig
@@ -341,12 +361,15 @@ func (i *defaultTranslator) getClusters(m *model.Model) []dolphinv1.XDSResource 
 				clusterName := getClusterName(ns, name, port)
 				clusterServiceName := getClusterServiceName(ns, name, port)
 				sortedClusterNames = append(sortedClusterNames, clusterName)
-				mutators := []ClusterMutator{
-					WithConnectionTimeout(5),
+				mutators := []ClusterMutator{}
+				if !i.omitClusterConnectTimeout {
+					mutators = append(mutators, WithConnectionTimeout(5))
+				}
+				mutators = append(mutators,
 					WithIdleTimeout(i.idleTimeoutSeconds),
 					WithClusterLbPolicy(int32(envoy_config_cluster_v3.Cluster_ROUND_ROBIN)),
 					WithOutlierDetection(true),
-				}
+				)
 
 				if port == "443" {
 					hostname := ""

@@ -23,7 +23,7 @@ var Cell = cell.Module(
 		ingressConfig{
 			EnableIngressController:     true,
 			EnforceIngressHTTPS:         true,
-			EnableIngressProxyProtocol:  true,
+			EnableIngressProxyProtocol:  false,
 			EnableIngressSecretsSync:    true,
 			IngressSecretsNamespace:     "dolphin-secrets",
 			IngressSharedLBServiceName:  "dolphin-ingress",
@@ -51,7 +51,9 @@ type ingressConfig struct {
 func (r ingressConfig) Flags(flags *pflag.FlagSet) {
 	flags.Bool("enable-ingress-controller", r.EnableIngressController, "Enables dolphin ingress controller. This must be enabled along with enable-envoy-config in dolphin agent.")
 	flags.Bool("enforce-ingress-https", r.EnforceIngressHTTPS, "Enforces https for host having matching TLS host in Ingress. Incoming traffic to http listener will return 308 http error code with respective location in header.")
-	flags.Bool("enable-ingress-proxy-protocol", r.EnableIngressProxyProtocol, "Enable proxy protocol for all Ingress listeners. Note that _only_ Proxy protocol traffic will be accepted once this is enabled.")
+	flags.Bool("enable-ingress-proxy-protocol", r.EnableIngressProxyProtocol, "Deprecated and ignored: the PROXY protocol listener filter is never generated for the cilium-envoy data plane.")
+	// Keep accepting the flag so existing operator manifests don't crash on an unknown flag.
+	_ = flags.MarkDeprecated("enable-ingress-proxy-protocol", "it is ignored, the PROXY protocol listener filter is never generated")
 	flags.Bool("enable-ingress-secrets-sync", r.EnableIngressSecretsSync, "Enables fan-in TLS secrets from multiple namespaces to singular namespace (specified by ingress-secrets-namespace flag)")
 	flags.String("ingress-secrets-namespace", r.IngressSecretsNamespace, "Namespace having tls secrets used by Ingress and CEC.")
 	flags.StringSlice("ingress-lb-annotation-prefixes", r.IngressLBAnnotationPrefixes, "Annotations and labels which are needed to propagate from Ingress to the Load Balancer.")

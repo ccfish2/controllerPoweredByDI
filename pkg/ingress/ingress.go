@@ -67,6 +67,15 @@ func newIngressReconciler(
 	defaultSecretName string,
 	proxyIdleTimeoutSeconds int,
 ) *ingressReconciler {
+	// The cilium-envoy data plane does not accept PROXY protocol, so the
+	// envoy.filters.listener.proxy_protocol listener filter must never end up in
+	// the generated DolphinEnvoyConfig / CiliumEnvoyConfig, whatever the caller
+	// or the (deprecated) --enable-ingress-proxy-protocol flag asks for.
+	if useProxyProtocol {
+		logger.Warn("PROXY protocol for Ingress listeners is not supported with the cilium-envoy data plane, ignoring enable-ingress-proxy-protocol=true")
+		useProxyProtocol = false
+	}
+
 	return &ingressReconciler{
 		logger: logger,
 		client: c,
