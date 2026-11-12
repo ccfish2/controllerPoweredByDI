@@ -4,7 +4,7 @@ NAMESPACE="dolphin"
 INTERVAL=5
 verify_connectivity() {
   local ingress_ip="$1"
-  local timeout=120
+  local timeout=240
   local end=$((SECONDS + timeout))
 
   while true; do

@@ -322,11 +322,6 @@ while true; do
         exit 1
     fi
 done
- 
-# External connectivity check — confirm this helper does SNI/Host to $DOMAIN, not a hardcoded name
-#verify_https_connectivity "$ingressip" "$DOMAIN" || exit 1
-# echo "apply cilium envoy configure  for tls-ingress routing and TLS termination"
-# kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # --- In-cluster cert-validated verification via busybox pod ---
 # curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:{TLS INGRESS VIP} -v 
