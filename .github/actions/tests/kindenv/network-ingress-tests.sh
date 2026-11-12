@@ -333,7 +333,7 @@ while true; do
 done
 
 echo "Dump CEC for troubleshooting"
-kubectl -n dolphin get ciliumenvoyconfigs.cilium.io dolphin-tls-ingress -oyaml
+kubectl -n dolphin get ciliumenvoyconfigs.cilium.io dolphin-ingress-dolphin-tls-ingress -oyaml
 
 # --- In-cluster cert-validated verification via busybox pod ---
 # curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:{TLS INGRESS VIP} -v 
