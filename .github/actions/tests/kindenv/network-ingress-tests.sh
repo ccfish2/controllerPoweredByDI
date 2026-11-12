@@ -255,6 +255,15 @@ kubectl -n dolphin delete svc dolphin-ingress --ignore-not-found=true --wait=tru
 kubectl -n dolphin delete svc dolphin-ingress-basic-ingress --ignore-not-found=true --wait=true
 
 # test case 3
+echo "ensuring bookinfo backends are present and healthy before TLS test"
+kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
+
+kubectl -n dolphin rollout status deployment/details-v1 --timeout=120s || exit 1
+kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || exit 1
+
+wait_for_endpoints dolphin details || exit 1
+wait_for_endpoints dolphin productpage || exit 1
+
 uninstall_helm_release dolphin-operator dolphin
 echo "helmp upgrade dolphin-operator"
 helm repo update
@@ -323,6 +332,9 @@ while true; do
     fi
 done
 
+echo "Dump CEC for troubleshooting"
+k -n dolphin get ciliumenvoyconfigs.cilium.io dolphin-tls-ingress -oyaml
+
 # --- In-cluster cert-validated verification via busybox pod ---
 # curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:{TLS INGRESS VIP} -v 
 # {"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
@@ -337,15 +349,6 @@ kubectl -n dolphin describe pod -l app=details || true
 kubectl get events -n dolphin --sort-by='.lastTimestamp' | tail -40 || true
 kubectl top nodes 2>/dev/null || echo "metrics-server not installed"
 kubectl describe nodes | grep -A5 -E "Conditions:|Allocated resources" || true
-
-echo "ensuring bookinfo backends are present and healthy before TLS test"
-kubectl -n dolphin apply -f https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-
-kubectl -n dolphin rollout status deployment/details-v1 --timeout=120s || exit 1
-kubectl -n dolphin rollout status deployment/productpage-v1 --timeout=120s || exit 1
-
-wait_for_endpoints dolphin details || exit 1
-wait_for_endpoints dolphin productpage || exit 1
 
 set -uo pipefail
 
