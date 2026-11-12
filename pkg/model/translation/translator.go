@@ -315,6 +315,7 @@ func (i *defaultTranslator) getEnvoyHTTPRouteConfiguration(m *model.Model) []dol
 				redirectedHost[h] = struct{}{}
 			}
 		}
+		hasNonRedirectHost := false
 		for _, h := range slices.Unique(hostNames) {
 			if port == insecureHost {
 				if _, ok := redirectedHost[h]; ok {
@@ -332,6 +333,14 @@ func (i *defaultTranslator) getEnvoyHTTPRouteConfiguration(m *model.Model) []dol
 				ListenerPort:        m.HTTP[0].Port,
 			})
 			virtualhosts = append(virtualhosts, vhs)
+			hasNonRedirectHost = true
+		}
+
+		// When HTTPS is enforced and every plain-HTTP host is only there to
+		// redirect to its TLS counterpart (e.g. a TLS Ingress), don't emit a
+		// "listener-insecure" RouteConfiguration containing nothing but redirects.
+		if port == insecureHost && len(redirectedHost) > 0 && !hasNonRedirectHost {
+			continue
 		}
 
 		routeName := fmt.Sprintf("listener-%s", port)

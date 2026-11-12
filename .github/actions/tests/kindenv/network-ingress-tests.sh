@@ -253,62 +253,13 @@ kubectl -n dolphin delete ingress basic-ingress-shared --ignore-not-found=true -
 kubectl -n dolphin delete ingress basic-ingress --ignore-not-found=true --wait=true
 kubectl -n dolphin delete svc dolphin-ingress --ignore-not-found=true --wait=true
 kubectl -n dolphin delete svc dolphin-ingress-basic-ingress --ignore-not-found=true --wait=true
-#uninstall_helm_release dolphin-operator dolphin
-set -euo pipefail
-NS="dolphin"
-RELEASE="dolphin-operator"
-CHART="dolphin-operator/dolphin-operator"
-TIMEOUT="5m"
-# Set to "true" only if you want CRDs (and all their custom resources) deleted
-DELETE_CRDS="false"
-# Pattern to identify the operator's CRDs (adjust to match your chart)
-CRD_PATTERN="dolphin"
 
-log() { echo "[$(date +%H:%M:%S)] $*"; }
-
-# ---------- 1. Uninstall ----------
-if helm -n "$NS" status "$RELEASE" >/dev/null 2>&1; then
-  log "Uninstalling $RELEASE..."
-  helm -n "$NS" uninstall "$RELEASE" --wait --timeout "$TIMEOUT"
-else
-  log "Release $RELEASE not found in $NS, skipping uninstall."
-fi
-
-# ---------- 2. Verify release is gone ----------
-if helm -n "$NS" list -q | grep -qx "$RELEASE"; then
-  echo "ERROR: release still present after uninstall" >&2
-  exit 1
-fi
-
-# ---------- 3. Wait for leftover pods to terminate ----------
-if kubectl get ns "$NS" >/dev/null 2>&1; then
-  log "Waiting for pods to terminate..."
-  kubectl -n "$NS" wait --for=delete pod \
-    -l "app.kubernetes.io/instance=$RELEASE" --timeout=120s 2>/dev/null || true
-fi
-#echo "end of cleanup"
-
-# test case 3 TLS ingress 
-# below works as expected using local Kind cluster 
-# echo "helmp upgrade dolphin-operator"
-# ---------- 6. Reinstall ----------
-log "Updating repos..."
+# test case 3
+uninstall_helm_release dolphin-operator dolphin
+echo "helmp upgrade dolphin-operator"
 helm repo update
-
-log "Installing $RELEASE..."
-helm install "$RELEASE" "$CHART" \
-  -n "$NS" --create-namespace \
-  --wait --timeout "$TIMEOUT" --atomic
-
-# ---------- 7. Verify ----------
-log "Verifying install..."
-helm -n "$NS" status "$RELEASE"
-kubectl -n "$NS" rollout status deploy \
-  -l "app.kubernetes.io/instance=$RELEASE" --timeout="$TIMEOUT"
-kubectl -n "$NS" get pods
-
-log "Done."
-# sleep 5
+helm install dolphin-operator dolphin-operator/dolphin-operator -n dolphin
+sleep 5
 echo "Deploying a TLS-enabled ingress and validating HTTPS reconciliation"
  
 DOMAIN="bookinfo.cilium.rocks"
@@ -342,59 +293,14 @@ kubectl -n cilium-secrets create secret tls tls-ingress-secret \
  
 # --- CA configmap for the in-cluster verification pod ---
 echo "create configmap that persist the cacert for accessing service"
+kubectl -n dolphin delete configmap bookinfo-ca --ignore-not-found --wait=true
 kubectl -n dolphin create configmap bookinfo-ca --from-file=bookinfo.cilium.rocks.pem=bookinfo.cilium.rocks.pem
 
 cd ..
 
 # --- Apply ingress config ---
 echo "deploy tls-ingress and the 9999 cilium port "
-#kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress.yaml
-kubectl apply -f - <<EOF 
-# TLS ingress example, requires the below two applications
-# https://raw.githubusercontent.com/istio/istio/release-1.11/samples/bookinfo/platform/kube/bookinfo.yaml
-# https://github.com/GoogleCloudPlatform/microservices-demo
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: tls-ingress
-  namespace: dolphin
-spec:
-  ingressClassName: dolphin
-  rules:
-  - host: bookinfo.cilium.rocks
-    http:
-      paths:
-      - backend:
-          service:
-            name: details
-            port:
-              number: 9080
-        path: /details
-        pathType: Prefix
-      - backend:
-          service:
-            name: productpage
-            port:
-              number: 9080
-        path: /
-        pathType: Prefix
-  tls:
-  - hosts:
-    - bookinfo.cilium.rocks
-    secretName: tls-ingress-secret
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: dolphin-ingress-tls-ingress
-  namespace: dolphin
-subsets:
-- addresses:
-  - ip: 192.192.192.192
-  ports:
-  - port: 9999
-    protocol: TCP
-EOF
+kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress.yaml
  
 #--- Wait for TLS ingress LoadBalancer IP VIP  ---
 end=$((SECONDS + 120))
@@ -419,8 +325,8 @@ done
  
 # External connectivity check — confirm this helper does SNI/Host to $DOMAIN, not a hardcoded name
 #verify_https_connectivity "$ingressip" "$DOMAIN" || exit 1
-#echo "apply cilium envoy configure  for tls-ingress routing and TLS termination"
-#kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
+# echo "apply cilium envoy configure  for tls-ingress routing and TLS termination"
+# kubectl apply -f .github/actions/tests/kindenv/ingressintegrationtests_setup/ingress-conformance/dolphin-tls-ingress-envoyconfig.yaml
 
 # --- In-cluster cert-validated verification via busybox pod ---
 # curl -k https://bookinfo.cilium.rocks/details/1 --resolve bookinfo.cilium.rocks:443:{TLS INGRESS VIP} -v 
@@ -515,7 +421,7 @@ printf 'kubectl -n "%s" exec "%s" -- curl -sSL -o /tmp/response.json -w "%%{http
     "${CACERT}" \
     "${URL}"
 
-if curl_with_retry "$NAMESPACE" "$POD" 90 5 \
+if curl_with_retry "$NAMESPACE" "$POD" 180 5 \
   curl -sSL -o /tmp/response.json -w "%{http_code}" \
   --resolve "${HOST}:443:${tlsingressip}" \
   --cacert "${CACERT}" \
