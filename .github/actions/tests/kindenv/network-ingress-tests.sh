@@ -79,9 +79,9 @@ ingressip=$(ic_check_ingress_ready) || {
 echo "Ingress is ready at: ${ingressip}"
 
 # echo "clean up dedicated ingress lb mode testing environment"
-# kubectl -n dolphin delete ingress basic-ingress
-# kubectl -n dolphin delete dolphinenvoyconfigs.dolphin.io dolphin-ingress || true
-# kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
+kubectl -n dolphin delete ingress basic-ingress --wait=true
+kubectl -n dolphin delete dolphinenvoyconfigs.dolphin.io dolphin-ingress --ignore-not-found=true --wait=true
+kubectl -n dolphin delete svc dolphin-ingress-basic-ingress --ignore-not-found=true --wait=true
 # time sleep 5
 
 # test case 2: shared lb mode
@@ -249,15 +249,12 @@ fi
 
 #!/usr/bin/env bash
 #echo "clean up shared ingress lb mode testing environment"
-#kubectl -n dolphin delete ingress basic-ingress-shared || true
-# kubectl -n dolphin delete ingress basic-ingress || true
-# kubectl -n dolphin delete svc dolphin-ingress || true
-# kubectl -n dolphin delete CiliumEnvoyConfig cilium-ingress-default-basic-ingress || true
-# kubectl -n dolphin delete CiliumEnvoyConfig dolphin-ingress || true
-#kubectl -n dolphin delete svc dolphin-ingress-basic-ingress || true
+kubectl -n dolphin delete ingress basic-ingress-shared --ignore-not-found=true --wait=true
+kubectl -n dolphin delete ingress basic-ingress --ignore-not-found=true --wait=true
+kubectl -n dolphin delete svc dolphin-ingress --ignore-not-found=true --wait=true
+kubectl -n dolphin delete svc dolphin-ingress-basic-ingress --ignore-not-found=true --wait=true
 #uninstall_helm_release dolphin-operator dolphin
 set -euo pipefail
-
 NS="dolphin"
 RELEASE="dolphin-operator"
 CHART="dolphin-operator/dolphin-operator"
