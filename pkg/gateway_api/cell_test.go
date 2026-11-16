@@ -128,6 +128,28 @@ func TestInitgatewayAPIController(t *testing.T) {
 			configEnabled: true,
 			preconditions: &gatewayAPIPreconditions{Enabled: false},
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := initGatewayAPIController(gatewayAPIParams{
+				Logger:        logrus.New(),
+				K8sClient:     tt.client,
+				Config:        gatewayApiConfig{EnableGatewayAPI: tt.configEnabled},
+				Preconditions: tt.preconditions,
+			})
+
+			require.NoError(t, err)
+			assert.Nil(t, got)
+		})
+	}
+
+	tests = []struct {
+		name          string
+		configEnabled bool
+		preconditions *gatewayAPIPreconditions
+		client        client.Clientset
+	}{
 		{
 			name:          "required CRDs missing",
 			configEnabled: true,
@@ -145,7 +167,8 @@ func TestInitgatewayAPIController(t *testing.T) {
 				Preconditions: tt.preconditions,
 			})
 
-			require.NoError(t, err)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "gateway API scheme is nil")
 			assert.Nil(t, got)
 		})
 	}
@@ -296,5 +319,5 @@ func TestCheckCRD(t *testing.T) {
 
 	unservedClient := newFakeClientset(t, "", false)
 	err := checkCRD(t.Context(), unservedClient, gvk)
-	require.ErrorContains(t, err, "does not have version")
+	require.ErrorContains(t, err, "does not serve any API versions")
 }

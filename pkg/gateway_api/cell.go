@@ -363,7 +363,12 @@ func initGatewayAPIController(params gatewayAPIParams) (*GatewayAPIController, e
 
 	params.Logger.WithField("RequiredGVKs", helpers.RequiredGVKs).Info("checking for required GatewayAPI resources")
 	params.Logger.WithField("InstalledKinds", params.Preconditions.InstalledKinds).Info("Gateway API preconditions passed; registering controllers")
-	scheme.AddToScheme(params.Scheme)
+	if params.Scheme == nil {
+		return nil, fmt.Errorf("gateway API scheme is nil")
+	}
+	if err := scheme.AddToScheme(params.Scheme); err != nil {
+		return nil, fmt.Errorf("failed to register Gateway API scheme: %w", err)
+	}
 
 	if err := checkRequiredCRDs(context.Background(), params.K8sClient); err != nil {
 		params.Logger.WithError(err).Error("Required GatewayAPI resources are not found, please refer to docs for instructions")
