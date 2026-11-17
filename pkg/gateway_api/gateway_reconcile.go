@@ -1862,7 +1862,10 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 	gatewayName types.NamespacedName,
 ) error {
 	scopedLog = r.logger
-	r.logger.Debug("Updating BackendTLSPolicy statuses for Gateway %v ", btlspMap)
+	r.logger.Debug("Updating BackendTLSPolicy statuses for Gateway",
+		"gateway", gatewayName,
+		"backendTLSPolicies", btlspMap,
+	)
 
 	currentGatewayRef := gatewayv1.ParentReference{
 		Group:     ptr.To[gatewayv1.Group]("gateway.networking.k8s.io"),
@@ -2099,7 +2102,8 @@ func (r *gatewayReconciler) updateBackendTLSPolicyStatus(ctx context.Context, sc
 	if cmp.Equal(oldStatus, newStatus, cmpopts.IgnoreFields(metav1.Condition{}, lastTransitionTime)) {
 		return nil
 	}
-	scopedLog.Debug("BackendTLSPolicy status", types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
+	scopedLog.Debug("BackendTLSPolicy status",
+		logfields.Resource, types.NamespacedName{Name: original.Name, Namespace: original.Namespace})
 	return r.Client.Status().Update(ctx, new)
 }
 
