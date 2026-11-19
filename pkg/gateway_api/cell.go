@@ -11,6 +11,7 @@ import (
 
 	"github.com/ccfish2/infra/pkg/backoff"
 	"github.com/ccfish2/infra/pkg/hive/cell"
+	"github.com/ccfish2/infra/pkg/logging"
 	"github.com/ccfish2/infra/pkg/logging/logfields"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -43,9 +44,8 @@ var Cell = cell.Module(
 	"Manages the Gateway API controllers",
 
 	// initialize configuration
-	cell.Provide(func() *slog.Logger {
-		return slog.New(slog.NewTextHandler(os.Stdout, nil))
-	}),
+	cell.Provide(cell.NewHealthProvider),
+	cell.Provide(func() logrus.FieldLogger { return logging.DefaultLogger }),
 	cell.Config(
 		gatewayApiConfig{
 			EnableGatewayAPISecretsSync: true,

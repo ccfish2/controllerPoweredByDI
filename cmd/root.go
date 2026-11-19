@@ -212,7 +212,8 @@ func NewOperatorCmd(h *hive.Hive) *cobra.Command {
 			}
 			initEnv(h.Viper())
 
-			if err := h.Run(); err != nil {
+			if err := h.Run(logging.DefaultSlogLogger); err != nil {
+				fmt.Fprintf(os.Stderr, "FULL ERR: %+v\n", err)
 				panic(err)
 			}
 		},
