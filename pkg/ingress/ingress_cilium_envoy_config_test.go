@@ -3,13 +3,12 @@ package ingress
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"log/slog"
 	"testing"
 
 	envoy_config_cluster_v3 "github.com/cilium/proxy/go/envoy/config/cluster/v3"
 	envoy_config_listener "github.com/cilium/proxy/go/envoy/config/listener/v3"
 	envoy_config_route_v3 "github.com/cilium/proxy/go/envoy/config/route/v3"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -198,8 +197,7 @@ func TestToCiliumEnvoyConfig(t *testing.T) {
 }
 
 func TestReconcileCreatesCiliumEnvoyConfig(t *testing.T) {
-	logger := logrus.New()
-	logger.SetOutput(io.Discard)
+	logger := slog.New(slog.Default().Handler())
 
 	newIngress := func() *networkingv1.Ingress {
 		return &networkingv1.Ingress{

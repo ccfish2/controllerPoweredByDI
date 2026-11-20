@@ -2,11 +2,10 @@ package ingress
 
 import (
 	"context"
-	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -35,8 +34,7 @@ const (
 )
 
 func TestReconcile(t *testing.T) {
-	logger := logrus.New()
-	logger.SetOutput(io.Discard)
+	logger := slog.New(slog.Default().Handler())
 
 	t.Run("Reconfile of dolphin ingress if there is not explicit loadbalancing creating default laodblancing if they don't exit", func(t *testing.T) {
 		// create a fakeclient using Builder with scheme, watching objects ingress using default backend

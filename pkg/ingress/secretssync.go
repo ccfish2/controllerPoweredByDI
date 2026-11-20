@@ -2,30 +2,93 @@ package ingress
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/sirupsen/logrus"
+	"github.com/ccfish2/infra/pkg/logging/logfields"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func EnqueueReferencedTLSSecrets(c client.Client, logger logrus.FieldLogger) handler.EventHandler {
+// read TLS secrets from ingress TLS section and creates eventhandler for each of them
+func EnqueueReferencedTLSSecrets(c client.Client, logger *slog.Logger) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 		// read ns, name, tls info from obj
 		// and compose the request
 		// enqueue thos request
-		return []reconcile.Request{}
+		scopedLog := logger.With(
+			logfields.Resource, obj.GetName(),
+		)
+
+		ing, ok := obj.(*networkingv1.Ingress)
+		if !ok {
+			return nil
+		}
+
+		// Check whether Ingress is managed by Cilium
+		if !isdolphinManagedIngress(ctx, c, logger, *ing) {
+			return nil
+		}
+
+		var reqs []reconcile.Request
+		for _, tls := range ing.Spec.TLS {
+			if len(tls.SecretName) == 0 {
+				continue
+			}
+
+			s := types.NamespacedName{
+				Namespace: ing.Namespace,
+				Name:      tls.SecretName,
+			}
+			reqs = append(reqs, reconcile.Request{NamespacedName: s})
+			scopedLog.DebugContext(ctx, "Enqueued secret for Ingress", logfields.Secret, s)
+		}
+		return reqs
 	})
 }
 
-func IsReferencedByDolphinIngress(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool {
+func IsReferencedByDolphinIngress(ctx context.Context, c client.Client, logger *slog.Logger, obj *corev1.Secret) bool {
 	// get ingress using the obj namespace
-	return true
+	ingresses := networkingv1.IngressList{}
+	if err := c.List(ctx, &ingresses, client.InNamespace(obj.GetNamespace())); err != nil {
+		return false
+	}
+
+	for _, i := range ingresses.Items {
+		if isdolphinManagedIngress(ctx, c, logger, i) {
+			for _, t := range i.Spec.TLS {
+				if t.SecretName == obj.GetName() {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+
 }
 
 func enqueueAllSecrets(c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-		return []reconcile.Request{}
+		secretList := &corev1.SecretList{}
+		if err := c.List(ctx, secretList); err != nil {
+			return nil
+		}
+
+		requests := []reconcile.Request{}
+		for _, s := range secretList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: s.GetNamespace(),
+					Name:      s.GetName(),
+				},
+			})
+		}
+
+		return requests
+
 	})
 }

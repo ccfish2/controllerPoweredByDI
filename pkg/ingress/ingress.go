@@ -2,12 +2,12 @@ package ingress
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/ingress/annotations"
 	"github.com/ccfish2/controllerPoweredByDI/pkg/model/translation"
 	ingressTranslation "github.com/ccfish2/controllerPoweredByDI/pkg/model/translation/ingress"
-	"github.com/sirupsen/logrus"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,7 +30,7 @@ const (
 )
 
 type ingressReconciler struct {
-	logger logrus.FieldLogger
+	logger *slog.Logger
 	client client.Client
 
 	maxRetries              int
@@ -54,7 +54,7 @@ type ingressReconciler struct {
 }
 
 func newIngressReconciler(
-	logger logrus.FieldLogger,
+	logger *slog.Logger,
 	c client.Client,
 	dolphinNamespace string,
 	enforceHTTPS bool,
@@ -98,7 +98,7 @@ func newIngressReconciler(
 }
 
 func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.logger.Infof("Dolphin Ingress class name configured as: %s", dolphinIngressClassName)
+	r.logger.Info("Dolphin Ingress class name configured", "ingressClassName", dolphinIngressClassName)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&networkingv1.Ingress{}, r.forDolphinManagedIngress()).
 		// (LoadBalancer) Service resource with OwnerReference to the Ingress with dedicated loadbalancing mode
@@ -108,7 +108,7 @@ func (r *ingressReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// DolphinEnvoyConfig resource with OwnerReference to the Ingress with dedicated loadbalancing mode
 		Owns(&dolphinv1.DolphinEnvoyConfig{}).
 		// CiliumEnvoyConfig (converted from the DolphinEnvoyConfig) with OwnerReference to the Ingress
-		// with dedicated loadbalancing mode. This is what cilium-envoy consumes.
+		// with dedicated loadbalancing mode. This is what dataplane cilium-envoy consumes.
 		Owns(newCiliumEnvoyConfig("", "")).
 		// Watching shared loadbalancer Service and reconcile all shared dolphin Ingresses.
 		// It's necessary to reconcile all shared dolphin Ingresses as they all have to potentially update their LoadBalancer status.
@@ -139,7 +139,7 @@ func (r *ingressReconciler) enqueSharedDolphinIngress() handler.EventHandler {
 		// use the client list ingress
 		var ingresslist networkingv1.IngressList
 		if err := r.client.List(ctx, &ingresslist); err != nil {
-			r.logger.WithError(err).Warn("Failed to list Ingresses")
+			r.logger.With("err", err).Warn("Failed to list Ingresses")
 			return []reconcile.Request{}
 		}
 
@@ -289,7 +289,7 @@ var _ predicate.Predicate = &matchesDolphinRelevantIngressPredicate{}
 
 type matchesDolphinRelevantIngressPredicate struct {
 	client client.Client
-	logger logrus.FieldLogger
+	logger *slog.Logger
 }
 
 func (r *matchesDolphinRelevantIngressPredicate) Create(event event.CreateEvent) bool {
@@ -316,11 +316,10 @@ func (r *matchesDolphinRelevantIngressPredicate) isDolphinManagedIngress(o clien
 	}
 
 	result := isdolphinManagedIngress(context.Background(), r.client, r.logger, *ingress)
-	r.logger.WithFields(logrus.Fields{
-		"name":             ingress.Name,
-		"namespace":        ingress.Namespace,
-		"ingressClassName": ingress.Spec.IngressClassName,
-		"matches":          result,
-	}).Info("Evaluated ingress for Dolphin management")
+	r.logger.Info("Evaluated ingress for Dolphin management",
+		"name", ingress.Name,
+		"namespace", ingress.Namespace,
+		"ingressClassName", ingress.Spec.IngressClassName,
+		"matches", result)
 	return result
 }
