@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	controllerruntime "github.com/ccfish2/controllerPoweredByDI/pkg/controller-runtime"
-	"github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
@@ -35,12 +34,12 @@ const (
 )
 
 func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	scopedLog := r.logger.WithFields(logrus.Fields{
-		logfields.Controller: "ingress",
-		logfields.Resource:   req.NamespacedName,
-	})
+	scopedLog := r.logger.With(
+		logfields.Controller, "ingress",
+		logfields.Resource, req.NamespacedName,
+	)
 
-	scopedLog.Infof("Reconciling ingress %s/%s", req.Namespace, req.Name)
+	scopedLog.Info("Reconciling ingress", "namespace", req.Namespace, "name", req.Name)
 	ingress := &networkingv1.Ingress{}
 	if err := r.client.Get(ctx, req.NamespacedName, ingress); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -75,7 +74,7 @@ func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		scopedLog.Debug("Trying to cleanup Ingress status of unmanaged Ingress")
 		if err := r.tryCleanupIngressStatus(ctx, ingress); err != nil {
-			scopedLog.WithError(err).Warn("Failed to cleanup Ingress status")
+			scopedLog.With("err", err).Warn("Failed to cleanup Ingress status")
 		}
 
 		scopedLog.Info("Successfully cleaned Ingress resources")
@@ -169,7 +168,7 @@ func (r *ingressReconciler) createOrUpdateDolphinEnvoyConfig(ctx context.Context
 	if err != nil {
 		return fmt.Errorf("failed to create or update DolphinEnvoyConfig: %w", err)
 	}
-	r.logger.Debugf("DolphinEnvoyConfig %s has been %s", client.ObjectKeyFromObject(dec), result)
+	r.logger.Debug("DolphinEnvoyConfig updated", "key", client.ObjectKeyFromObject(dec), "result", result)
 
 	return nil
 }
@@ -207,10 +206,10 @@ func (r *ingressReconciler) getDedicatedListenerPorts(ingress *networkingv1.Ingr
 
 	port, err := annotations.GetAnnotationHostListenerPort(ingress)
 	if err != nil {
-		r.logger.WithError(err).Warnf("Failed to parse host port - using default listener port")
+		r.logger.With("err", err).Warn("Failed to parse host port - using default listener port")
 		return defaultHostNetworkListenerPort, defaultHostNetworkListenerPort, defaultHostNetworkListenerPort
 	} else if port == nil || *port == 0 {
-		r.logger.Warnf("No host port defined in annotation - using default listener port")
+		r.logger.Warn("No host port defined in annotation - using default listener port")
 		return defaultHostNetworkListenerPort, defaultHostNetworkListenerPort, defaultHostNetworkListenerPort
 	} else {
 		return *port, *port, *port
@@ -394,7 +393,7 @@ func (r *ingressReconciler) createOrUpdateService(ctx context.Context, desiredSe
 		return fmt.Errorf("failed to create or update Service: %w", err)
 	}
 
-	r.logger.Debugf("Service %s has been %s", client.ObjectKeyFromObject(svc), result)
+	r.logger.Debug("Service updated", "key", client.ObjectKeyFromObject(svc), "result", result)
 
 	return nil
 }
@@ -414,7 +413,7 @@ func (r *ingressReconciler) createOrUpdateEndpoints(ctx context.Context, desired
 		return fmt.Errorf("failed to create or update Endpoints: %w", err)
 	}
 
-	r.logger.Debugf("Endpoints %s has been %s", client.ObjectKeyFromObject(ep), result)
+	r.logger.Debug("Endpoints updated", "key", client.ObjectKeyFromObject(ep), "result", result)
 
 	return nil
 }

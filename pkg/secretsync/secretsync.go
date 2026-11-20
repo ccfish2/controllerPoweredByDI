@@ -2,6 +2,7 @@ package secretsync
 
 import (
 	"context"
+	"log/slog"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,7 +22,7 @@ import (
 type SecretSyncRegistration struct {
 	RefObject            client.Object
 	RefObjectEnqueueFunc handler.EventHandler
-	RefObjectCheckFunc   func(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool
+	RefObjectCheckFunc   func(ctx context.Context, c client.Client, logger *slog.Logger, obj *corev1.Secret) bool
 	SecretsNamespace     string
 	AdditionalWatches    []AdditionalWatch
 	DefaultSecret        *DefaultSecret

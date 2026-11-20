@@ -2,10 +2,10 @@ package ingress
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/ccfish2/controllerPoweredByDI/pkg/secretsync"
 	"github.com/ccfish2/infra/pkg/hive/cell"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	networkingv1 "k8s.io/api/networking/v1"
 
@@ -66,7 +66,7 @@ func (r ingressConfig) Flags(flags *pflag.FlagSet) {
 type ingressParams struct {
 	cell.In
 
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	Mgr    ctrlRuntime.Manager
 	IngCfg ingressConfig
 }
@@ -77,7 +77,7 @@ func registerReconciler(params ingressParams) error {
 	}
 	// new one reconcciler
 	reconciler := newIngressReconciler(
-		log,
+		slog.New(slog.Default().Handler()),
 		params.Mgr.GetClient(),
 		operatorOption.Config.DolphinK8sNamespace,
 		params.IngCfg.EnforceIngressHTTPS,

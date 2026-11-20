@@ -102,7 +102,7 @@ func (r *ingressReconciler) createOrUpdateCiliumEnvoyConfig(ctx context.Context,
 	if err != nil {
 		return fmt.Errorf("failed to create or update CiliumEnvoyConfig: %w", err)
 	}
-	r.logger.Debugf("CiliumEnvoyConfig %s has been %s", client.ObjectKeyFromObject(cec), result)
+	r.logger.Debug("CiliumEnvoyConfig updated", "key", client.ObjectKeyFromObject(cec), "result", result)
 
 	return nil
 }

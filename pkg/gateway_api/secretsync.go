@@ -59,7 +59,7 @@ func (h *SecretSyncHandler) EnqueueTLSSecrets(c client.Client, logger logrus.Fie
 	})
 }
 
-func (h *SecretSyncHandler) IsReferencedByDolphinGateway(ctx context.Context, c client.Client, logger logrus.FieldLogger, obj *corev1.Secret) bool {
+func (h *SecretSyncHandler) IsReferencedByDolphinGateway(ctx context.Context, c client.Client, logger *slog.Logger, obj *corev1.Secret) bool {
 	gateway := getGatewaysForSecret(ctx, c, obj, slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	for _, gw := range gateway {
 		if hasMatchingController(ctx, c, controllerName, slog.New(slog.NewTextHandler(os.Stdout, nil)))(gw) {
