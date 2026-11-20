@@ -57,7 +57,6 @@ type mgrParams struct {
 	Loggger     logrus.FieldLogger
 	Lifecycle   cell.Lifecycle
 	JobRegistry job.Registry
-	Scope       cell.Scope
 	Health      cell.Health
 
 	K8sClient k8sclient.Clientset
