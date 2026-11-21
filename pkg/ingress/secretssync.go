@@ -28,7 +28,8 @@ func EnqueueReferencedTLSSecrets(c client.Client, logger *slog.Logger) handler.E
 			return nil
 		}
 
-		// Check whether Ingress is managed by Cilium
+		// Check whether Ingress is managed by dolphin
+		// ingress classs should be
 		if !isdolphinManagedIngress(ctx, c, logger, *ing) {
 			return nil
 		}

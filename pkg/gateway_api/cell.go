@@ -56,7 +56,6 @@ var Cell = cell.Module(
 	cell.ProvidePrivate(newGatewayAPIPreconditions),
 	// start controller
 	cell.Invoke(initGatewayAPIController),
-	//cell.Provide(initGatewayAPIController),
 	// enable secrets sync
 	cell.Provide(registerSecretSync),
 )
