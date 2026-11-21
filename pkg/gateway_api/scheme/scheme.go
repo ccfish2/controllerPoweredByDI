@@ -6,7 +6,13 @@ import (
 	helpers "github.com/ccfish2/controllerPoweredByDI/pkg/gateway_api/helpers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
+
+	dolphinv1 "github.com/ccfish2/infra/pkg/k8s/apis/dolphin.io/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
 func AddToScheme(scheme *runtime.Scheme) error {
@@ -47,4 +53,16 @@ func AddToScheme(scheme *runtime.Scheme) error {
 		}
 	}
 	return nil
+}
+
+func TestScheme(optionalKinds []schema.GroupVersionKind) *runtime.Scheme {
+	scheme := runtime.NewScheme()
+
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(dolphinv1.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
+
+	AddToScheme(scheme)
+
+	return scheme
 }
