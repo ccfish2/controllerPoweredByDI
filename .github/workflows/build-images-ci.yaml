@@ -21,6 +21,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Controller tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read          # no write token, no secrets in this job
+    steps:
+      - name: Checkout code under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install envtest binaries (etcd, kube-apiserver)
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.25.3   # pin; match  controller-runtime version
+          ASSETS="$(setup-envtest use 1.37.x -p path)"
+          test -x "$ASSETS/kube-apiserver" && test -x "$ASSETS/etcd"
+          echo "KUBEBUILDER_ASSETS=$ASSETS" >> "$GITHUB_ENV"
+
+      - name: Run controller tests
+        run: go test ./pkg/gateway_api/... -count=1 -v
+
   build-and-push-prs:
     timeout-minutes: 45
     name: Build and Push Images

@@ -143,7 +143,7 @@ func CheckHasServiceImportSupport(input Input, parentRef gatewayv1.ParentReferen
 					Reason: string(gatewayv1.RouteReasonBackendNotFound),
 					Message: "Attempt to reference a ServiceImport backend while " +
 						"the corresponding CRD is not installed, " +
-						"please restart the cilium-operator if the CRD is already installed",
+						"please restart the operator if the CRD is already installed",
 				})
 				return false, nil
 			}

@@ -543,31 +543,51 @@ func runReconcilers(ctx context.Context, tc testCase, input []*unstructured.Unst
 // normalize drops volatile / generation dependent fields and makes condition
 // lists order independent.
 func normalize(v any) any {
-	switch x := v.(type) {
+	switch t := v.(type) {
 	case map[string]any:
-		delete(x, "lastTransitionTime")
-		delete(x, "observedGeneration")
-		for k, val := range x {
-			x[k] = normalize(val)
+		out := make(map[string]any, len(t))
+		for k, x := range t {
+			out[k] = normalize(x)
 		}
-		if list, ok := x["conditions"].([]any); ok {
-			sort.SliceStable(list, func(i, j int) bool {
-				a, _ := list[i].(map[string]any)
-				b, _ := list[j].(map[string]any)
-				as, _ := a["type"].(string)
-				bs, _ := b["type"].(string)
-				return as < bs
-			})
-		}
-		return x
+		return out
 	case []any:
-		for i := range x {
-			x[i] = normalize(x[i])
+		out := make([]any, len(t))
+		for i, x := range t {
+			out[i] = normalize(x)
 		}
-		return x
+		sortConditions(out)
+		return out
+	case int:
+		return float64(t)
+	case int32:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case float32:
+		return float64(t)
+	case uint32:
+		return float64(t)
+	case uint64:
+		return float64(t)
 	default:
 		return v
 	}
+}
+
+func sortConditions(list []any) {
+	for _, e := range list {
+		m, ok := e.(map[string]any)
+		if !ok {
+			return
+		}
+		if _, ok := m["type"].(string); !ok {
+			return
+		}
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		return list[i].(map[string]any)["type"].(string) <
+			list[j].(map[string]any)["type"].(string)
+	})
 }
 
 // subsetDiff reports every place where `got` does not contain `want`:

@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: TLSRoute
+metadata:
+  name: tls-route
+  namespace: gateway-conformance-infra
+spec:
+  hostnames:
+  - api.example.test
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: cross-protocol-same-hostname
+    namespace: gateway-conformance-infra
+    sectionName: tls-passthrough
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: tls-backend
+      port: 443
+      weight: 1
+status:
+  parents:
+  - conditions:
+    - message: Accepted TLSRoute
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - message: services "tls-backend" not found
+      reason: BackendNotFound
+      status: "False"
+      type: ResolvedRefs
+    controllerName: io.dolphin/gateway-controller
+    parentRef:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cross-protocol-same-hostname
+      namespace: gateway-conformance-infra
+      sectionName: tls-passthrough
