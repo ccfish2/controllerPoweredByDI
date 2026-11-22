@@ -25,7 +25,7 @@ func EnqueueRequestForBackendTLSPolicy(c client.Client, logger *slog.Logger,
 	controllerName string) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(
 		func(ctx context.Context, o client.Object) []reconcile.Request {
-			scopedLog := logger.With("queue-gw-from-backendtlspolicy")
+			scopedLog := logger.With(logfields.Controller, "queue-gw-from-backendtlspolicy")
 
 			reconcileRequests := make(map[reconcile.Request]struct{})
 			btlsp, ok := o.(*gatewayv1.BackendTLSPolicy)
