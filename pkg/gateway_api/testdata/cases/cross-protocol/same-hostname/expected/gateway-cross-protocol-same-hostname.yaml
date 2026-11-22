@@ -1,0 +1,84 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cross-protocol-same-hostname
+  namespace: gateway-conformance-infra
+spec:
+  gatewayClassName: dolphin
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: Same
+    hostname: api.example.test
+    name: https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: cross-protocol-tls
+        namespace: gateway-conformance-infra
+      mode: Terminate
+  - allowedRoutes:
+      kinds:
+      - group: gateway.networking.k8s.io
+        kind: TLSRoute
+      namespaces:
+        from: Same
+    hostname: api.example.test
+    name: tls-passthrough
+    port: 9443
+    protocol: TLS
+    tls:
+      mode: Passthrough
+status:
+  addresses:
+  - type: IPAddress
+    value: 172.18.255.200
+  conditions:
+  - message: Gateway successfully scheduled
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - message: reconciled successfully
+    reason: Accepted
+    status: "True"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 1
+    conditions:
+    - message: Listener Accepted
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - message: Listener Programmed
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: https
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+  - attachedRoutes: 1
+    conditions:
+    - message: Listener Accepted
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - message: Listener Programmed
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: tls-passthrough
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: TLSRoute
