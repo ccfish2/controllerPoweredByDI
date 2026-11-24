@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
 	github.com/bombsimon/logrusr/v4 v4.1.0
-	github.com/ccfish2/dolphin v0.0.0-20261123224855-b87ea3fde863
+	github.com/ccfish2/dolphin v0.0.0-20261124065624-80bf55460b93
 	github.com/ccfish2/infra v1.0.10-0.20261120010406-ef74f7979816
 	github.com/cilium/proxy v0.0.0-20250425043255-28e494373b24
 	github.com/go-openapi/loads v0.24.0

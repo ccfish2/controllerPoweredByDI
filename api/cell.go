@@ -9,6 +9,7 @@ import (
 var ServerCell = cell.Module(
 	"dolphin-operator-api",
 	"Dolphin Operator API Server",
+	cell.Provide(func() []string { return nil }),
 	cell.Config(Config{}),
 	cell.Provide(newServer),
 	cell.Invoke(func(Server) {}),

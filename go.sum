@@ -54,6 +54,16 @@ github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5 h1:/Gnwj2ozOAKFRWd
 github.com/ccfish2/dolphin v0.0.0-20250212015711-ddc56b6637f5/go.mod h1:76iIrhsPzwadvEqus07nagcN9iWGTCdrknfLE3R0sso=
 github.com/ccfish2/dolphin v0.0.0-20261123224855-b87ea3fde863 h1:5HYNXQUkZ/u+rIxOOUpoDVrCMu2sHdB07vyH5gtg+TI=
 github.com/ccfish2/dolphin v0.0.0-20261123224855-b87ea3fde863/go.mod h1:8KWF3u6EkrtHixPO+CXC5kNrCC6jrwfknzwOo5sPSIo=
+github.com/ccfish2/dolphin v0.0.0-20261124052416-bf0b1f3fccbb h1:uR9maw15RJ0k5Qg2Qkr0eTBuitSzK8wCIcIFv9DP3D8=
+github.com/ccfish2/dolphin v0.0.0-20261124052416-bf0b1f3fccbb/go.mod h1:pcqxkoWnJ9iT5mcwANZK1Niy1Ovwguf71CgNc537HO4=
+github.com/ccfish2/dolphin v0.0.0-20261124053423-1307a07e678d h1:2NDc8/b4kJNWIjEPbP095Ohs8Bu8cOUzc4XV2U6enjw=
+github.com/ccfish2/dolphin v0.0.0-20261124053423-1307a07e678d/go.mod h1:pcqxkoWnJ9iT5mcwANZK1Niy1Ovwguf71CgNc537HO4=
+github.com/ccfish2/dolphin v0.0.0-20261124060448-4488003c3793 h1:/l783a21YV5k1lg26Sk8Eo8VWvEh1G9KMbKL2nc7Pvg=
+github.com/ccfish2/dolphin v0.0.0-20261124060448-4488003c3793/go.mod h1:pcqxkoWnJ9iT5mcwANZK1Niy1Ovwguf71CgNc537HO4=
+github.com/ccfish2/dolphin v0.0.0-20261124064716-28e17cc00721 h1:0gXK4Am6muRsdTWgPmWHlpEA9cwP2kp8mZ8jlybtK4I=
+github.com/ccfish2/dolphin v0.0.0-20261124064716-28e17cc00721/go.mod h1:pcqxkoWnJ9iT5mcwANZK1Niy1Ovwguf71CgNc537HO4=
+github.com/ccfish2/dolphin v0.0.0-20261124065624-80bf55460b93 h1:GrhKQMpXAfAv/q8tf/1mSYVS1pNyboR2EX0U26S1C8M=
+github.com/ccfish2/dolphin v0.0.0-20261124065624-80bf55460b93/go.mod h1:PjLUsLnxE3U900OcRq38eBFrOdHE03ZIpdzapcEbUQ4=
 github.com/ccfish2/infra v1.0.10-0.20261119002511-4c84c555b93d h1:txVQ9wNmdQ8J9C2i5uyQni4wGC36WtFQnAImfC6YINg=
 github.com/ccfish2/infra v1.0.10-0.20261119002511-4c84c555b93d/go.mod h1:R4gzW2StXwAkNor781L9gJMdU+yEE0G0/5RXYtDdGmk=
 github.com/ccfish2/infra v1.0.10-0.20261119003405-a4f060d343ea h1:hBAppurBsysh3J1WIqQcr6jDwAYj9Bxl03ghCzj3738=
