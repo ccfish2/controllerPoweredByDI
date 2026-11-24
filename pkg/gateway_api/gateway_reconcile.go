@@ -342,6 +342,16 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	listenerContexts := r.mergeListeners(ctx, scopedLog, gw, attachedListenerSets)
 	conflictedListeners := conflictsAcrossSources(listenerContexts)
 
+	// Conflicted listeners remain visible in Gateway status but must not be
+	// passed to the data-plane translator.
+	programmableListenerContexts := make([]ingestion.ListenerWithContext, 0, len(listenerContexts))
+	for _, listenerContext := range listenerContexts {
+		if _, conflicted := conflictedListeners[listenerContext.Source][listenerContext.Listener.Name]; conflicted {
+			continue
+		}
+		programmableListenerContexts = append(programmableListenerContexts, listenerContext)
+	}
+
 	var namespaces []corev1.Namespace
 	if hasAllowedRoutesNamespaceSelector(gw) {
 		namespaceList := &corev1.NamespaceList{}
@@ -359,18 +369,25 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
 	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items)
 	tracker.set("build ingestion model")
-	httpListeners, tlsListeners, tcpListeners, udpListeners := ingestion.GatewayAPI(ingestion.Input{
-		GatewayClass:       *gwc,
-		Gateway:            *copy,
-		GatewayClassConfig: dgccfg,
-		HTTPRoutes:         HTTPRoutes,
-		TLSRoutes:          r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
-		GRPCRoutes:         r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
-		TCPRoutes:          tcpRoutes,
-		UDPRoutes:          udpRoutes,
-		Services:           servicesList.Items,
-		Listeners:          listenerContexts,
-	})
+	// GatewayAPI ingestion requires at least one listener source. When every
+	// listener is conflicted, keep the Gateway status reconciliation running
+	// and translate an empty model instead of passing an empty source list.
+	gatewayModel := &model.Model{}
+	if len(programmableListenerContexts) > 0 {
+		httpListeners, tlsListeners, tcpListeners, udpListeners := ingestion.GatewayAPI(ingestion.Input{
+			GatewayClass:       *gwc,
+			Gateway:            *copy,
+			GatewayClassConfig: dgccfg,
+			HTTPRoutes:         HTTPRoutes,
+			TLSRoutes:          r.filterTLSRoutesByGateway(ctx, copy, tlsRouteList.Items),
+			GRPCRoutes:         r.filterGRPCRoutesByGateway(ctx, gw, grpcRouteList.Items, namespaceLabels),
+			TCPRoutes:          tcpRoutes,
+			UDPRoutes:          udpRoutes,
+			Services:           servicesList.Items,
+			Listeners:          programmableListenerContexts,
+		})
+		gatewayModel = &model.Model{HTTP: httpListeners, TLS: tlsListeners, TCP: tcpListeners, UDP: udpListeners}
+	}
 
 	btlspList := &gatewayv1.BackendTLSPolicyList{}
 	tracker.set("list BackendTLSPolicies")
@@ -395,7 +412,11 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
 	}
 
-	setGatewayAccepted(copy, true, "Gateway successfully scheduled")
+	if gatewayHasAcceptedListener(copy) {
+		setGatewayAccepted(copy, true, "Gateway successfully scheduled")
+	} else {
+		setGatewayListenersNotValid(copy)
+	}
 
 	// ListenerSet status is reported independently from the parent Gateway's
 	// Accepted and Programmed conditions. Those Gateway conditions reflect the
@@ -415,14 +436,23 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		namespaceLabels,
 	)
 
-	// step 3: translate the listeners into dolphin model
+	// step 3: translate the listeners into dolphin model.
+	// The translator rejects a completely empty model ("model source can't
+	// be empty"). When every listener is conflicted there is deliberately
+	// nothing to program, so skip translation and let the cleanup below
+	// remove any previously generated Envoy configuration.
 	tracker.set("translate listeners")
-	trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
-	dec, svc, ep, err := trans.Translate(&model.Model{HTTP: httpListeners, TLS: tlsListeners, TCP: tcpListeners, UDP: udpListeners}, dgccfg)
-	if err != nil {
-		scopedLog.WithError(err).Error("Unable to translate resources")
-		setGatewayAccepted(gw, false, "Unable to translate resources")
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+	var dec *dolphinv1.DolphinEnvoyConfig
+	var svc *corev1.Service
+	var ep *corev1.Endpoints
+	if len(programmableListenerContexts) > 0 {
+		trans := translation.NewTranslator(r.SecretNamespace, r.IdleTimeoutSeconds, true, false)
+		dec, svc, ep, err = trans.Translate(gatewayModel, dgccfg)
+		if err != nil {
+			scopedLog.WithError(err).Error("Unable to translate resources")
+			setGatewayAccepted(gw, false, "Unable to translate resources")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
 	}
 
 	var translatedPorts []string
@@ -433,23 +463,27 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 	scopedLog.WithFields(logrus.Fields{
-		"httpListenerCount": len(httpListeners),
-		"tlsListenerCount":  len(tlsListeners),
+		"httpListenerCount": len(gatewayModel.HTTP),
+		"tlsListenerCount":  len(gatewayModel.TLS),
 		"servicePorts":      translatedPorts,
 	}).Info("Gateway translation result")
 
-	tracker.set("ensure Service")
-	if err := r.ensureService(ctx, svc); err != nil {
-		scopedLog.WithError(err).Error("Unable to create Service")
-		setGatewayAccepted(gw, false, "Unable to create Service resource")
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+	if svc != nil {
+		tracker.set("ensure Service")
+		if err := r.ensureService(ctx, svc); err != nil {
+			scopedLog.WithError(err).Error("Unable to create Service")
+			setGatewayAccepted(gw, false, "Unable to create Service resource")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
 	}
 
-	tracker.set("ensure Endpoints")
-	if err := r.ensureEndpoints(ctx, ep); err != nil {
-		scopedLog.WithError(err).Error("Unable to ensure Endpoints")
-		setGatewayAccepted(gw, false, "Unable to ensure Endpoints resource")
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+	if ep != nil {
+		tracker.set("ensure Endpoints")
+		if err := r.ensureEndpoints(ctx, ep); err != nil {
+			scopedLog.WithError(err).Error("Unable to ensure Endpoints")
+			setGatewayAccepted(gw, false, "Unable to ensure Endpoints resource")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
 	}
 
 	if dec != nil {
@@ -473,14 +507,20 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// step 4: update the status of the gateway
 	tracker.set("set Gateway address")
-	if err := r.setAddressStatus(ctx, copy); err != nil {
-		scopedLog.WithError(err).Error("Address is not ready")
-		setGatewayProgrammed(gw, false, "Address is not ready")
-		return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+	if gatewayHasAcceptedListener(copy) {
+		if err := r.setAddressStatus(ctx, copy); err != nil {
+			scopedLog.WithError(err).Error("Address is not ready")
+			setGatewayProgrammed(copy, false, "Address is not ready")
+			return r.handleReconcileErrorWithStatus(ctx, err, gw, copy)
+		}
 	}
 
 	tracker.set("update Gateway status")
-	setGatewayProgrammed(copy, true, "reconciled successfully")
+	if gatewayHasAcceptedListener(copy) {
+		setGatewayProgrammed(copy, true, "reconciled successfully")
+	} else {
+		setGatewayListenersNotValid(copy)
+	}
 	if err := r.updateStatus(ctx, gw, copy); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update Gateway status: %w", err)
 	}
@@ -590,38 +630,19 @@ func listenerInvalidRouteKinds(generation int64, msg string) metav1.Condition {
 // Gateway and its ListenerSets, conflict, along with the reason. Listeners on
 // different ports never conflict.
 func listenerPairConflict(first, second *gatewayv1.Listener) (gatewayv1.ListenerConditionReason, bool) {
-	if first.Port != second.Port {
+	if first == nil || second == nil || first.Port != second.Port {
 		return "", false
 	}
 
-	// firstL4 := isL4Protocol(first.Protocol)
-	// secondL4 := isL4Protocol(second.Protocol)
-
-	// // L4 listeners own a port outright with no demultiplexing. TCP and UDP on
-	// // the same port are the only compatible case involving an L4 listener.
-	// if firstL4 || secondL4 {
-	// 	if firstL4 && secondL4 && first.Protocol != second.Protocol {
-	// 		return "", false
-	// 	}
-	// 	return gatewayv1.ListenerReasonProtocolConflict, true
-	// }
-
-	// // HTTPS termination and TLS passthrough both consume the SNI of the same
-	// // port, so they conflict whenever their hostnames can match the same value.
-	// if isHTTPSAndTLSPassthroughPair(first, second) {
-	// 	if helpers.SNIHostnamesIntersect(
-	// 		helpers.ListenerHostname(first), helpers.ListenerHostname(second)) {
-	// 		return gatewayv1.ListenerReasonProtocolConflict, true
-	// 	}
-	// 	return "", false
-	// }
-
-	// // Listeners of the same muxed protocol demultiplex by hostname, so they only
-	// // conflict when they claim the exact same hostname.
-	// if first.Protocol == second.Protocol &&
-	// 	normalizedListenerHostname(first) == normalizedListenerHostname(second) {
-	// 	return gatewayv1.ListenerReasonHostnameConflict, true
-	// }
+	// HTTPS termination and TLS passthrough both consume SNI on this port.
+	// They cannot coexist when their hostname sets can match the same SNI name.
+	if isHTTPSAndTLSPassthroughPair(first, second) &&
+		helpers.SNIHostnamesIntersect(
+			helpers.ListenerHostname(first),
+			helpers.ListenerHostname(second),
+		) {
+		return gatewayv1.ListenerReasonProtocolConflict, true
+	}
 
 	return "", false
 }
@@ -1307,37 +1328,67 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 		return fmt.Errorf("failed to retrieve reference grants: %w", err)
 	}
 
+	conflicts := conflictsWithinSource(gw.Spec.Listeners)
+
 	for _, l := range gw.Spec.Listeners {
 		isValid := true
+		conflict, isConflicted := conflicts[l.Name]
 
-		// SupportedKinds is a required field, so we can't declare it as nil.
-		supportedKinds := []gatewayv1.RouteGroupKind{}
+		// SupportedKinds is a required field. HTTPS supports both HTTPRoute
+		// and GRPCRoute; TLS passthrough supports TLSRoute.
+		allSupported := getSupportedRouteKinds(l.Protocol)
+		supportedKinds := make([]gatewayv1.RouteGroupKind, 0, len(allSupported))
 		invalidRouteKinds := false
-		protoGroup, protoKind := getSupportedGroupKind(l.Protocol)
 
 		if l.AllowedRoutes != nil && len(l.AllowedRoutes.Kinds) != 0 {
-			for _, k := range l.AllowedRoutes.Kinds {
-				if groupDerefOr(k.Group, gatewayv1.GroupName) == string(*protoGroup) &&
-					k.Kind == protoKind {
-					supportedKinds = append(supportedKinds, k)
-				} else {
+			for _, allowed := range l.AllowedRoutes.Kinds {
+				found := false
+				for _, supported := range allSupported {
+					if supported.Kind == allowed.Kind &&
+						groupDerefOr(allowed.Group, gatewayv1.GroupName) == string(*supported.Group) {
+						supportedKinds = append(supportedKinds, supported)
+						found = true
+						break
+					}
+				}
+				if !found {
 					invalidRouteKinds = true
 				}
 			}
 		} else {
-			g, k := getSupportedGroupKind(l.Protocol)
-			supportedKinds = []gatewayv1.RouteGroupKind{
-				{
-					Group: g,
-					Kind:  k,
-				},
-			}
+			supportedKinds = append(supportedKinds, allSupported...)
 		}
+
 		var conds []metav1.Condition
-		if invalidRouteKinds {
+		switch {
+		case isConflicted:
+			isValid = false
+			conds = append(conds,
+				metav1.Condition{
+					Type:               string(gatewayv1.ListenerConditionConflicted),
+					Status:             metav1.ConditionTrue,
+					Reason:             string(conflict.reason),
+					Message:            conflict.message,
+					ObservedGeneration: gw.GetGeneration(),
+					LastTransitionTime: metav1.Now(),
+				},
+				listenerAcceptedCondition(
+					gw.GetGeneration(),
+					false,
+					gatewayv1.ListenerReasonInvalid,
+					"Listener not valid. "+conflict.message,
+				),
+				listenerProgrammedCondition(
+					gw.GetGeneration(),
+					false,
+					gatewayv1.ListenerReasonPending,
+					"Address not ready yet",
+				),
+			)
+		case invalidRouteKinds:
 			conds = append(conds, gatewayListenerInvalidRouteKinds(gw, "Invalid Route Kinds"))
 			isValid = false
-		} else {
+		default:
 			conds = append(conds, gatewayListenerProgrammedCondition(gw, true, "Listener Programmed"))
 			conds = append(conds, gatewayListenerAcceptedCondition(gw, true, "Listener Accepted"))
 			conds = append(conds, metav1.Condition{
@@ -1389,7 +1440,7 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 			}
 		}
 
-		if !isValid {
+		if !isValid && !isConflicted {
 			conds = merge(conds, metav1.Condition{
 				Type:               string(gatewayv1.ListenerConditionProgrammed),
 				Status:             metav1.ConditionFalse,

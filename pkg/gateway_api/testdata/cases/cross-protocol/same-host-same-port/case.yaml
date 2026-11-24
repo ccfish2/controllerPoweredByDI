@@ -1,0 +1,7 @@
+# cross-protocol/same-host-same-port: HTTPS (TCP/443) and TLS-passthrough
+# listeners share one hostname and port on one Gateway.
+reconcile: [tlsroute, gateway]
+rounds: 2
+secretNamespace: cilium-secrets
+installedCRDs:
+  - TLSRoute.v1.gateway.networking.k8s.io

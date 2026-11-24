@@ -26,9 +26,9 @@ status:
       reason: Accepted
       status: "True"
       type: Accepted
-    - message: services "tls-backend" not found
-      reason: BackendNotFound
-      status: "False"
+    - message: Service reference is valid
+      reason: ResolvedRefs
+      status: "True"
       type: ResolvedRefs
     controllerName: io.dolphin/gateway-controller
     parentRef:

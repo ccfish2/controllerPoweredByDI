@@ -10,11 +10,14 @@ func merge(existingConditions []metav1.Condition, updates ...metav1.Condition) [
 			if cond.Type == update.Type {
 				found = true
 				if conditionChanged(cond, update) {
+					if cond.Status != update.Status {
+						existingConditions[j].LastTransitionTime = update.LastTransitionTime
+					}
+
 					existingConditions[j].Status = update.Status
 					existingConditions[j].Reason = update.Reason
 					existingConditions[j].Message = update.Message
 					existingConditions[j].ObservedGeneration = update.ObservedGeneration
-					existingConditions[j].LastTransitionTime = update.LastTransitionTime
 				}
 				break
 			}

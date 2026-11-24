@@ -717,6 +717,12 @@ func verifyExpected(ctx context.Context, tc testCase) {
 			failures = append(failures, fmt.Sprintf("%s %s: cannot get object: %v", w.GetKind(), key, err))
 			continue
 		}
+		w = w.DeepCopy()
+		got = got.DeepCopy()
+
+		ignoreConditionTransitionTimes(w.Object)
+		ignoreConditionTransitionTimes(got.Object)
+
 		for _, d := range compareObject(w, got) {
 			failures = append(failures, fmt.Sprintf("%s %s: %s", w.GetKind(), key, d))
 		}

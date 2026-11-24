@@ -7,6 +7,43 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
+func gatewayHasAcceptedListener(gw *gatewayv1.Gateway) bool {
+	for _, listener := range gw.Status.Listeners {
+		for _, condition := range listener.Conditions {
+			if condition.Type == string(gatewayv1.ListenerConditionAccepted) &&
+				condition.Status == metav1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// setGatewayListenersNotValid reports the Gateway-level result when no
+// listener is accepted. This is distinct from an infrastructure/programming
+// failure: the Gateway configuration itself has no valid listeners.
+func setGatewayListenersNotValid(gw *gatewayv1.Gateway) {
+	now := metav1.NewTime(time.Now())
+	gw.Status.Conditions = merge(gw.Status.Conditions,
+		metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionAccepted),
+			Status:             metav1.ConditionFalse,
+			Reason:             "ListenersNotValid",
+			Message:            "No Accepted Listeners",
+			ObservedGeneration: gw.GetGeneration(),
+			LastTransitionTime: now,
+		},
+		metav1.Condition{
+			Type:               string(gatewayv1.GatewayConditionProgrammed),
+			Status:             metav1.ConditionFalse,
+			Reason:             "ListenersNotValid",
+			Message:            "No Accepted Listeners",
+			ObservedGeneration: gw.GetGeneration(),
+			LastTransitionTime: now,
+		},
+	)
+}
+
 func setGatewayAccepted(gw *gatewayv1.Gateway, accepted bool, msg string) *gatewayv1.Gateway {
 	gw.Status.Conditions = merge(gw.Status.Conditions, gatewayStatusAcceptedCondition(gw, accepted, msg))
 	return gw

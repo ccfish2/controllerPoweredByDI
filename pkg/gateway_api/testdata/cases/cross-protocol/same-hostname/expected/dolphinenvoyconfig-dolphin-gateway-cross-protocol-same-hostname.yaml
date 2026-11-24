@@ -16,6 +16,10 @@ spec:
     namespace: gateway-conformance-infra
     number:
     - "8080"
+  - name: tls-backend
+    namespace: gateway-conformance-infra
+    number:
+    - "443"
   resources:
   - '@type': type.googleapis.com/envoy.config.listener.v3.Listener
     filterChains:
@@ -102,6 +106,16 @@ spec:
           commonTlsContext:
             tlsCertificateSdsSecretConfigs:
             - name: cilium-secrets/cross-protocol-tls
+    - filterChainMatch:
+        serverNames:
+        - api.example.test
+        transportProtocol: tls
+      filters:
+      - name: envoy.filters.network.tcp_proxy
+        typedConfig:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          cluster: gateway-conformance-infra:tls-backend:443
+          statPrefix: tls-passthrough:api.example.test
     listenerFilters:
     - name: envoy.filters.listener.tls_inspector
       typedConfig:
@@ -155,6 +169,14 @@ spec:
           idleTimeout: 60s
         useDownstreamProtocolConfig:
           http2ProtocolOptions: {}
+  - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
+    connectTimeout: 5s
+    edsClusterConfig:
+      serviceName: gateway-conformance-infra/tls-backend:443
+    name: gateway-conformance-infra:tls-backend:443
+    outlierDetection:
+      splitExternalLocalOriginErrors: true
+    type: EDS
   services:
   - name: dolphin-gateway-cross-protocol-same-hostname
     namespace: gateway-conformance-infra

@@ -1,0 +1,89 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cross-protocol-same-port-same-hostname
+  namespace: gateway-conformance-infra
+spec:
+  gatewayClassName: dolphin
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "api.example.test"
+      tls:
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: cross-protocol-tls
+            namespace: gateway-conformance-infra
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: tls-passthrough
+      protocol: TLS
+      port: 443
+      hostname: "api.example.test"
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: Same
+        kinds:
+          - kind: TLSRoute
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-route
+  namespace: gateway-conformance-infra
+spec:
+  parentRefs:
+    - name: cross-protocol-same-port-same-hostname
+      sectionName: https
+  hostnames:
+    - api.example.test
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /secure
+      backendRefs:
+        - name: infra-backend-v1
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: tls-route
+  namespace: gateway-conformance-infra
+spec:
+  parentRefs:
+    - name: cross-protocol-same-port-same-hostname
+      namespace: gateway-conformance-infra
+      sectionName: tls-passthrough
+  hostnames:
+    - api.example.test
+  rules:
+    - backendRefs:
+        - name: tls-backend
+          port: 443
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cross-protocol-tls
+  namespace: gateway-conformance-infra
+type: kubernetes.io/tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dolphin-gateway-cross-protocol-same-port-same-hostname
+  namespace: gateway-conformance-infra
+spec:
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+      - ip: 172.18.255.200
+        ipMode: VIP

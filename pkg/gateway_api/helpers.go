@@ -262,3 +262,28 @@ func getAllDolphinGatewaysSet(ctx context.Context, c client.Client) (map[string]
 func IsConfigMap(certRef gatewayv1.LocalObjectReference) bool {
 	return certRef.Kind == kindConfigMap && certRef.Group == corev1.GroupName
 }
+
+func ignoreConditionTransitionTimes(obj map[string]interface{}) {
+	for key, value := range obj {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			ignoreConditionTransitionTimes(v)
+
+		case []interface{}:
+			if key == "conditions" {
+				for _, item := range v {
+					if condition, ok := item.(map[string]interface{}); ok {
+						delete(condition, "lastTransitionTime")
+						ignoreConditionTransitionTimes(condition)
+					}
+				}
+			} else {
+				for _, item := range v {
+					if child, ok := item.(map[string]interface{}); ok {
+						ignoreConditionTransitionTimes(child)
+					}
+				}
+			}
+		}
+	}
+}
