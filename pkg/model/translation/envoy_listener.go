@@ -39,6 +39,11 @@ const (
 	tlsTransportProtocol       = "tls"
 )
 
+// grpcALPN is the ALPN list advertised on TLS filter chains that serve gRPC.
+// gRPC requires HTTP/2 to be negotiated via ALPN (grpc-go >= 1.67 enforces it).
+// Plain HTTPS listeners pass nil and advertise no ALPN.
+var grpcALPN = []string{"h2", "http/1.1"}
+
 type ListenerMutator func(*envoy_config_listener.Listener) *envoy_config_listener.Listener
 
 func WithProxyProtocol() ListenerMutator {
@@ -99,7 +104,7 @@ func WithSocketOption(tcpKeepAlive, tcpKeepIdleInSeconds, tcpKeepAliveProbeInter
 }
 
 // NewHTTPListenerWithDefaults same as NewListener but with default mutators applied.
-func NewHTTPListenerWithDefaults(name string, dolphinSecretNamespace string, tls map[model.TLSSecret][]string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+func NewHTTPListenerWithDefaults(name string, dolphinSecretNamespace string, tls map[model.TLSSecret][]string, alpn []string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	fns := append(mutatorFunc,
 		WithSocketOption(
 			defaultTCPKeepAlive,
@@ -107,13 +112,14 @@ func NewHTTPListenerWithDefaults(name string, dolphinSecretNamespace string, tls
 			defaultTCPKeepAliveProbeIntervalInSeconds,
 			defaultTCPKeepAliveMaxFailures),
 	)
-	return NewHTTPListener(name, dolphinSecretNamespace, tls, fns...)
+	return NewHTTPListener(name, dolphinSecretNamespace, tls, alpn, fns...)
 }
 
 // NewHTTPListener creates a new Envoy listener with the given name.
 // The listener will have both secure and insecure filters.
 // Secret Discovery Service (SDS) is used to fetch the TLS certificates.
-func NewHTTPListener(name string, dolphinSecretNamespace string, tls map[model.TLSSecret][]string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
+// alpn is the ALPN list for the TLS filter chains (grpcALPN for gRPC, nil otherwise).
+func NewHTTPListener(name string, dolphinSecretNamespace string, tls map[model.TLSSecret][]string, alpn []string, mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	var filterChains []*envoy_config_listener.FilterChain
 
 	insecureHttpConnectionManagerName := fmt.Sprintf("%s-insecure", name)
@@ -151,7 +157,7 @@ func NewHTTPListener(name string, dolphinSecretNamespace string, tls map[model.T
 			return dolphinv1.XDSResource{}, err
 		}
 
-		transportSocket, err := newTransportSocket(dolphinSecretNamespace, []model.TLSSecret{secret})
+		transportSocket, err := newTransportSocket(dolphinSecretNamespace, []model.TLSSecret{secret}, alpn)
 		if err != nil {
 			return dolphinv1.XDSResource{}, err
 		}
@@ -266,21 +272,27 @@ func NewSNIListener(name string, backendsForHost map[string][]string, mutatorFun
 	}, nil
 }
 
-func newTransportSocket(dolphinSecretNamespace string, tls []model.TLSSecret) (*envoy_config_core_v3.TransportSocket, error) {
-	var tlsSdsConfig []*envoy_extensions_transport_sockets_tls_v3.SdsSecretConfig
-	tlsMap := map[string]struct{}{}
+// newTransportSocket builds the downstream TLS transport socket.
+// alpn is the list of ALPN protocols to advertise: pass grpcALPN for listeners
+// that serve gRPC, and nil for plain HTTPS (no ALPN is advertised).
+func newTransportSocket(dolphinSecretNamespace string, tls []model.TLSSecret, alpn []string) (*envoy_config_core_v3.TransportSocket, error) {
+	names := make([]string, 0, len(tls))
 	for _, t := range tls {
-		tlsMap[fmt.Sprintf("%s/%s", dolphinSecretNamespace, t.Name)] = struct{}{}
+		names = append(names, fmt.Sprintf("%s/%s", dolphinSecretNamespace, t.Name))
 	}
+	// sorted and unique, so the generated CEC is stable across reconciles
+	names = slices.SortedUnique(names)
 
-	for k := range tlsMap {
+	tlsSdsConfig := make([]*envoy_extensions_transport_sockets_tls_v3.SdsSecretConfig, 0, len(names))
+	for _, n := range names {
 		tlsSdsConfig = append(tlsSdsConfig, &envoy_extensions_transport_sockets_tls_v3.SdsSecretConfig{
-			Name: k,
+			Name: n,
 		})
 	}
 
 	downStreamContext := envoy_extensions_transport_sockets_tls_v3.DownstreamTlsContext{
 		CommonTlsContext: &envoy_extensions_transport_sockets_tls_v3.CommonTlsContext{
+			AlpnProtocols:                  alpn,
 			TlsCertificateSdsSecretConfigs: tlsSdsConfig,
 		},
 	}
@@ -314,10 +326,12 @@ func toFilterChainMatch(hostNames []string) *envoy_config_listener.FilterChainMa
 }
 
 // newListenerWithDefaults same as newListener but with default mutators applied.
+// alpn is forwarded to the HTTPS filter chains (grpcALPN for gRPC, nil otherwise).
 func newListenerWithDefaults(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
 	tlsSecretsToHostnames map[model.TLSSecret][]string,
 	ptBackendsToHostnames map[string]tlsPassthroughBackend,
 	enableIpv4 bool, enableIpv6 bool,
+	alpn []string,
 	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	fns := append(mutatorFunc,
 		WithSocketOption(
@@ -327,13 +341,14 @@ func newListenerWithDefaults(name string, dolphinSecretNamespace string, include
 			defaultTCPKeepAliveMaxFailures),
 	)
 
-	return newListener(name, dolphinSecretNamespace, includeHTTPFilterchain, tlsSecretsToHostnames, ptBackendsToHostnames, enableIpv4, enableIpv6, fns...)
+	return newListener(name, dolphinSecretNamespace, includeHTTPFilterchain, tlsSecretsToHostnames, ptBackendsToHostnames, enableIpv4, enableIpv6, alpn, fns...)
 }
 
 func newListener(name string, dolphinSecretNamespace string, includeHTTPFilterchain bool,
 	tlsSecretsToHostnames map[model.TLSSecret][]string,
 	tlsPassthroughBackendsMap map[string]tlsPassthroughBackend,
 	enableIpv4 bool, enableIpv6 bool,
+	alpn []string,
 	mutatorFunc ...ListenerMutator) (dolphinv1.XDSResource, error) {
 	filterChains := []*envoy_config_listener.FilterChain{}
 
@@ -345,7 +360,7 @@ func newListener(name string, dolphinSecretNamespace string, includeHTTPFilterch
 		filterChains = append(filterChains, httpFilterChain)
 	}
 
-	httpsFilterChains, err := httpsFilterChains(name, dolphinSecretNamespace, tlsSecretsToHostnames, enableIpv4, enableIpv6)
+	httpsFilterChains, err := httpsFilterChains(name, dolphinSecretNamespace, tlsSecretsToHostnames, enableIpv4, enableIpv6, alpn)
 	if err != nil {
 		return dolphinv1.XDSResource{}, fmt.Errorf("failed to create https filterchains: %w", err)
 	}
@@ -412,7 +427,7 @@ func httpFilterChain(name string, enableIpv4 bool, enableIpv6 bool) (*envoy_conf
 }
 
 func httpsFilterChains(name string, dolphinSecretNamespace string, tlsSecretsToHostnames map[model.TLSSecret][]string,
-	enableIpv4 bool, enableIpv6 bool) ([]*envoy_config_listener.FilterChain, error) {
+	enableIpv4 bool, enableIpv6 bool, alpn []string) ([]*envoy_config_listener.FilterChain, error) {
 	if len(tlsSecretsToHostnames) == 0 {
 		return nil, nil
 	}
@@ -432,7 +447,7 @@ func httpsFilterChains(name string, dolphinSecretNamespace string, tlsSecretsToH
 			return nil, err
 		}
 
-		transportSocket, err := newTransportSocket(dolphinSecretNamespace, []model.TLSSecret{secret})
+		transportSocket, err := newTransportSocket(dolphinSecretNamespace, []model.TLSSecret{secret}, alpn)
 		if err != nil {
 			return nil, err
 		}

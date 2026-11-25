@@ -10,6 +10,7 @@ import (
 	envoy_config_listener "github.com/cilium/proxy/go/envoy/config/listener/v3"
 
 	envoy_http_connection_manager_v3 "github.com/cilium/proxy/go/envoy/extensions/filters/network/http_connection_manager/v3"
+	envoy_extensions_transport_sockets_tls_v3 "github.com/cilium/proxy/go/envoy/extensions/transport_sockets/tls/v3"
 	envoy_transport_sockets_tls_v3 "github.com/cilium/proxy/go/envoy/extensions/transport_sockets/tls/v3"
 
 	"github.com/stretchr/testify/require"
@@ -206,7 +207,7 @@ func TestSharedIngressTranslator_getListenerProxy(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	require.Len(t, res, 1)
 	listener := &envoy_config_listener.Listener{}
 	err := proto.Unmarshal(res[0].GetValue(), listener)
@@ -238,7 +239,7 @@ func TestSharedIngressTranslator_getListener(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	require.Len(t, res, 1)
 
 	listener := &envoy_config_listener.Listener{}
@@ -350,5 +351,39 @@ func TestSharedIngressTranslator_getClusters(t *testing.T) {
 				require.Equal(t, &envoy_config_cluster_v3.Cluster_Type{Type: envoy_config_cluster_v3.Cluster_EDS}, cluster.ClusterDiscoveryType)
 			}
 		})
+	}
+}
+
+func TestAlpnForModel(t *testing.T) {
+	require.Nil(t, alpnForModel(&model.Model{HTTP: []model.HTTPListener{{Routes: []model.HTTPRoute{{}}}}}))
+	require.Equal(t, grpcALPN, alpnForModel(&model.Model{HTTP: []model.HTTPListener{{Routes: []model.HTTPRoute{{IsGRPC: true}}}}}))
+}
+
+func TestGetListenerALPN(t *testing.T) {
+	i := &defaultTranslator{secretsNamespace: "dolphin-secrets"}
+	m := &model.Model{
+		HTTP: []model.HTTPListener{{
+			Hostname: "grpc-echo.cilium.rocks",
+			TLS:      []model.TLSSecret{{Name: "grpc-certificate", Namespace: "default"}},
+		}},
+	}
+
+	for name, alpn := range map[string][]string{"plain https": nil, "grpc": grpcALPN} {
+		res := i.getListener(m, alpn)
+		require.Len(t, res, 1, name)
+		l := &envoy_config_listener.Listener{}
+		require.NoError(t, proto.Unmarshal(res[0].GetValue(), l))
+
+		var tlsChains int
+		for _, fc := range l.FilterChains {
+			if fc.TransportSocket == nil {
+				continue
+			}
+			tlsChains++
+			ctx := &envoy_extensions_transport_sockets_tls_v3.DownstreamTlsContext{}
+			require.NoError(t, proto.Unmarshal(fc.TransportSocket.GetTypedConfig().GetValue(), ctx))
+			require.Equal(t, alpn, ctx.CommonTlsContext.AlpnProtocols, name)
+		}
+		require.Equal(t, 1, tlsChains, name)
 	}
 }

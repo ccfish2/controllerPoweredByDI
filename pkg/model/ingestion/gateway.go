@@ -391,6 +391,7 @@ func toGRPCRoutes(listener gatewayv1beta1.Listener, input []gatewayv1.GRPCRoute,
 
 			if len(rule.Matches) == 0 {
 				grpcRoutes = append(grpcRoutes, model.HTTPRoute{
+					IsGRPC:                 true,
 					Hostnames:              matchedHosts,
 					Backends:               bes,
 					DirectResponse:         dr,

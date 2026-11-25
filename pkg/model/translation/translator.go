@@ -160,7 +160,7 @@ func (i *defaultTranslator) getServices(m *model.Model) []*dolphinv1.ServiceList
 	}
 }
 
-func (i *defaultTranslator) getListener(m *model.Model) []dolphinv1.XDSResource {
+func (i *defaultTranslator) getListener(m *model.Model, alpn []string) []dolphinv1.XDSResource {
 	if len(m.HTTP) == 0 && len(m.TLS) == 0 {
 		return nil
 	}
@@ -171,7 +171,7 @@ func (i *defaultTranslator) getListener(m *model.Model) []dolphinv1.XDSResource 
 	}
 
 	l, _ := newListenerWithDefaults("listener", i.secretsNamespace, len(m.HTTP) > 0, tlsSecretsToHostnames(m.HTTP),
-		tlsPassthroughBackendsToHostnames(m.TLS), i.ipv4Enabled, i.ipv6Enabled, mutatorFuncs...)
+		tlsPassthroughBackendsToHostnames(m.TLS), i.ipv4Enabled, i.ipv6Enabled, alpn, mutatorFuncs...)
 	return []dolphinv1.XDSResource{l}
 }
 
@@ -206,14 +206,27 @@ func tlsSecretsToHostnames(httpListeners []model.HTTPListener) map[model.TLSSecr
 
 func (i *defaultTranslator) getResources(m *model.Model) []dolphinv1.XDSResource {
 	var res []dolphinv1.XDSResource
-	res = append(res, i.getListener(m)...)
+	res = append(res, i.getListener(m, alpnForModel(m))...)
 	res = append(res, i.getEnvoyHTTPRouteConfiguration(m)...)
 	res = append(res, i.getClusters(m)...)
 	res = append(res, i.getTCPRouteListeners(m)...)
 	return res
 }
 
-func (i *defaultTranslator) getHTTPRouteListener(m *model.Model) []dolphinv1.XDSResource {
+// alpnForModel returns grpcALPN if any HTTP listener in the model has a gRPC
+// route, otherwise nil (no ALPN advertised on plain HTTPS).
+func alpnForModel(m *model.Model) []string {
+	for _, h := range m.HTTP {
+		for _, r := range h.Routes {
+			if r.IsGRPC {
+				return grpcALPN
+			}
+		}
+	}
+	return nil
+}
+
+func (i *defaultTranslator) getHTTPRouteListener(m *model.Model, alpn []string) []dolphinv1.XDSResource {
 	if len(m.HTTP) == 0 {
 		return nil
 	}
@@ -228,7 +241,7 @@ func (i *defaultTranslator) getHTTPRouteListener(m *model.Model) []dolphinv1.XDS
 	if i.useProxyProtocol {
 		mutatorFuncs = append(mutatorFuncs, WithProxyProtocol())
 	}
-	l, _ := NewHTTPListenerWithDefaults("listener", i.secretsNamespace, tlsMap, mutatorFuncs...)
+	l, _ := NewHTTPListenerWithDefaults("listener", i.secretsNamespace, tlsMap, alpn, mutatorFuncs...)
 	return []dolphinv1.XDSResource{l}
 }
 
