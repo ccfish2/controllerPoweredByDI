@@ -1,0 +1,59 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gateway-with-infrastructure-metadata
+  namespace: gateway-conformance-infra
+spec:
+  gatewayClassName: dolphin
+  infrastructure:
+    annotations:
+      key1: value1
+    labels:
+      key2: value2
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: Same
+    name: http
+    port: 8080
+    protocol: HTTP
+status:
+  conditions:
+  - lastTransitionTime: "2026-11-26T07:13:56Z"
+    message: Gateway successfully scheduled
+    observedGeneration: 1
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: "2026-11-26T07:13:57Z"
+    message: Address is not ready
+    observedGeneration: 1
+    reason: ListenersNotReady
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: "2026-11-26T07:13:56Z"
+      message: Listener Accepted
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: "2026-11-26T07:13:56Z"
+      message: Listener Programmed
+      observedGeneration: 1
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: "2026-11-26T07:13:56Z"
+      message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: http
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
