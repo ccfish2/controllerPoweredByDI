@@ -1,0 +1,150 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: http-listener-isolation
+  namespace: gateway-conformance-infra
+spec:
+  gatewayClassName: dolphin
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: All
+    name: empty-hostname
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: '*.example.com'
+    name: wildcard-example-com
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: '*.foo.example.com'
+    name: wildcard-foo-example-com
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: abc.foo.example.com
+    name: abc-foo-example-com
+    port: 80
+    protocol: HTTP
+status:
+  conditions:
+  - lastTransitionTime: "2026-11-26T06:56:50Z"
+    message: Gateway successfully scheduled
+    observedGeneration: 1
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: "2026-11-26T06:56:50Z"
+    message: Address is not ready
+    observedGeneration: 1
+    reason: ListenersNotReady
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 1
+    conditions:
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Accepted
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Programmed
+      observedGeneration: 1
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: empty-hostname
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+  - attachedRoutes: 1
+    conditions:
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Accepted
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Programmed
+      observedGeneration: 1
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: wildcard-example-com
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+  - attachedRoutes: 1
+    conditions:
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Accepted
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Programmed
+      observedGeneration: 1
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: wildcard-foo-example-com
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+  - attachedRoutes: 1
+    conditions:
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Accepted
+      observedGeneration: 1
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Listener Programmed
+      observedGeneration: 1
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: "2026-11-26T06:56:50Z"
+      message: Resolved Refs
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: abc-foo-example-com
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute

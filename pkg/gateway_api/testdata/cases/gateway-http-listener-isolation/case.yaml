@@ -1,0 +1,6 @@
+# http-listener-isolation: no LB address is ever assigned, so the gateway
+# reconciler returns "load balancer status is not ready" and the Gateways stay
+# Programmed=False / AddressNotAssigned (see expected/).
+reconcile: [gateway]
+rounds: 2
+expectError: true
