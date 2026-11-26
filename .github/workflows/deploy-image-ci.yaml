@@ -7,6 +7,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  actions: read   # needed to download the artifact from the triggering run
+
 jobs:
   deploy-and-functional-test:
     name: Deploy and Functionally Test in Kind Cluster
@@ -19,26 +23,43 @@ jobs:
       # ============================================================
       # 1. Checkout application/operator repository
       # ============================================================
-      # Provides deployment manifests, test scripts, and other
-      # resources required to deploy and test the operator.
       - name: Checkout Code
         uses: actions/checkout@v4
 
       # ============================================================
+      # 1b. Get the image tag produced by Image CI Builder
+      # ============================================================
+      # NOTE: do not use github.event.workflow_run.head_sha for this.
+      # The builder runs on pull_request_target, so for PRs head_sha is
+      # the *base branch* commit, while the pushed image is tagged with
+      # the PR head sha. The builder uploads the real tag as an artifact.
+      - name: Download image tag artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image-tag
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read and validate image tag
+        run: |
+          TAG="$(tr -d '[:space:]' < image_tag.txt)"
+          # The tag is always a full git SHA; reject anything else.
+          if ! [[ "${TAG}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: unexpected image tag '${TAG}'"
+            exit 1
+          fi
+          echo "IMAGE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "Using image tag: ${TAG}"
+
+      # ============================================================
       # 2. Set up Docker
       # ============================================================
-      # Docker is required because the Kind Kubernetes nodes run
-      # as Docker containers.
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
       # ============================================================
       # 3. Prepare host directories for Kind node storage
       # ============================================================
-      # The local volume provisioner uses local/host storage.
-      #
-      # These directories are mounted into the Kind nodes through
-      # the Kind cluster configuration.
       - name: Create host directories
         run: |
           sudo mkdir -p /tmp/kind-node1-logs /tmp/kind-node2-logs
@@ -50,11 +71,6 @@ jobs:
       # ============================================================
       # 4. Create Kind Kubernetes cluster
       # ============================================================
-      # Creates the Kubernetes cluster using the project-specific
-      # Kind configuration.
-      #
-      # At this point the Kubernetes cluster exists, but the
-      # application/operator infrastructure has not been installed.
       - name: Set up Kind
         uses: helm/kind-action@v1
         with:
@@ -73,8 +89,6 @@ jobs:
       # ============================================================
       # 5. Install kubectl
       # ============================================================
-      # kubectl is used to configure, deploy, and validate the
-      # Kubernetes resources throughout this workflow.
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
@@ -83,8 +97,6 @@ jobs:
       # ============================================================
       # 6. Install GitHub CLI
       # ============================================================
-      # GitHub CLI is available to deployment/test scripts that
-      # need to interact with GitHub resources.
       - name: Install GitHub CLI
         run: |
           sudo apt update
@@ -93,11 +105,6 @@ jobs:
       # ============================================================
       # 7. Checkout infrastructure repository
       # ============================================================
-      # The infra repository contains the Dolphin CRD definitions
-      # required by the operator.
-      #
-      # It is checked out into ./infra so the CRDs can be applied
-      # before the operator is deployed.
       - name: Checkout infra repo (with CRD YAMLs)
         uses: actions/checkout@v4
         with:
@@ -112,15 +119,6 @@ jobs:
       # ============================================================
       # 8. Deploy local storage provisioner
       # ============================================================
-      # The Dolphin StatefulSet requires persistent storage.
-      #
-      # This step:
-      #   1. Installs the local volume provisioner.
-      #   2. Waits for its DaemonSet to become Ready.
-      #   3. Waits until at least two PVs are Available.
-      #
-      # Multiple available PVs are required for the StatefulSet
-      # storage configuration used by the Kind environment.
       - name: Deploy local volume provisioner and wait for PV
         run: |
           kubectl apply -f install/localstorage/localvolumeprovisioner.yaml
@@ -157,10 +155,6 @@ jobs:
       # ============================================================
       # 10. Create namespace and Quay image pull secret
       # ============================================================
-      # The Dolphin operator image is stored in Quay.io.
-      #
-      # The imagePullSecret allows Kubernetes to authenticate to
-      # the private Quay registry when pulling the operator image.
       - name: Create image pull secret
         run: |
           kubectl create ns dolphin
@@ -176,17 +170,12 @@ jobs:
       # ============================================================
       # 11. Deploy Dolphin operator
       # ============================================================
-      # Deploy the Kind-specific manifests.
-      #
-      # The image reference in each manifest is overridden with
-      # the exact image generated by the successful Image CI Builder
-      # workflow.
-      #
-      # github.event.workflow_run.head_sha identifies the commit
-      # associated with the upstream workflow run.
+      # TODO: this step still points at quay.io with head_sha, which the
+      # builder never pushes (it pushes docker.io/jimin1/...:<tag>), and it
+      # overlaps with the helm install further down. Consider removing it.
       - name: Deploy Dolphin Operator
         run: |
-          echo "Deploying image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}"
+          echo "Deploying image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${IMAGE_TAG}"
 
           # Ensure the application namespace exists.
           kubectl create namespace dolphin || true
@@ -194,14 +183,12 @@ jobs:
           # Override the container image in the Kind-specific
           # deployment manifests.
           for file in install/manifests/kindenv/*.yaml; do
-            sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${{ github.event.workflow_run.head_sha }}|g" "$file" | kubectl apply -n dolphin -f -
+            sed "s|image: .*|image: quay.io/${{ secrets.QUAY_ORGANIZATION_DEV }}:${IMAGE_TAG}|g" "$file" | kubectl apply -n dolphin -f -
           done
 
       # ============================================================
       # 12. Wait for PersistentVolumeClaims
       # ============================================================
-      # The StatefulSet cannot become Ready until its PVCs are
-      # successfully bound to the available PVs.
       - name: Wait for PVCs to be Ready
         run: |
           NAMESPACE="dolphin"
@@ -238,8 +225,6 @@ jobs:
       # ============================================================
       # 14. Install functional-test dependencies
       # ============================================================
-      # jq is required by the functional test scripts for parsing
-      # JSON output from Kubernetes and networking commands.
       - name: Install jq
         run: |
           sudo apt-get update
@@ -300,7 +285,7 @@ jobs:
               --set ingressController.enabled=true \
               --set ingressController.name=cilium \
               --set ingressController.loadbalancerMode=dedicated \
-              --set envoyConfig.enabled=true
+              --set envoyConfig.enabled=true \
               --wait \
               --timeout "${CILIUM_HELM_TIMEOUT}s"
           then
@@ -395,21 +380,22 @@ jobs:
           kubectl -n kube-system rollout restart ds/cilium
 
           echo "Cilium installation complete."
+
       # ============================================================
       #                  FUNCTIONAL TESTING
       # ============================================================
-      #
-      # The workflow validates the deployed system in three major
-      # functional areas:
-      #
       #   1. Customer Log Controller
       #   2. Network Ingress
       #   3. Gateway API
-      #
-      # These tests are executed only after the operator and its
-      # persistent storage have successfully become Ready.
       # ============================================================
-      - name: Deploy the StatefulSet Operartor and Wait for Dolphin Operator to be Ready
+      - name: Deploy the StatefulSet Operator and Wait for Dolphin Operator to be Ready
+        env:
+          # Variables used below were previously only defined in the Cilium
+          # step's shell, so they were empty here.
+          NAMESPACE: kube-system
+          TIMEOUT: "300"
+          INTERVAL: "5"
+          IMAGE_REPO: docker.io/jimin1/dolphin-operator-generic
         run: |
           echo "Ensuring Cilium Operator is not running..."
           # In case an older installation created the operator, remove it.
@@ -448,27 +434,27 @@ jobs:
 
           helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
           helm repo update
-          helm install dolphin-operator dolphin-operator/dolphin-operator --namespace dolphin --create-namespace
-          # kubectl apply -f install/manifests/statefulset.yaml
-          # kubectl set image -n dolphin \
-          # statefulset/operator-dolphin \
-          # dolphin-operator=docker.io/jimin1/dolphin-operator-generic:${{ inputs.image_tag }}
+          helm upgrade --install dolphin-operator dolphin-operator/dolphin-operator \
+            --namespace dolphin --create-namespace
+
+          # Point the StatefulSet at the image built by Image CI Builder.
+          echo "Setting operator image to ${IMAGE_REPO}:${IMAGE_TAG}"
+          kubectl set image -n dolphin \
+            statefulset/operator-dolphin \
+            dolphin-operator="${IMAGE_REPO}:${IMAGE_TAG}"
 
           if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
             echo "StatefulSet operator-dolphin rolled out successfully"
           else
             echo "StatefulSet operator-dolphin rollout failed or timed out"
+            kubectl -n dolphin describe statefulset operator-dolphin || true
+            kubectl -n dolphin get pods -o wide || true
             exit 1
           fi
 
       # ============================================================
       # 15. Customer Log Controller Functional Tests
       # ============================================================
-      # Validate the customer log controller functionality against
-      # the deployed Kind environment.
-      #
-      # Keep the test script below aligned with the actual script
-      # in the repository.
       - name: Run Customer Log Controller Functional Tests
         run: |
           bash .github/actions/tests/kindenv/operator-tests.sh
@@ -476,8 +462,6 @@ jobs:
       # ============================================================
       # 16. Network Ingress Functional Tests
       # ============================================================
-      # Validate application ingress connectivity and the expected
-      # network behavior of the deployed environment.
       - name: Run Network Ingress Functional Tests
         run: |
           bash .github/actions/tests/kindenv/network-ingress-tests.sh
@@ -485,11 +469,6 @@ jobs:
       # ============================================================
       # 18. Cleanup
       # ============================================================
-      # Always delete the Kind cluster, including when deployment
-      # or any functional test fails.
-      #
-      # This ensures the GitHub Actions runner is cleaned up after
-      # every workflow execution.
       - name: Delete Kind Cluster
         if: always()
         run: |

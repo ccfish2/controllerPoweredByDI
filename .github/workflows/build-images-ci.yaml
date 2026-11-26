@@ -1,6 +1,4 @@
 name: Image CI Builder
-# fix me: only PR merge into main trigger image built
-# release tag needs be passed in through automation
 on:
   pull_request_target:
     types:
@@ -94,13 +92,31 @@ jobs:
 
       - name: Getting image tag
         id: tag
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event.pull_request.head.sha }}" != "" ]; then
-            echo "tag=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          if [ -n "${PR_HEAD_SHA}" ]; then
+            echo "tag=${PR_HEAD_SHA}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "tag=${EVENT_SHA}" >> "$GITHUB_OUTPUT"
           fi
-    
+
+      # ------------------------------------------------------------
+      # Hand the tag to the downstream "Deploy Image into Kind Cluster"
+      # workflow. workflow_run cannot read job outputs of the triggering
+      # run, so the tag travels as a tiny artifact.
+      # ------------------------------------------------------------
+      - name: Save image tag
+        run: echo "${{ steps.tag.outputs.tag }}" > image_tag.txt
+
+      - name: Upload image tag artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: image_tag.txt
+          retention-days: 7
+
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
