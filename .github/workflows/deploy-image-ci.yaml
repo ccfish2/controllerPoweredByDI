@@ -435,13 +435,10 @@ jobs:
           helm repo add dolphin-operator https://ccfish2.github.io/charts/dolphin-operator/
           helm repo update
           helm upgrade --install dolphin-operator dolphin-operator/dolphin-operator \
-            --namespace dolphin --create-namespace
-
-          # Point the StatefulSet at the image built by Image CI Builder.
-          echo "Setting operator image to ${IMAGE_REPO}:${IMAGE_TAG}"
-          kubectl set image -n dolphin \
-            statefulset/operator-dolphin \
-            dolphin-operator="${IMAGE_REPO}:${IMAGE_TAG}"
+            --namespace dolphin --create-namespace \
+            --set image.repository="${IMAGE_REPO}" \
+            --set image.tag="${IMAGE_TAG}" \
+            --wait --timeout 120s
 
           if kubectl rollout status statefulset/operator-dolphin -n dolphin --timeout=120s; then
             echo "StatefulSet operator-dolphin rolled out successfully"

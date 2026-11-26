@@ -251,7 +251,6 @@ jobs:
       #
       # This installs:
       #
-      #   Dolphin CRDs
       #   GatewayClass
       #   Gateway
       #   HTTPRoute
@@ -280,29 +279,7 @@ jobs:
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_tcproutes.yaml
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.6.1/config/crd/standard/gateway.networking.k8s.io_udproutes.yaml
 
-      # ============================================================
-      # 9. Install Gateway API CRDs v1.7.0-rc.1
-      # ============================================================
-      # CRDs must be installed before the operator can create or
-      # manage the corresponding custom resources.
-      #
-      # This installs:
-      #
-      #   Dolphin CRDs
-      #   GatewayClass
-      #   Gateway
-      #   HTTPRoute
-      #   ReferenceGrant
-      #   GRPCRoute
-      #   TLSRoute
-      #
-      # TLSRoute is installed from the Gateway API experimental
-      # CRD directory.
-      # - name: Deploy the CRD YAMLs
-      #   run: |
-      #     # Install Dolphin-specific CRDs.
-      #     kubectl apply -f infra/pkg/k8s/apis/dolphin.io/client/crd/bases
-      #     kubectl apply -f .github/actions/tests/gwapi17rc1
+
       # ============================================================
       # 10. Create namespace and Quay image pull secret
       # ============================================================
@@ -628,24 +605,6 @@ jobs:
         run: |
           bash .github/actions/tests/kindenv/gatewayapiv161/https-termination/gw161tls-termination.sh
 
-      # ============================================================
-      # 16. Gateway API Basic Functional Tests Redundant
-      # ============================================================
-      # Validate Gateway API functionality provided by the operator.
-      #
-      # The test suite exercises the Gateway API resources installed
-      # earlier in this workflow, including GatewayClass, Gateway,
-      # HTTPRoute and other supported Gateway API resources.
-      #
-      # This step can be skipped when manually triggering the workflow
-      # by setting run_http_tests to false.
-      # there are some overlapps between api-tests and default-tls-cert tests
-      # - name: Run Network Gateway API Basic TLS Termination Functional Tests 
-      #   if: |
-      #     github.event_name == 'workflow_run' || 
-      #     (github.event_name == 'workflow_dispatch' && inputs.run_gwapi_basic_functional_tests == 'true')
-      #   run: |
-      #     bash .github/actions/tests/kindenv/network-gateway-api-tests.sh
 
       # ============================================================
       # 17. Gateway API HTTP/HTTPS/TLSROUTE Functional Tests
