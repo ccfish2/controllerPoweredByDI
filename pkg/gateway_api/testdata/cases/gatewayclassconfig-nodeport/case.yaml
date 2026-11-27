@@ -1,0 +1,4 @@
+# cross-protocol/same-hostname: HTTPS listener and TLS-passthrough listener
+# share one hostname on one Gateway.
+reconcile: [gateway]
+rounds: 1 

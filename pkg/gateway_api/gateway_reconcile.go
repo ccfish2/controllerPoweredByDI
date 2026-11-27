@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -365,6 +366,17 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	tracker.set("build namespace index and filter routes")
 	namespaceLabels := helpers.NewNamespaceLabelIndex(namespaces)
 	dgccfg := r.getGatewayClassConfig(ctx, gwc)
+	if dgccfg == nil {
+		scopedLog.Error(
+			"GatewayClassConfig is nil; Service will default to LoadBalancer",
+		)
+	} else {
+		scopedLog.WithFields(logrus.Fields{
+			"config":      dgccfg.Name,
+			"namespace":   dgccfg.Namespace,
+			"serviceType": dgccfg.Spec.Service.Type,
+		}).Info("GatewayClassConfig loaded")
+	}
 	HTTPRoutes := r.filterHTTPRoutesByGateway(ctx, copy, attachedListenerSets, httpRouteList.Items)
 	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
 	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items)
@@ -1287,20 +1299,65 @@ func (r *gatewayReconciler) ensureService(ctx context.Context, desired *corev1.S
 	return err
 }
 
-func (r *gatewayReconciler) getGatewayClassConfig(ctx context.Context, gwc *gatewayv1.GatewayClass) *dolphinv2alpha1.DolphinGatewayClassConfig {
-	if gwc.Spec.ParametersRef == nil ||
-		gwc.Spec.ParametersRef.Group != dolphinv2alpha1.CustomResourceDefinitionGroup ||
-		gwc.Spec.ParametersRef.Kind != dolphinv2alpha1.DGCCKindDefinition {
+func (r *gatewayReconciler) getGatewayClassConfig(
+	ctx context.Context,
+	gwc *gatewayv1.GatewayClass,
+) *dolphinv2alpha1.DolphinGatewayClassConfig {
+	if gwc.Spec.ParametersRef == nil {
+		logrus.Error("GatewayClass has no ParametersRef")
+		return nil
+	}
+
+	ref := gwc.Spec.ParametersRef
+
+	var namespace string
+	if ref.Namespace != nil {
+		namespace = string(*ref.Namespace)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"group":     ref.Group,
+		"kind":      ref.Kind,
+		"name":      ref.Name,
+		"namespace": namespace,
+	}).Info("Resolving GatewayClassConfig ParametersRef")
+
+	if ref.Group != dolphinv2alpha1.CustomResourceDefinitionGroup ||
+		ref.Kind != dolphinv2alpha1.DGCCKindDefinition {
+		logrus.WithFields(logrus.Fields{
+			"expectedGroup": dolphinv2alpha1.CustomResourceDefinitionGroup,
+			"expectedKind":  dolphinv2alpha1.DGCCKindDefinition,
+			"actualGroup":   ref.Group,
+			"actualKind":    ref.Kind,
+		}).Error("GatewayClass ParametersRef does not match GatewayClassConfig")
+		return nil
+	}
+
+	if ref.Namespace == nil {
+		logrus.Error("GatewayClassConfig ParametersRef has no namespace")
 		return nil
 	}
 
 	res := &dolphinv2alpha1.DolphinGatewayClassConfig{}
-	if err := r.Client.Get(ctx, client.ObjectKey{
-		Namespace: string(*gwc.Spec.ParametersRef.Namespace),
-		Name:      gwc.Spec.ParametersRef.Name,
-	}, res); err != nil {
+	key := client.ObjectKey{
+		Namespace: namespace,
+		Name:      ref.Name,
+	}
+
+	if err := r.Client.Get(ctx, key, res); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"namespace": namespace,
+			"name":      ref.Name,
+		}).WithError(err).Error("Failed to fetch GatewayClassConfig")
 		return nil
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"namespace":   res.Namespace,
+		"name":        res.Name,
+		"serviceType": res.Spec.Service.Type,
+	}).Info("GatewayClassConfig successfully loaded")
+
 	return res
 }
 
@@ -1773,11 +1830,19 @@ func (r *gatewayReconciler) filterGRPCRoutesByGateway(ctx context.Context, gw *g
 }
 
 // this enables running locally: either ingress or hostip would work on gateway-api
-func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.Gateway) error {
+func (r *gatewayReconciler) setAddressStatus(
+	ctx context.Context,
+	gw *gatewayv1.Gateway,
+) error {
 	svcList := &corev1.ServiceList{}
-	if err := r.Client.List(ctx, svcList, client.MatchingLabels{
-		owningGatewayLabel: model.Shorten(gw.GetName()),
-	}, client.InNamespace(gw.GetNamespace())); err != nil {
+	if err := r.Client.List(
+		ctx,
+		svcList,
+		client.MatchingLabels{
+			owningGatewayLabel: model.Shorten(gw.GetName()),
+		},
+		client.InNamespace(gw.GetNamespace()),
+	); err != nil {
 		return err
 	}
 
@@ -1785,23 +1850,95 @@ func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.
 		return fmt.Errorf("no service found")
 	}
 
-	svc := svcList.Items[0]
+	var svc *corev1.Service
+
+	// Prefer NodePort when the Gateway is configured for NodePort.
+	for i := range svcList.Items {
+		candidate := &svcList.Items[i]
+		if candidate.Spec.Type == corev1.ServiceTypeNodePort {
+			svc = candidate
+			break
+		}
+	}
+
+	// Otherwise, retain the existing LoadBalancer behavior.
+	if svc == nil {
+		for i := range svcList.Items {
+			candidate := &svcList.Items[i]
+			if candidate.Spec.Type == corev1.ServiceTypeLoadBalancer {
+				svc = candidate
+				break
+			}
+		}
+	}
+
+	if svc == nil {
+		return fmt.Errorf("no NodePort or LoadBalancer service found for Gateway %s/%s",
+			gw.GetNamespace(), gw.GetName())
+	}
+
+	var addresses []gatewayv1.GatewayStatusAddress
+
+	if svc.Spec.Type == corev1.ServiceTypeNodePort {
+		nodeList := &corev1.NodeList{}
+		if err := r.Client.List(ctx, nodeList); err != nil {
+			return fmt.Errorf("unable to list nodes for NodePort Gateway: %w", err)
+		}
+
+		seen := make(map[string]struct{})
+
+		for _, node := range nodeList.Items {
+			for _, nodeAddress := range node.Status.Addresses {
+				if nodeAddress.Type != corev1.NodeInternalIP {
+					continue
+				}
+
+				// The expected NodePort Gateway addresses are IPv4 addresses.
+				ip := net.ParseIP(nodeAddress.Address)
+				if ip == nil || ip.To4() == nil {
+					continue
+				}
+
+				if _, exists := seen[nodeAddress.Address]; exists {
+					continue
+				}
+				seen[nodeAddress.Address] = struct{}{}
+
+				addresses = append(addresses, gatewayv1.GatewayStatusAddress{
+					Type:  GatewayAddressTypePtr(gatewayv1.IPAddressType),
+					Value: nodeAddress.Address,
+				})
+			}
+		}
+
+		if len(addresses) == 0 {
+			return fmt.Errorf("no usable node IP addresses found for NodePort Gateway")
+		}
+
+		sort.Slice(addresses, func(i, j int) bool {
+			return addresses[i].Value < addresses[j].Value
+		})
+
+		gw.Status.Addresses = addresses
+		return nil
+	}
+
 	if len(svc.Status.LoadBalancer.Ingress) == 0 {
 		return fmt.Errorf("load balancer status is not ready")
 	}
 
-	var addresses []gatewayv1.GatewayStatusAddress
-	for _, s := range svc.Status.LoadBalancer.Ingress {
-		if len(s.IP) != 0 {
+	for _, ingress := range svc.Status.LoadBalancer.Ingress {
+		if ingress.IP != "" {
 			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
 				Type:  GatewayAddressTypePtr(gatewayv1.IPAddressType),
-				Value: s.IP,
+				Value: ingress.IP,
 			})
 		}
-		if len(s.Hostname) != 0 {
+
+		if ingress.Hostname != "" {
 			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
 				Type:  GatewayAddressTypePtr(gatewayv1.HostnameAddressType),
-				Value: s.Hostname,
+				Value: ingress.Hostname,
 			})
 		}
 	}

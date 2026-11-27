@@ -38,9 +38,10 @@ var (
 
 // CRDs, relative to the package directory.
 var (
-	crdGatewayAPIDir   = filepath.Join("testdata", "crd", "gateway-api")
-	crdDolphinEnvoyCfg = filepath.Join("testdata", "crd", "dolphinenvoyconfigs.yaml")
-	crdCiliumEnvoyCfg  = filepath.Join("testdata", "crd", "ciliumenvoyconfigs.yaml")
+	crdGatewayAPIDir       = filepath.Join("testdata", "crd", "gateway-api")
+	crdDolphinEnvoyCfg     = filepath.Join("testdata", "crd", "dolphinenvoyconfigs.yaml")
+	crdDolphinGatewayClass = filepath.Join("testdata", "crd", "dolphingatewayclassconfigs.yaml")
+	crdCiliumEnvoyCfg      = filepath.Join("testdata", "crd", "ciliumenvoyconfigs.yaml")
 )
 
 // findEnvtestBinaries returns the directory that contains kube-apiserver/etcd.
@@ -79,6 +80,7 @@ var _ = BeforeSuite(func() {
 			crdGatewayAPIDir,
 			crdDolphinEnvoyCfg,
 			crdCiliumEnvoyCfg,
+			crdDolphinGatewayClass,
 		},
 		ErrorIfCRDPathMissing: true,
 		BinaryAssetsDirectory: findEnvtestBinaries(),

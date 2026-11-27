@@ -1,0 +1,238 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: dolphingatewayclassconfigs.dolphin.io
+spec:
+  group: dolphin.io
+  names:
+    categories:
+    - dolphin
+    kind: DolphinGatewayClassConfig
+    listKind: DolphinGatewayClassConfigList
+    plural: dolphingatewayclassconfigs
+    shortNames:
+    - dgcc
+    singular: dolphingatewayclassconfig
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Accepted")].status
+      name: Accepted
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .spec.description
+      name: Description
+      priority: 1
+      type: string
+    name: v2alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              description:
+                type: string
+              service:
+                properties:
+                  allocateLoadBalancerNodePorts:
+                    type: boolean
+                  externalTrafficPolicy:
+                    description: |-
+                      ServiceExternalTrafficPolicy describes how nodes distribute service traffic they
+                      receive on one of the Service's "externally-facing" addresses (NodePorts, ExternalIPs,
+                      and LoadBalancer IPs.
+                    type: string
+                  ipFamilies:
+                    items:
+                      description: |-
+                        IPFamily represents the IP Family (IPv4 or IPv6). This type is used
+                        to express the family of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                      type: string
+                    type: array
+                  ipFamilyPolicy:
+                    description: IPFamilyPolicy represents the dual-stack-ness requested
+                      or required by a Service
+                    type: string
+                  loadBalancerClass:
+                    type: string
+                  loadBalancerSourceRanges:
+                    items:
+                      type: string
+                    type: array
+                  loadBalancerSourceRangesPolicy:
+                    type: string
+                  trafficDistribution:
+                    type: string
+                  type:
+                    description: Service Type string describes ingress methods for
+                      a service
+                    type: string
+                type: object
+              telemetry:
+                properties:
+                  accessLogs:
+                    items:
+                      properties:
+                        format:
+                          description: Format specifies the access log output format.
+                          enum:
+                          - JSON
+                          - Text
+                          type: string
+                        json:
+                          additionalProperties:
+                            type: string
+                          default:
+                            authority: '%REQUEST_HEADER(:AUTHORITY)%'
+                            bytes_received: '%BYTES_RECEIVED%'
+                            bytes_sent: '%BYTES_SENT%'
+                            duration: '%DURATION%'
+                            method: '%REQUEST_HEADER(:METHOD)%'
+                            path: '%REQUEST_HEADER(X-ENVOY-ORIGINAL-PATH?:PATH)%'
+                            protocol: '%PROTOCOL%'
+                            request_id: '%REQUEST_HEADER(X-REQUEST-ID)%'
+                            response_code: '%RESPONSE_CODE%'
+                            response_flags: '%RESPONSE_FLAGS%'
+                            start_time: '%START_TIME%'
+                            upstream_host: '%UPSTREAM_HOST%'
+                            upstream_service_time: '%RESPONSE_HEADER(X-ENVOY-UPSTREAM-SERVICE-TIME)%'
+                            user_agent: '%REQUEST_HEADER(USER-AGENT)%'
+                            x_forwarded_for: '%REQUEST_HEADER(X-FORWARDED-FOR)%'
+                          description: |-
+                            JSON maps access log field names to Envoy command operators.
+                            It is used when Format is "JSON".
+                            For available format specifiers, see the Envoy documentation:
+                            - https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage
+                            Note: Always refer to the documentation matching the specific Envoy version you are running.
+                            The following Dolphin-specific formatters are also supported:
+                            - %DOLPHIN_GATEWAY_NAME% -- replaced with the Gateway resource name.
+                            - %DOLPHIN_GATEWAY_NAMESPACE% -- replaced with the Gateway resource namespace.
+                          maxProperties: 64
+                          minProperties: 1
+                          type: object
+                        targets:
+                          default:
+                          - HTTP
+                          description: |-
+                            Targets specifies the generated Envoy proxy components where access logs
+                            are emitted. If omitted, access logs are emitted for HTTP traffic only.
+                            HTTP targets Envoy HTTP connection managers. TCP targets Envoy TCP proxies,
+                            including TLS passthrough.
+                          items:
+                            type: string
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: set
+                        text:
+                          default: '[%START_TIME%] "%REQUEST_HEADER(:METHOD)% %REQUEST_HEADER(X-ENVOY-ORIGINAL-PATH?:PATH)%
+                            %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED%
+                            %BYTES_SENT% %DURATION% %RESPONSE_HEADER(X-ENVOY-UPSTREAM-SERVICE-TIME)%
+                            "%REQUEST_HEADER(X-FORWARDED-FOR)%" "%REQUEST_HEADER(USER-AGENT)%"
+                            "%REQUEST_HEADER(X-REQUEST-ID)%" "%REQUEST_HEADER(:AUTHORITY)%"
+                            "%UPSTREAM_HOST%"'
+                          description: |-
+                            Text specifies the Envoy access log format string.
+                            It is used when Format is "Text".
+                            For available format specifiers, see the Envoy documentation:
+                            - https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage
+                            Note: Always refer to the documentation matching the specific Envoy version you are running.
+                            The following Dolphin-specific formatters are also supported:
+                            - %DOLPHIN_GATEWAY_NAME% -- replaced with the Gateway resource name.
+                            - %DOLPHIN_GATEWAY_NAMESPACE% -- replaced with the Gateway resource namespace.
+                          maxLength: 4096
+                          minLength: 1
+                          type: string
+                      required:
+                      - format
+                      type: object
+                    type: array
+                type: object
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        required:
+        - metadata
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
